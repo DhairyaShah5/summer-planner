@@ -70,7 +70,9 @@ export default async function PaychecksPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="mb-6 space-y-1">
-        <h1 className="text-3xl font-semibold tracking-tight">Paycheck Plan</h1>
+        <h1 className="bg-gradient-to-r from-blue-500 via-emerald-500 to-amber-500 bg-clip-text text-3xl font-semibold tracking-tight text-transparent">
+          Paycheck Plan
+        </h1>
         <p className="text-sm text-muted-foreground">
           Edit hours, per diem, and actual net wages as paychecks arrive. Computed
           columns update live; saves happen on blur.

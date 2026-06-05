@@ -5,6 +5,7 @@ import { useForm, type UseFormReturn, type FieldPath } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -108,7 +109,7 @@ export function SettingsForm({
   return (
     <>
       <form onSubmit={onSubmit} className="space-y-8">
-        <Section title="Tuition Vault">
+        <Section index={0} title="Tuition Vault">
           <MoneyField
             form={form}
             name="vault_cap"
@@ -119,7 +120,7 @@ export function SettingsForm({
 
         <Separator />
 
-        <Section title="Pay Assumptions">
+        <Section index={1} title="Pay Assumptions">
           <MoneyField
             form={form}
             name="usc_gross_baseline"
@@ -148,7 +149,7 @@ export function SettingsForm({
 
         <Separator />
 
-        <Section title="Fixed Commitments">
+        <Section index={2} title="Fixed Commitments">
           <MoneyField
             form={form}
             name="rent_monthly"
@@ -171,7 +172,7 @@ export function SettingsForm({
 
         <Separator />
 
-        <Section title="USC Allocation Rules">
+        <Section index={3} title="USC Allocation Rules">
           <MoneyField
             form={form}
             name="usc_no_rent_vault"
@@ -187,21 +188,25 @@ export function SettingsForm({
         </Section>
 
         <div className="flex items-center justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => form.reset(initialValues)}
-            disabled={mutation.isPending || !form.formState.isDirty}
-          >
-            Discard changes
-          </Button>
-          <Button
-            type="submit"
-            disabled={mutation.isPending || !form.formState.isDirty}
-            className="transition-transform active:scale-[0.98]"
-          >
-            {mutation.isPending ? "Saving..." : "Save settings"}
-          </Button>
+          <motion.div whileTap={{ scale: 0.97 }}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => form.reset(initialValues)}
+              disabled={mutation.isPending || !form.formState.isDirty}
+            >
+              Discard changes
+            </Button>
+          </motion.div>
+          <motion.div whileTap={{ scale: 0.97 }}>
+            <Button
+              type="submit"
+              disabled={mutation.isPending || !form.formState.isDirty}
+              className="transition-transform"
+            >
+              {mutation.isPending ? "Saving..." : "Save settings"}
+            </Button>
+          </motion.div>
         </div>
       </form>
 
@@ -260,15 +265,22 @@ export function SettingsForm({
 function Section({
   title,
   children,
+  index = 0,
 }: {
   title: string;
   children: React.ReactNode;
+  index?: number;
 }) {
   return (
-    <section className="space-y-4">
+    <motion.section
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.08, duration: 0.4 }}
+      className="space-y-4"
+    >
       <h2 className="font-heading text-base font-medium">{title}</h2>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{children}</div>
-    </section>
+    </motion.section>
   );
 }
 

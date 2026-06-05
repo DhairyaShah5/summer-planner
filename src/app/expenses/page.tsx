@@ -90,7 +90,9 @@ export default async function ExpensesPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8 space-y-4">
       <div className="space-y-1">
-        <h1 className="text-3xl font-semibold tracking-tight">Expenses</h1>
+        <h1 className="bg-gradient-to-r from-rose-500 via-fuchsia-500 to-indigo-500 bg-clip-text text-3xl font-semibold tracking-tight text-transparent">
+          Expenses
+        </h1>
         <p className="text-sm text-muted-foreground">
           Log spend as it happens. Grouped by week.
         </p>

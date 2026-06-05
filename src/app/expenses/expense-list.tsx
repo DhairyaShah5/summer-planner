@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, endOfWeek, startOfWeek } from 'date-fns'
-import { Inbox, Loader2Icon, Trash2Icon } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Sparkles, Loader2Icon, Trash2Icon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { createClient } from '@/lib/supabase/client'
@@ -110,12 +111,19 @@ export function ExpenseList({ expenses, weeklyTarget }: Props) {
 
   return (
     <div className="space-y-4">
-      <Card size="sm" className="transition-shadow hover:shadow-md">
+      <Card
+        size="sm"
+        className={`border-l-4 transition-shadow hover:shadow-md ${
+          remaining >= 0 ? 'border-l-emerald-500' : 'border-l-rose-500'
+        }`}
+      >
         <CardContent className="space-y-1">
           <div className="flex items-baseline gap-2">
             <span
               className={`text-2xl font-semibold tabular-nums ${
-                remaining >= 0 ? '' : 'text-destructive'
+                remaining >= 0
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-rose-600 dark:text-rose-400'
               }`}
             >
               {money.format(Math.abs(remaining))}
@@ -136,22 +144,37 @@ export function ExpenseList({ expenses, weeklyTarget }: Props) {
       {groups.length === 0 ? (
         <Card>
           <CardContent>
-            <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
-              <div className="rounded-full bg-muted p-3">
-                <Inbox className="size-6 text-muted-foreground" />
-              </div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.4 }}
+              className="flex flex-col items-center justify-center gap-3 py-10 text-center"
+            >
+              <motion.div
+                animate={{ rotate: [0, -8, 8, 0] }}
+                transition={{ duration: 1.6, repeat: Infinity, repeatDelay: 2 }}
+                className="rounded-full bg-gradient-to-br from-amber-400/20 to-fuchsia-500/20 p-3"
+              >
+                <Sparkles className="size-6 text-amber-500" />
+              </motion.div>
               <div className="space-y-1">
                 <p className="text-sm font-medium">No expenses yet</p>
                 <p className="text-xs text-muted-foreground">
                   Add your first one with the form above.
                 </p>
               </div>
-            </div>
+            </motion.div>
           </CardContent>
         </Card>
       ) : (
-        groups.map((g) => (
-          <div key={g.key} className="space-y-2">
+        groups.map((g, gi) => (
+          <motion.div
+            key={g.key}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: gi * 0.06, duration: 0.4 }}
+            className="space-y-2"
+          >
             <div className="flex items-baseline justify-between px-1">
               <h2 className="text-sm font-medium text-muted-foreground">
                 Week of {format(g.start, 'MMM d')} – {format(g.end, 'MMM d')}
@@ -163,9 +186,12 @@ export function ExpenseList({ expenses, weeklyTarget }: Props) {
             <Card className="transition-shadow hover:shadow-md">
               <CardContent className="!p-0">
                 <ul className="divide-y">
-                  {g.expenses.map((e) => (
-                    <li
+                  {g.expenses.map((e, i) => (
+                    <motion.li
                       key={e.id}
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: gi * 0.06 + i * 0.02, duration: 0.3 }}
                       className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/40"
                     >
                       <div className="shrink-0 text-xs text-muted-foreground tabular-nums">
@@ -194,12 +220,12 @@ export function ExpenseList({ expenses, weeklyTarget }: Props) {
                       >
                         <Trash2Icon className="size-4" />
                       </Button>
-                    </li>
+                    </motion.li>
                   ))}
                 </ul>
               </CardContent>
             </Card>
-          </div>
+          </motion.div>
         ))
       )}
 

@@ -58,7 +58,9 @@ export default async function SettingsPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       <div className="space-y-1">
-        <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
+        <h1 className="bg-gradient-to-r from-slate-600 via-indigo-500 to-fuchsia-500 bg-clip-text text-3xl font-semibold tracking-tight text-transparent">
+          Settings
+        </h1>
         <p className="text-sm text-muted-foreground">
           Edit the assumptions powering paycheck allocation and the dashboard.
         </p>

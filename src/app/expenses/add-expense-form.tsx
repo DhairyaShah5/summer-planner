@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { motion } from 'framer-motion'
 import { Loader2Icon, PlusIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -11,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 
 const CATEGORIES = ['Food', 'Transit', 'Entertainment', 'Groceries', 'Other']
 
@@ -37,6 +39,7 @@ export function AddExpenseForm() {
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('Food')
+  const [descFocused, setDescFocused] = useState(false)
 
   useEffect(() => {
     descriptionRef.current?.focus()
@@ -91,7 +94,18 @@ export function AddExpenseForm() {
   }
 
   return (
-    <Card className="sticky top-2 z-20 shadow-sm transition-shadow hover:shadow-md">
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+    >
+    <Card
+      className={cn(
+        'sticky top-2 z-20 shadow-sm transition-all duration-300 hover:shadow-md',
+        descFocused &&
+          'ring-2 ring-indigo-500/40 shadow-lg shadow-indigo-500/10',
+      )}
+    >
       <CardContent className="py-2">
         <form onSubmit={onSubmit} className="flex flex-col gap-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]">
@@ -102,9 +116,15 @@ export function AddExpenseForm() {
                 ref={descriptionRef}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                onFocus={() => setDescFocused(true)}
+                onBlur={() => setDescFocused(false)}
                 placeholder="Coffee, gas, etc."
                 autoComplete="off"
                 disabled={mutation.isPending}
+                className={cn(
+                  'transition-all duration-300',
+                  descFocused && 'ring-1 ring-indigo-400/60',
+                )}
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -153,24 +173,26 @@ export function AddExpenseForm() {
           </div>
           <div className="flex flex-wrap gap-1.5">
             {CATEGORIES.map((c) => (
-              <Button
-                key={c}
-                type="button"
-                size="xs"
-                variant={category === c ? 'default' : 'outline'}
-                onClick={() => setCategory(c)}
-                disabled={mutation.isPending}
-                className="transition-transform active:scale-95"
-              >
-                {c}
-              </Button>
+              <motion.div key={c} whileTap={{ scale: 0.94 }}>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant={category === c ? 'default' : 'outline'}
+                  onClick={() => setCategory(c)}
+                  disabled={mutation.isPending}
+                  className="transition-colors"
+                >
+                  {c}
+                </Button>
+              </motion.div>
             ))}
           </div>
+          <motion.div whileTap={{ scale: 0.98 }} className="w-full">
           <Button
             type="submit"
             size="lg"
             disabled={mutation.isPending}
-            className="w-full transition-transform active:scale-[0.99]"
+            className="w-full transition-transform"
           >
             {mutation.isPending ? (
               <>
@@ -184,8 +206,10 @@ export function AddExpenseForm() {
               </>
             )}
           </Button>
+          </motion.div>
         </form>
       </CardContent>
     </Card>
+    </motion.div>
   )
 }
