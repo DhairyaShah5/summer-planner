@@ -9,7 +9,6 @@ import { NotebookPen } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { computeAll } from '@/lib/calc'
 import type { Employer, PaycheckInput, Settings } from '@/lib/types'
-import { onReceivedToggled } from './paycheck-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -169,16 +168,6 @@ export function PaychecksTable({
         .update(patch)
         .eq('id', id)
       if (error) throw error
-      // If the user just toggled `received`, fire the server action that
-      // adjusts the Chase Checking balance by the paycheck's actual net wages.
-      // We do this AFTER the supabase write succeeds so the action reads the
-      // up-to-date row.
-      if (Object.prototype.hasOwnProperty.call(patch, 'received')) {
-        const res = await onReceivedToggled(id, Boolean(patch.received))
-        if (!res.ok) {
-          throw new Error(res.error ?? 'Balance update failed')
-        }
-      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['paychecks'] })
@@ -252,7 +241,7 @@ export function PaychecksTable({
   return (
     <div className="space-y-6">
       <div className="rounded-lg border overflow-x-auto">
-        <Table className="min-w-[1168px] table-fixed">
+        <Table className="min-w-[1120px] table-auto">
           <TableHeader>
             <TableRow>
               <TableHead className="w-8 px-1.5 text-center">#</TableHead>
@@ -284,19 +273,54 @@ export function PaychecksTable({
               </TableHead>
               <TableHead className="w-[84px] px-1.5">Extra Deposit</TableHead>
               <TableHead className="w-[56px] px-1.5 text-right">Net %</TableHead>
-              <TableHead className="w-[90px] px-1.5 text-right">
-                To Tuition Vault
+              <TableHead className="w-[100px] px-1.5 text-right">
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <span className="cursor-help underline decoration-dotted decoration-from-font decoration-muted-foreground/50 underline-offset-4" />
+                    }
+                  >
+                    Vault
+                  </TooltipTrigger>
+                  <TooltipContent>To Tuition Vault</TooltipContent>
+                </Tooltip>
               </TableHead>
-              <TableHead className="w-[90px] px-1.5 text-right">
-                To CA Rent / Bills
+              <TableHead className="w-[100px] px-1.5 text-right">
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <span className="cursor-help underline decoration-dotted decoration-from-font decoration-muted-foreground/50 underline-offset-4" />
+                    }
+                  >
+                    Rent
+                  </TooltipTrigger>
+                  <TooltipContent>To CA Rent / Bills</TooltipContent>
+                </Tooltip>
               </TableHead>
-              <TableHead className="w-[84px] px-1.5 text-right">
-                To Robinhood
+              <TableHead className="w-[96px] px-1.5 text-right">
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <span className="cursor-help underline decoration-dotted decoration-from-font decoration-muted-foreground/50 underline-offset-4" />
+                    }
+                  >
+                    RH
+                  </TooltipTrigger>
+                  <TooltipContent>To Robinhood</TooltipContent>
+                </Tooltip>
               </TableHead>
-              <TableHead className="w-[90px] px-1.5 text-right">
-                To Colorado Spending
+              <TableHead className="w-[100px] px-1.5 text-right">
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <span className="cursor-help underline decoration-dotted decoration-from-font decoration-muted-foreground/50 underline-offset-4" />
+                    }
+                  >
+                    CO Spend
+                  </TooltipTrigger>
+                  <TooltipContent>To Colorado Spending</TooltipContent>
+                </Tooltip>
               </TableHead>
-              <TableHead className="w-[72px] px-1.5 text-center">Status</TableHead>
               <TableHead className="w-8 px-1.5 text-center">
                 <span className="sr-only">Notes</span>
               </TableHead>
@@ -436,19 +460,6 @@ export function PaychecksTable({
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-xs font-medium text-muted-foreground">
                     {money.format(c.co)}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        'font-normal border-transparent px-1.5 py-0 text-[10px]',
-                        c.status === 'Pending'
-                          ? 'bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300'
-                          : 'bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300',
-                      )}
-                    >
-                      {c.status}
-                    </Badge>
                   </TableCell>
                   <TableCell className="text-center">
                     <NotesPopover
