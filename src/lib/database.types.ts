@@ -16,8 +16,8 @@ export type Database = {
     Tables: {
       accounts: {
         Row: {
+          arrival_balance: number
           created_at: string
-          current_balance: number
           display_order: number
           id: string
           is_paycheck_destination: boolean
@@ -28,8 +28,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          arrival_balance?: number
           created_at?: string
-          current_balance?: number
           display_order?: number
           id?: string
           is_paycheck_destination?: boolean
@@ -40,8 +40,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          arrival_balance?: number
           created_at?: string
-          current_balance?: number
           display_order?: number
           id?: string
           is_paycheck_destination?: boolean
