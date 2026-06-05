@@ -110,16 +110,35 @@ export function PaychecksTable({
     let totalVault = 0
     let totalCO = 0
     let totalBuffer = 0
+    let currentVault = 0
+    let currentCO = 0
+    let currentBuffer = 0
     for (const r of computed) {
       totalVault += r.vault
       totalCO += r.co
       totalBuffer += r.buffer
+      if (r.status === 'Received') {
+        currentVault += r.vault + r.extraDeposit
+        currentCO += r.co
+        currentBuffer += r.buffer
+      }
+    }
+    if (settings.vaultCap > 0) {
+      currentVault = Math.min(currentVault, settings.vaultCap)
     }
     const cumulative = computed.length
       ? computed[computed.length - 1].cumulativeVault
       : 0
-    return { totalVault, totalCO, totalBuffer, cumulative }
-  }, [computed])
+    return {
+      totalVault,
+      totalCO,
+      totalBuffer,
+      cumulative,
+      currentVault,
+      currentCO,
+      currentBuffer,
+    }
+  }, [computed, settings.vaultCap])
 
   const mutation = useMutation({
     mutationFn: async ({ id, patch }: UpdatePayload) => {
@@ -192,7 +211,7 @@ export function PaychecksTable({
   }
 
   const vaultProgressPct = settings.vaultCap
-    ? Math.min(100, (totals.cumulative / settings.vaultCap) * 100)
+    ? Math.min(100, (totals.currentVault / settings.vaultCap) * 100)
     : 0
 
   return (
@@ -204,13 +223,13 @@ export function PaychecksTable({
               <TableHead className="w-10 text-center">#</TableHead>
               <TableHead>Pay Date</TableHead>
               <TableHead>Employer</TableHead>
-              <TableHead className="bg-amber-50/60">Hours</TableHead>
-              <TableHead className="bg-amber-50/60">OT</TableHead>
-              <TableHead className="bg-amber-50/60">Per Diem</TableHead>
-              <TableHead className="bg-amber-50/60">Actual Net</TableHead>
-              <TableHead className="bg-amber-50/60">Extra Deposit</TableHead>
-              <TableHead className="bg-amber-50/60">Vault Override</TableHead>
-              <TableHead className="bg-amber-50/60">Rent Paid</TableHead>
+              <TableHead className="bg-amber-100/40">Hours</TableHead>
+              <TableHead className="bg-amber-100/40">OT</TableHead>
+              <TableHead className="bg-amber-100/40">Per Diem</TableHead>
+              <TableHead className="bg-amber-100/40">Actual Net</TableHead>
+              <TableHead className="bg-amber-100/40">Extra Deposit</TableHead>
+              <TableHead className="bg-amber-100/40">Vault Override</TableHead>
+              <TableHead className="bg-amber-100/40">Rent Paid</TableHead>
               <TableHead className="bg-muted/50 text-right">Gross</TableHead>
               <TableHead className="bg-muted/50 text-right">Net %</TableHead>
               <TableHead className="bg-muted/50 text-right">Vault</TableHead>
@@ -218,7 +237,7 @@ export function PaychecksTable({
               <TableHead className="bg-muted/50 text-right">Buffer</TableHead>
               <TableHead className="bg-muted/50 text-right">Cum. Vault</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="bg-amber-50/60">Notes</TableHead>
+              <TableHead className="bg-amber-100/40">Notes</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -229,11 +248,14 @@ export function PaychecksTable({
                 .format(c.estimatedNet)
                 .replace('$', '')
               return (
-                <TableRow key={row.id}>
+                <TableRow
+                  key={row.id}
+                  className="odd:bg-muted/30 transition-colors hover:bg-muted/60 [&>td]:py-3"
+                >
                   <TableCell className="text-center font-mono text-xs text-muted-foreground">
                     {row.pay_num}
                   </TableCell>
-                  <TableCell className="text-xs">
+                  <TableCell className="text-xs tabular-nums">
                     {format(parseISO(row.pay_date), 'MMM d, yyyy')}
                   </TableCell>
                   <TableCell>
@@ -241,8 +263,8 @@ export function PaychecksTable({
                       className={cn(
                         'font-normal',
                         isUSC
-                          ? 'bg-blue-100 text-blue-800 hover:bg-blue-100'
-                          : 'bg-green-100 text-green-800 hover:bg-green-100',
+                          ? 'bg-blue-500/15 text-blue-700 hover:bg-blue-500/20 dark:text-blue-300'
+                          : 'bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300',
                       )}
                     >
                       {isUSC ? 'USC' : 'NTT'}
@@ -308,18 +330,18 @@ export function PaychecksTable({
                       variant={c.status === 'Received' ? 'default' : 'outline'}
                       className={cn(
                         'font-normal',
-                        c.status === 'Received' &&
-                          'bg-emerald-100 text-emerald-800 hover:bg-emerald-100',
+                        c.status === 'Pending' &&
+                          'bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300 border-transparent',
                       )}
                     >
                       {c.status}
                     </Badge>
                   </TableCell>
-                  <TableCell className="bg-amber-50/60">
+                  <TableCell className="bg-amber-100/40">
                     <Input
                       type="text"
                       defaultValue={row.notes ?? ''}
-                      className="h-7 w-40 text-xs"
+                      className="h-7 w-40 text-xs focus:bg-amber-200/60 transition-colors"
                       onBlur={(e) => {
                         const v = e.currentTarget.value
                         if ((row.notes ?? '') !== v) {
@@ -336,12 +358,29 @@ export function PaychecksTable({
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <SummaryStat label="Total Vault" value={money.format(totals.totalVault)} />
-        <SummaryStat label="Total CO" value={money.format(totals.totalCO)} />
-        <SummaryStat label="Total Buffer" value={money.format(totals.totalBuffer)} />
+        <SummaryStat
+          label="Total Vault"
+          tag="Current"
+          value={money.format(totals.currentVault)}
+          projected={`Projected ${money.format(totals.cumulative)}`}
+        />
+        <SummaryStat
+          label="Total CO"
+          tag="Current"
+          value={money.format(totals.currentCO)}
+          projected={`Projected ${money.format(totals.totalCO)}`}
+        />
+        <SummaryStat
+          label="Total Buffer"
+          tag="Current"
+          value={money.format(totals.currentBuffer)}
+          projected={`Projected ${money.format(totals.totalBuffer)}`}
+        />
         <SummaryStat
           label="Vault Progress"
-          value={`${money.format(totals.cumulative)} of ${money.format(settings.vaultCap)}`}
+          tag="Current"
+          value={`${vaultProgressPct.toFixed(1)}%`}
+          projected={`${money.format(totals.currentVault)} of ${money.format(settings.vaultCap)}`}
           progress={vaultProgressPct}
         />
       </div>
@@ -362,14 +401,14 @@ function NumberCell({
 }) {
   const initial = value == null ? '' : String(value)
   return (
-    <TableCell className="bg-amber-50/60">
+    <TableCell className="bg-amber-100/40">
       <Input
         key={initial}
         type="number"
         step={step}
         defaultValue={initial}
         placeholder={placeholder}
-        className="h-7 w-24 text-xs tabular-nums"
+        className="h-7 w-24 text-xs tabular-nums focus:bg-amber-200/60 transition-colors"
         onBlur={(e) => {
           const raw = e.currentTarget.value
           if (raw !== initial) onCommit(raw)
@@ -382,20 +421,36 @@ function NumberCell({
 function SummaryStat({
   label,
   value,
+  tag,
+  projected,
   progress,
 }: {
   label: string
   value: string
+  tag?: string
+  projected?: string
   progress?: number
 }) {
   return (
-    <div className="rounded-lg border bg-card p-4">
-      <div className="text-xs text-muted-foreground">{label}</div>
+    <div className="rounded-lg border bg-card p-4 transition-shadow hover:shadow-md">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-xs text-muted-foreground">{label}</div>
+        {tag && (
+          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            {tag}
+          </span>
+        )}
+      </div>
       <div className="mt-1 text-lg font-semibold tabular-nums">{value}</div>
+      {projected && (
+        <div className="mt-0.5 text-xs text-muted-foreground tabular-nums">
+          {projected}
+        </div>
+      )}
       {progress != null && (
         <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
           <div
-            className="h-full rounded-full bg-primary transition-all"
+            className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
             style={{ width: `${progress}%` }}
           />
         </div>
