@@ -3,7 +3,12 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Loader2Icon, PencilIcon } from 'lucide-react'
+import {
+  ArrowDownRightIcon,
+  ArrowUpRightIcon,
+  Loader2Icon,
+  PencilIcon,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { createClient } from '@/lib/supabase/client'
@@ -26,11 +31,13 @@ import { cn } from '@/lib/utils'
 
 export type AccountType = 'checking' | 'credit_card' | 'hysa'
 
-export interface AccountRow {
+export interface AccountStateRow {
   id: string
   name: string
   type: AccountType
-  current_balance: number
+  arrival: number
+  current: number
+  projected: number
   is_paycheck_destination: boolean
   is_vault: boolean
   display_order: number
@@ -73,25 +80,44 @@ function typeBadgeClass(t: AccountType): string {
 }
 
 interface Props {
-  accounts: AccountRow[]
+  states: AccountStateRow[]
   vaultCap: number
 }
 
-export function AccountsList({ accounts, vaultCap }: Props) {
+export function AccountsList({ states, vaultCap }: Props) {
   const router = useRouter()
-  const [editing, setEditing] = useState<AccountRow | null>(null)
+  const [editing, setEditing] = useState<AccountStateRow | null>(null)
   const [editValue, setEditValue] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const netWorth = useMemo(() => {
-    let cashSide = 0
-    let debt = 0
-    for (const a of accounts) {
-      if (a.type === 'credit_card') debt += a.current_balance
-      else cashSide += a.current_balance
+  const summerCash = useMemo(() => {
+    let arrivalCash = 0
+    let arrivalDebt = 0
+    let projectedCash = 0
+    let projectedDebt = 0
+    let currentCash = 0
+    let currentDebt = 0
+    for (const s of states) {
+      if (s.type === 'credit_card') {
+        arrivalDebt += s.arrival
+        projectedDebt += s.projected
+        currentDebt += s.current
+      } else {
+        arrivalCash += s.arrival
+        projectedCash += s.projected
+        currentCash += s.current
+      }
     }
-    return cashSide - debt
-  }, [accounts])
+    const arrivalNet = arrivalCash - arrivalDebt
+    const projectedNet = projectedCash - projectedDebt
+    const currentNet = currentCash - currentDebt
+    return {
+      arrivalNet,
+      projectedNet,
+      currentNet,
+      delta: projectedNet - arrivalNet,
+    }
+  }, [states])
 
   async function handleSave() {
     if (!editing) return
@@ -105,10 +131,10 @@ export function AccountsList({ accounts, vaultCap }: Props) {
       const supabase = createClient()
       const { error } = await supabase
         .from('accounts')
-        .update({ current_balance: parsed })
+        .update({ arrival_balance: parsed })
         .eq('id', editing.id)
       if (error) throw error
-      toast.success('Balance updated')
+      toast.success('Arrival balance updated')
       setEditing(null)
       router.refresh()
     } catch (err) {
@@ -118,8 +144,11 @@ export function AccountsList({ accounts, vaultCap }: Props) {
     }
   }
 
+  const gained = summerCash.delta >= 0
+
   return (
     <div className="space-y-4">
+      {/* Summer Cash hero card */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -130,28 +159,118 @@ export function AccountsList({ accounts, vaultCap }: Props) {
             'bg-gradient-to-br from-indigo-500/10 via-fuchsia-500/5 to-transparent ring-1 ring-foreground/10 transition-shadow hover:shadow-lg',
           )}
         >
+          <CardContent className="space-y-5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Came to Colorado with
+                </p>
+                <div className="text-2xl font-semibold tabular-nums sm:text-3xl">
+                  <AnimatedNumber
+                    value={summerCash.arrivalNet}
+                    format={money.format}
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Cash &amp; savings minus credit cards, at arrival
+                </p>
+              </div>
+              <div className="space-y-1 sm:text-right">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Leaving Colorado with (projected)
+                </p>
+                <div className="text-2xl font-semibold tabular-nums sm:text-3xl">
+                  <AnimatedNumber
+                    value={summerCash.projectedNet}
+                    format={money.format}
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  After every paycheck and expense plays out
+                </p>
+              </div>
+            </div>
+            <div className="border-t pt-4">
+              <div className="flex items-center justify-center gap-2">
+                <motion.span
+                  initial={{ scale: 0.7, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{
+                    type: 'spring',
+                    stiffness: 240,
+                    damping: 16,
+                    delay: 0.2,
+                  }}
+                  className={cn(
+                    'inline-flex',
+                    gained
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-rose-600 dark:text-rose-400',
+                  )}
+                >
+                  {gained ? (
+                    <ArrowUpRightIcon className="size-6" />
+                  ) : (
+                    <ArrowDownRightIcon className="size-6" />
+                  )}
+                </motion.span>
+                <div
+                  className={cn(
+                    'text-3xl font-semibold tabular-nums sm:text-4xl',
+                    gained
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-rose-600 dark:text-rose-400',
+                  )}
+                >
+                  <span className="mr-1">{gained ? '+' : '−'}</span>
+                  <AnimatedNumber
+                    value={Math.abs(summerCash.delta)}
+                    format={money.format}
+                  />
+                </div>
+              </div>
+              <p className="mt-1 text-center text-xs text-muted-foreground">
+                {gained
+                  ? 'projected net gain across the summer'
+                  : 'projected net loss across the summer'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Net Worth tile (current) */}
+      <motion.div
+        initial={{ opacity: 0, y: -4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.05 }}
+      >
+        <Card className="ring-1 ring-foreground/10 transition-shadow hover:shadow-lg">
           <CardContent className="space-y-1">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              Total Net Worth
+              Total Net Worth (current)
             </p>
             <div
               className={cn(
                 'text-3xl font-semibold tabular-nums',
-                netWorth >= 0
+                summerCash.currentNet >= 0
                   ? 'text-emerald-600 dark:text-emerald-400'
                   : 'text-rose-600 dark:text-rose-400',
               )}
             >
-              <AnimatedNumber value={netWorth} format={money.format} />
+              <AnimatedNumber
+                value={summerCash.currentNet}
+                format={money.format}
+              />
             </div>
             <p className="text-xs text-muted-foreground">
-              Cash &amp; savings minus credit card outstanding
+              Live cash &amp; savings minus credit card outstanding
             </p>
           </CardContent>
         </Card>
       </motion.div>
 
-      {accounts.length === 0 ? (
+      {states.length === 0 ? (
         <Card>
           <CardContent>
             <p className="py-6 text-center text-sm text-muted-foreground">
@@ -161,19 +280,24 @@ export function AccountsList({ accounts, vaultCap }: Props) {
         </Card>
       ) : (
         <ul className="space-y-3">
-          {accounts.map((a, i) => {
-            const isCC = a.type === 'credit_card'
-            const isVault = a.is_vault
+          {states.map((s, i) => {
+            const isCC = s.type === 'credit_card'
+            const isVault = s.is_vault
             const vaultPct =
               isVault && vaultCap > 0
-                ? Math.min(100, (a.current_balance / vaultCap) * 100)
+                ? Math.min(100, (s.current / vaultCap) * 100)
                 : 0
+            const delta = s.projected - s.current
+            const deltaGained = delta >= 0
+            // For credit cards, "gained" means debt went DOWN — so the
+            // arrow + color reflect cash-side intuition (lower CC = good).
+            const deltaIsGoodForUser = isCC ? delta <= 0 : delta >= 0
             return (
               <motion.li
-                key={a.id}
+                key={s.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.05 + i * 0.06, duration: 0.4 }}
+                transition={{ delay: 0.1 + i * 0.06, duration: 0.4 }}
               >
                 <Card className="transition-shadow hover:shadow-md">
                   <CardContent className="space-y-3">
@@ -181,14 +305,14 @@ export function AccountsList({ accounts, vaultCap }: Props) {
                       <div className="min-w-0 space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="truncate text-sm font-medium">
-                            {a.name}
+                            {s.name}
                           </span>
                           <Badge
-                            className={cn('font-normal', typeBadgeClass(a.type))}
+                            className={cn('font-normal', typeBadgeClass(s.type))}
                           >
-                            {typeLabel(a.type)}
+                            {typeLabel(s.type)}
                           </Badge>
-                          {a.is_paycheck_destination && (
+                          {s.is_paycheck_destination && (
                             <Badge variant="outline" className="font-normal">
                               Paycheck
                             </Badge>
@@ -202,10 +326,10 @@ export function AccountsList({ accounts, vaultCap }: Props) {
                         type="button"
                         variant="ghost"
                         size="icon-sm"
-                        aria-label={`Edit ${a.name} balance`}
+                        aria-label={`Edit ${s.name} arrival balance`}
                         onClick={() => {
-                          setEditing(a)
-                          setEditValue(String(a.current_balance))
+                          setEditing(s)
+                          setEditValue(String(s.arrival))
                         }}
                         className="transition-colors"
                       >
@@ -219,10 +343,40 @@ export function AccountsList({ accounts, vaultCap }: Props) {
                         isCC && 'text-destructive',
                       )}
                     >
-                      <AnimatedNumber
-                        value={a.current_balance}
-                        format={money.format}
-                      />
+                      <AnimatedNumber value={s.current} format={money.format} />
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
+                      <span
+                        className={cn(
+                          'inline-flex items-center',
+                          deltaIsGoodForUser
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-rose-600 dark:text-rose-400',
+                        )}
+                      >
+                        {deltaGained ? (
+                          <ArrowUpRightIcon className="size-3" />
+                        ) : (
+                          <ArrowDownRightIcon className="size-3" />
+                        )}
+                      </span>
+                      <span>
+                        Projected{' '}
+                        <span className="font-medium text-foreground">
+                          {money.format(s.projected)}
+                        </span>
+                      </span>
+                      <span
+                        className={cn(
+                          deltaIsGoodForUser
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-rose-600 dark:text-rose-400',
+                        )}
+                      >
+                        ({deltaGained ? '+' : '−'}
+                        {money.format(Math.abs(delta))})
+                      </span>
                     </div>
 
                     {isVault && vaultCap > 0 && (
@@ -230,7 +384,7 @@ export function AccountsList({ accounts, vaultCap }: Props) {
                         <div className="flex items-center justify-between text-xs text-muted-foreground tabular-nums">
                           <span>Goal</span>
                           <span>
-                            {money.format(a.current_balance)} of{' '}
+                            {money.format(s.current)} of{' '}
                             {moneyWhole.format(vaultCap)}
                           </span>
                         </div>
@@ -256,15 +410,15 @@ export function AccountsList({ accounts, vaultCap }: Props) {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit balance</DialogTitle>
+            <DialogTitle>Edit arrival balance</DialogTitle>
             <DialogDescription>
               {editing
-                ? `Manually set the current balance for ${editing.name}.`
+                ? `Set the start-of-summer balance for ${editing.name}.`
                 : null}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="edit-balance">Current balance</Label>
+            <Label htmlFor="edit-balance">Arrival balance</Label>
             <Input
               id="edit-balance"
               type="number"
@@ -276,6 +430,11 @@ export function AccountsList({ accounts, vaultCap }: Props) {
               autoFocus
               disabled={saving}
             />
+            <p className="text-xs text-muted-foreground">
+              Set this to what your account had at the start of the summer.
+              Current and projected balances are computed from your paychecks +
+              expenses.
+            </p>
           </div>
           <DialogFooter>
             <Button
