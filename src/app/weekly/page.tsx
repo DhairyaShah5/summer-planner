@@ -25,6 +25,8 @@ import type {
 import { cn } from '@/lib/utils'
 import { WeeklyChart, type WeeklyChartPoint } from './weekly-chart'
 
+export const dynamic = 'force-dynamic'
+
 const INTERNSHIP_START = '2026-05-26'
 const INTERNSHIP_END = '2026-08-31'
 
