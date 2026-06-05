@@ -73,20 +73,27 @@ export function WeeklyChart({ data }: { data: WeeklyChartPoint[] }) {
           <Area
             type="monotone"
             dataKey="target"
-            name="Target Cumulative"
+            name="Spending Budget"
             stroke="var(--primary)"
             strokeWidth={2.5}
             fill="url(#targetFill)"
             activeDot={{ r: 4 }}
+            isAnimationActive
+            animationDuration={900}
+            animationEasing="ease-out"
           />
           <Area
             type="monotone"
             dataKey="actual"
-            name="Actual Cumulative"
+            name="Actual Spent"
             stroke="var(--destructive)"
             strokeWidth={2.5}
             fill="url(#actualFill)"
             activeDot={{ r: 4 }}
+            isAnimationActive
+            animationDuration={900}
+            animationBegin={150}
+            animationEasing="ease-out"
           />
         </ComposedChart>
       </ResponsiveContainer>

@@ -94,7 +94,7 @@ export default async function WeeklyPage() {
         <div className="space-y-1">
           <h1 className="text-3xl font-semibold tracking-tight">Weekly Tracker</h1>
           <p className="text-sm text-muted-foreground">
-            Cumulative target vs actual CO spend, week ending Sunday.
+            Maximum allowed to spend (cumulative) vs actual spent, week ending Sunday.
           </p>
         </div>
         <Card>
@@ -198,19 +198,29 @@ export default async function WeeklyPage() {
   return (
     <div className="container mx-auto max-w-6xl space-y-6 px-4 py-8">
       <div className="space-y-1">
-        <h1 className="text-3xl font-semibold tracking-tight">Weekly Tracker</h1>
+        <h1 className="bg-gradient-to-r from-emerald-500 via-cyan-500 to-indigo-500 bg-clip-text text-3xl font-semibold tracking-tight text-transparent">
+          Weekly Tracker
+        </h1>
         <p className="text-sm text-muted-foreground">
-          Cumulative target vs actual CO spend, week ending Sunday.
+          Maximum allowed to spend (cumulative) vs actual spent, week ending Sunday.
         </p>
       </div>
 
-      <Card size="sm" className="transition-shadow hover:shadow-md">
+      <Card
+        size="sm"
+        className={cn(
+          'border-l-4 transition-shadow hover:shadow-md',
+          summerIsUnder ? 'border-l-emerald-500' : 'border-l-rose-500',
+        )}
+      >
         <CardContent className="space-y-1">
           <div className="flex items-baseline gap-2">
             <span
               className={cn(
                 'text-2xl font-semibold tabular-nums',
-                summerIsUnder ? '' : 'text-destructive',
+                summerIsUnder
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-rose-600 dark:text-rose-400',
               )}
             >
               {money.format(Math.abs(summerRemaining))}
@@ -230,7 +240,7 @@ export default async function WeeklyPage() {
 
       <Card className="transition-shadow hover:shadow-md">
         <CardHeader>
-          <CardTitle>Target vs Actual</CardTitle>
+          <CardTitle>Spending vs Budget</CardTitle>
           <CardDescription className="tabular-nums">
             {format(startDate, 'MMM d, yyyy')} - {format(endDate, 'MMM d, yyyy')}
           </CardDescription>
@@ -254,8 +264,8 @@ export default async function WeeklyPage() {
                 <TableHead>Week</TableHead>
                 <TableHead>Start</TableHead>
                 <TableHead>End</TableHead>
-                <TableHead className="text-right">Target (cum)</TableHead>
-                <TableHead className="text-right">Actual (cum)</TableHead>
+                <TableHead className="text-right">Spending Budget</TableHead>
+                <TableHead className="text-right">Actual Spent</TableHead>
                 <TableHead className="text-right">Variance</TableHead>
                 <TableHead className="text-right">Vault Balance</TableHead>
                 <TableHead>Status</TableHead>
@@ -284,7 +294,9 @@ export default async function WeeklyPage() {
                   <TableCell
                     className={cn(
                       'text-right tabular-nums font-medium',
-                      w.variance >= 0 ? 'text-emerald-600' : 'text-red-600',
+                      w.variance >= 0
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-rose-600 dark:text-rose-400',
                     )}
                   >
                     {money.format(w.variance)}
