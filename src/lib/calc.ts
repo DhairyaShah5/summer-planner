@@ -7,6 +7,11 @@
  *   - Vault is capped at settings.vaultCap; cumulativeVault tracks running total
  *   - Robinhood is a flat $200/check for USC, $0 for NTT
  *   - CO spend is floored to $10; the cents remainder lands in Buffer
+ *
+ * Status (Received vs Pending) is driven by an explicit `received` flag on
+ * each row, NOT inferred from actualNetWages. This avoids the bug where typing
+ * `0` for actual net would flip the row to Received and still allocate the
+ * full baseline vault, leaving no money for rent / RH / CO.
  */
 
 export type Employer = 'USC On-Campus' | 'Colorado Internship'
@@ -35,6 +40,7 @@ export interface PaycheckInput {
   extraDeposit: number
   vaultOverride: number | null
   rentPaid: number
+  received: boolean
 }
 
 export interface PaycheckComputed extends PaycheckInput {
@@ -72,6 +78,7 @@ export function computeRow(
     extraDeposit,
     vaultOverride,
     rentPaid,
+    received,
   } = input
 
   // E: Gross
@@ -84,18 +91,26 @@ export function computeRow(
   }
 
   // F: Net %
+  // Use observed net% only if the row is received AND we have an actual figure;
+  // otherwise fall back to the projection rate. This prevents a stale typed
+  // actualNetWages on a pending row from poisoning the projection.
   let netPct: number
-  if (actualNetWages != null && gross > 0) {
+  if (received && actualNetWages != null && gross > 0) {
     netPct = actualNetWages / gross
   } else {
     netPct = employer === 'USC On-Campus' ? settings.uscNetPct : settings.nttNetPct
   }
 
-  // G: Estimated Net
+  // G: Estimated Net (always the projection)
   const estimatedNet = gross * netPct
 
-  // Base net used downstream
-  const baseNet = actualNetWages != null ? actualNetWages : estimatedNet
+  // Base net used downstream (L/M):
+  //   received && actualNetWages != null → use actual
+  //   otherwise                          → use the projection
+  // An unchecked row therefore uses the projection even if a stale actual
+  // value is sitting in the input field.
+  const baseNet =
+    received && actualNetWages != null ? actualNetWages : estimatedNet
 
   // K: Robinhood
   const robinhood =
@@ -103,13 +118,35 @@ export function computeRow(
 
   // I: Vault — capped at remaining cap room
   const capRoom = Math.max(0, settings.vaultCap - prevCumulative - extraDeposit)
+
+  // When the row is received, the actual net is the hard ceiling on how much
+  // we can allocate to vault after rent + RH. (When NOT received we project
+  // against estimatedNet, but the baseline figures already assume that.)
+  const actualAvailableForVault =
+    received && actualNetWages != null
+      ? Math.max(0, floor10(actualNetWages - rentPaid - robinhood))
+      : null
+
   let vault: number
   if (vaultOverride != null) {
-    vault = Math.min(vaultOverride, capRoom)
+    // Manual override: still respect cap room, and if received, also cap at
+    // what the actual net check can cover after rent + RH. Same bug class.
+    let v = Math.min(vaultOverride, capRoom)
+    if (actualAvailableForVault != null) {
+      v = Math.min(v, actualAvailableForVault)
+    }
+    vault = Math.max(0, v)
   } else if (employer === 'USC On-Campus') {
     const uscDefault = rentPaid > 0 ? settings.uscRentVault : settings.uscNoRentVault
-    vault = Math.min(uscDefault, capRoom)
+    let v = Math.min(uscDefault, capRoom)
+    if (actualAvailableForVault != null && actualAvailableForVault < v) {
+      // Real check came in light — don't overdraw it.
+      v = actualAvailableForVault
+    }
+    vault = Math.max(0, v)
   } else {
+    // NTT: vault floor10(net) regardless. floor10 already lives in baseNet's
+    // computation pathway above (we floor explicitly here for clarity).
     vault = Math.min(floor10(baseNet), capRoom)
   }
 
@@ -125,9 +162,8 @@ export function computeRow(
     baseNet + perDiem - vault - rentPaid - robinhood - co,
   )
 
-  // O: Status
-  const status: 'Received' | 'Pending' =
-    actualNetWages != null ? 'Received' : 'Pending'
+  // O: Status — driven by the explicit `received` flag only.
+  const status: 'Received' | 'Pending' = received ? 'Received' : 'Pending'
 
   // R: Cumulative Vault
   const cumulativeVault = Math.min(
@@ -172,6 +208,9 @@ export function computeAll(
  * `settings` is optional: pass it to get an exact `vaultRemaining`
  * (settings.vaultCap - totalVault). Without it, remaining is reported as 0
  * since rows alone don't carry the cap.
+ *
+ * "current*" totals sum across rows where received === true.
+ * "total*" totals sum across all rows (received or projected).
  */
 export function summarize(
   rows: PaycheckComputed[],
@@ -199,7 +238,7 @@ export function summarize(
   for (const r of rows) {
     totalCO += r.co
     totalBuffer += r.buffer
-    if (r.status === 'Received') {
+    if (r.received) {
       rowsReceived++
       currentVault += r.vault + r.extraDeposit
       currentCO += r.co
