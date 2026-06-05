@@ -56,16 +56,19 @@ export default async function DashboardPage() {
     .maybeSingle();
 
   if (!settingsRow) {
-    const { data: inserted } = await supabase
+    const { data: inserted, error: insertError } = await supabase
       .from("settings")
       .insert({ user_id: user.id })
       .select("*")
       .single();
+    if (insertError) {
+      throw new Error(`Failed to create settings: ${insertError.message} (code=${insertError.code})`);
+    }
     settingsRow = inserted;
   }
 
   if (!settingsRow) {
-    throw new Error("Failed to load or create settings");
+    throw new Error("Failed to load or create settings (no row returned)");
   }
 
   const settings: Settings = {
