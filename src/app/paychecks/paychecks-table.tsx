@@ -248,12 +248,12 @@ export function PaychecksTable({
               <TableHead className="w-[70px] px-1.5">Pay Date</TableHead>
               <TableHead className="w-[56px] px-1.5">Employer</TableHead>
               <TableHead className="w-[64px] px-1.5 text-center">Received</TableHead>
-              <TableHead className="w-[72px] px-1.5">Hours</TableHead>
-              <TableHead className="w-[64px] px-1.5">OT</TableHead>
-              <TableHead className="w-[84px] px-1.5">Per Diem</TableHead>
-              <TableHead className="w-[100px] px-1.5">Actual Net</TableHead>
+              <TableHead className="w-[72px] px-1.5 text-right">Hours</TableHead>
+              <TableHead className="w-[64px] px-1.5 text-right">OT</TableHead>
+              <TableHead className="w-[84px] px-1.5 text-right">Per Diem</TableHead>
+              <TableHead className="w-[100px] px-1.5 text-right">Actual Net</TableHead>
               <TableHead className="w-[100px] px-1.5 text-right">Expected Pay</TableHead>
-              <TableHead className="w-[100px] px-1.5">Extra Deposit</TableHead>
+              <TableHead className="w-[100px] px-1.5 text-right">Extra Deposit</TableHead>
               <TableHead className="w-[68px] px-1.5 text-right">Net %</TableHead>
               <TableHead className="w-[112px] px-1.5 text-right">
                 <Tooltip>
@@ -393,25 +393,25 @@ export function PaychecksTable({
                   <NumberCell
                     value={row.hours_worked}
                     step="1"
-                    width="w-12"
+                    width="w-16"
                     onCommit={(v) => commit(row.id, 'hours_worked', v)}
                   />
                   <NumberCell
                     value={row.ot_hours}
                     step="1"
-                    width="w-10"
+                    width="w-14"
                     onCommit={(v) => commit(row.id, 'ot_hours', v)}
                   />
                   <NumberCell
                     value={row.per_diem}
                     step="0.01"
-                    width="w-14"
+                    width="w-20"
                     onCommit={(v) => commit(row.id, 'per_diem', v)}
                   />
                   <NumberCell
                     value={row.actual_net_wages}
                     step="0.01"
-                    width="w-16"
+                    width="w-24"
                     placeholder={projectedNetPlaceholder}
                     onCommit={(v) => commit(row.id, 'actual_net_wages', v)}
                   />
@@ -421,7 +421,7 @@ export function PaychecksTable({
                   <NumberCell
                     value={row.extra_deposit}
                     step="0.01"
-                    width="w-16"
+                    width="w-24"
                     onCommit={(v) => commit(row.id, 'extra_deposit', v)}
                   />
                   <TableCell className="text-right tabular-nums text-xs font-medium text-muted-foreground">
@@ -503,7 +503,7 @@ function NumberCell({
 }) {
   const initial = value == null ? '' : String(value)
   return (
-    <TableCell>
+    <TableCell className="text-right">
       <Input
         key={initial}
         type="number"
@@ -511,7 +511,7 @@ function NumberCell({
         defaultValue={initial}
         placeholder={placeholder}
         className={cn(
-          'h-8 text-xs tabular-nums bg-muted/30 focus:ring-1 focus:ring-primary',
+          'h-8 text-xs text-right tabular-nums bg-muted/30 focus:ring-1 focus:ring-primary ml-auto',
           width,
         )}
         onBlur={(e) => {
