@@ -104,7 +104,7 @@ export default async function DashboardPage() {
       .lte("expense_date", todayISO),
     supabase
       .from("accounts")
-      .select("id, name, type, current_balance, display_order")
+      .select("id, name, type, arrival_balance, display_order")
       .order("display_order", { ascending: true })
       .limit(3),
   ]);
@@ -123,7 +123,7 @@ export default async function DashboardPage() {
     id: a.id,
     name: a.name,
     type: a.type as 'checking' | 'credit_card' | 'hysa',
-    current_balance: Number(a.current_balance),
+    arrival_balance: Number(a.arrival_balance),
   }));
 
   // Cumulative spend across the summer through today.

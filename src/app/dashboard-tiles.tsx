@@ -96,7 +96,7 @@ export interface DashboardTilesProps {
     id: string
     name: string
     type: 'checking' | 'credit_card' | 'hysa'
-    current_balance: number
+    arrival_balance: number
   }[]
 }
 
@@ -363,7 +363,7 @@ export function DashboardTiles(props: DashboardTilesProps) {
                             isCC && 'text-destructive',
                           )}
                         >
-                          {money.format(a.current_balance)}
+                          {money.format(a.arrival_balance)}
                         </span>
                       </motion.li>
                     )
