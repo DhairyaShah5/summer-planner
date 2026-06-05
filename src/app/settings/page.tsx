@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { SettingsForm, type SettingsFormValues } from "./settings-form";
+import { ImportFromXlsx } from "./import-from-xlsx";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,19 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent>
           <SettingsForm initialValues={values} defaults={DEFAULTS} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-xl">Import from Excel</CardTitle>
+          <CardDescription>
+            Seed from your existing Excel workbook. Overwrites current settings
+            and paychecks.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ImportFromXlsx />
         </CardContent>
       </Card>
     </div>
