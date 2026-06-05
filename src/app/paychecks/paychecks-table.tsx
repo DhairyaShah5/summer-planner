@@ -9,6 +9,13 @@ import { computeAll } from '@/lib/calc'
 import type { Employer, PaycheckInput, Settings } from '@/lib/types'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import {
   Table,
   TableBody,
@@ -32,6 +39,7 @@ export type PaycheckRow = {
   vault_override: number | null
   rent_paid: number
   notes: string | null
+  received: boolean
 }
 
 type EditableField =
@@ -43,6 +51,7 @@ type EditableField =
   | 'vault_override'
   | 'rent_paid'
   | 'notes'
+  | 'received'
 
 type UpdatePayload = {
   id: string
@@ -56,6 +65,7 @@ type UpdatePayload = {
     | 'vault_override'
     | 'rent_paid'
     | 'notes'
+    | 'received'
   >>
 }
 
@@ -88,6 +98,7 @@ function toInput(r: PaycheckRow): PaycheckInput {
     extraDeposit: r.extra_deposit,
     vaultOverride: r.vault_override,
     rentPaid: r.rent_paid,
+    received: r.received,
   }
 }
 
@@ -117,7 +128,7 @@ export function PaychecksTable({
       totalVault += r.vault
       totalCO += r.co
       totalBuffer += r.buffer
-      if (r.status === 'Received') {
+      if (r.received) {
         currentVault += r.vault + r.extraDeposit
         currentCO += r.co
         currentBuffer += r.buffer
@@ -159,45 +170,49 @@ export function PaychecksTable({
     },
   })
 
-  function commit(id: string, field: EditableField, raw: string) {
+  function commit(id: string, field: EditableField, raw: string | boolean) {
     // Build the patch first (pure), then update state and fire mutation
     // outside the setState updater so React StrictMode double-invocations
     // don't fire the mutation twice.
     const patch: UpdatePayload['patch'] = {}
-    const trimmed = raw.trim()
-    switch (field) {
-      case 'actual_net_wages': {
-        patch.actual_net_wages = trimmed === '' ? null : Number(trimmed)
-        break
-      }
-      case 'vault_override': {
-        patch.vault_override = trimmed === '' ? null : Number(trimmed)
-        break
-      }
-      case 'hours_worked': {
-        patch.hours_worked = trimmed === '' ? null : Number(trimmed)
-        break
-      }
-      case 'ot_hours': {
-        patch.ot_hours = trimmed === '' ? 0 : Number(trimmed)
-        break
-      }
-      case 'per_diem': {
-        patch.per_diem = trimmed === '' ? 0 : Number(trimmed)
-        break
-      }
-      case 'extra_deposit': {
-        patch.extra_deposit = trimmed === '' ? 0 : Number(trimmed)
-        break
-      }
-      case 'rent_paid': {
-        patch.rent_paid = trimmed === '' ? 0 : Number(trimmed)
-        break
-      }
-      case 'notes': {
-        // Notes preserves whitespace; use raw for blank check.
-        patch.notes = raw === '' ? null : raw
-        break
+    if (field === 'received') {
+      patch.received = Boolean(raw)
+    } else {
+      const trimmed = String(raw).trim()
+      switch (field) {
+        case 'actual_net_wages': {
+          patch.actual_net_wages = trimmed === '' ? null : Number(trimmed)
+          break
+        }
+        case 'vault_override': {
+          patch.vault_override = trimmed === '' ? null : Number(trimmed)
+          break
+        }
+        case 'hours_worked': {
+          patch.hours_worked = trimmed === '' ? null : Number(trimmed)
+          break
+        }
+        case 'ot_hours': {
+          patch.ot_hours = trimmed === '' ? 0 : Number(trimmed)
+          break
+        }
+        case 'per_diem': {
+          patch.per_diem = trimmed === '' ? 0 : Number(trimmed)
+          break
+        }
+        case 'extra_deposit': {
+          patch.extra_deposit = trimmed === '' ? 0 : Number(trimmed)
+          break
+        }
+        case 'rent_paid': {
+          patch.rent_paid = trimmed === '' ? 0 : Number(trimmed)
+          break
+        }
+        case 'notes': {
+          // Notes preserves whitespace; use raw for blank check.
+          patch.notes = raw === '' ? null : String(raw)
+          break
+        }
       }
     }
 
@@ -217,27 +232,28 @@ export function PaychecksTable({
   return (
     <div className="space-y-6">
       <div className="rounded-lg border overflow-x-auto">
-        <Table className="min-w-[1600px]">
+        <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-10 text-center">#</TableHead>
-              <TableHead>Pay Date</TableHead>
-              <TableHead>Employer</TableHead>
-              <TableHead className="bg-amber-100/40">Hours</TableHead>
-              <TableHead className="bg-amber-100/40">OT</TableHead>
-              <TableHead className="bg-amber-100/40">Per Diem</TableHead>
-              <TableHead className="bg-amber-100/40">Actual Net</TableHead>
-              <TableHead className="bg-amber-100/40">Extra Deposit</TableHead>
-              <TableHead className="bg-amber-100/40">Vault Override</TableHead>
-              <TableHead className="bg-amber-100/40">Rent Paid</TableHead>
-              <TableHead className="bg-muted/50 text-right">Gross</TableHead>
-              <TableHead className="bg-muted/50 text-right">Net %</TableHead>
-              <TableHead className="bg-muted/50 text-right">Vault</TableHead>
-              <TableHead className="bg-muted/50 text-right">CO</TableHead>
-              <TableHead className="bg-muted/50 text-right">Buffer</TableHead>
-              <TableHead className="bg-muted/50 text-right">Cum. Vault</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="bg-amber-100/40">Notes</TableHead>
+              <TableHead className="w-[110px]">Pay Date</TableHead>
+              <TableHead className="w-[70px]">Employer</TableHead>
+              <TableHead className="w-[70px] text-center">Received</TableHead>
+              <TableHead className="bg-amber-100/40 w-[90px]">Hours</TableHead>
+              <TableHead className="bg-amber-100/40 w-[80px]">OT</TableHead>
+              <TableHead className="bg-amber-100/40 w-[90px]">Per Diem</TableHead>
+              <TableHead className="bg-amber-100/40 w-[110px]">Actual Net</TableHead>
+              <TableHead className="bg-amber-100/40 w-[110px]">
+                Vault Override
+              </TableHead>
+              <TableHead className="bg-amber-100/40 w-[240px]">Notes</TableHead>
+              <TableHead className="bg-muted/50 text-right w-[100px]">
+                Vault $
+              </TableHead>
+              <TableHead className="bg-muted/50 text-right w-[100px]">
+                CO $
+              </TableHead>
+              <TableHead className="w-[90px] text-center">Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -250,10 +266,52 @@ export function PaychecksTable({
               return (
                 <TableRow
                   key={row.id}
-                  className="odd:bg-muted/30 transition-colors hover:bg-muted/60 [&>td]:py-3"
+                  className="odd:bg-muted/30 transition-colors hover:bg-muted/60 [&>td]:py-3 h-[72px]"
                 >
                   <TableCell className="text-center font-mono text-xs text-muted-foreground">
-                    {row.pay_num}
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <span className="cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-2" />
+                        }
+                      >
+                        {row.pay_num}
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <div className="space-y-1 text-left tabular-nums">
+                          <div className="flex justify-between gap-3">
+                            <span className="text-background/70">Gross</span>
+                            <span>{money.format(c.gross)}</span>
+                          </div>
+                          <div className="flex justify-between gap-3">
+                            <span className="text-background/70">Net %</span>
+                            <span>{pct.format(c.netPct)}</span>
+                          </div>
+                          <div className="flex justify-between gap-3">
+                            <span className="text-background/70">
+                              Rent Paid
+                            </span>
+                            <span>{money.format(row.rent_paid)}</span>
+                          </div>
+                          <div className="flex justify-between gap-3">
+                            <span className="text-background/70">
+                              Extra Deposit
+                            </span>
+                            <span>{money.format(row.extra_deposit)}</span>
+                          </div>
+                          <div className="flex justify-between gap-3">
+                            <span className="text-background/70">Buffer</span>
+                            <span>{money.format(c.buffer)}</span>
+                          </div>
+                          <div className="flex justify-between gap-3 border-t border-background/20 pt-1 mt-1">
+                            <span className="text-background/70">
+                              Cum. Vault
+                            </span>
+                            <span>{money.format(c.cumulativeVault)}</span>
+                          </div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
                   </TableCell>
                   <TableCell className="text-xs tabular-nums">
                     {format(parseISO(row.pay_date), 'MMM d, yyyy')}
@@ -269,6 +327,17 @@ export function PaychecksTable({
                     >
                       {isUSC ? 'USC' : 'NTT'}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="text-center bg-amber-100/40">
+                    <div className="flex justify-center">
+                      <Checkbox
+                        checked={row.received}
+                        onCheckedChange={(checked) =>
+                          commit(row.id, 'received', Boolean(checked))
+                        }
+                        aria-label="Mark paycheck received"
+                      />
+                    </div>
                   </TableCell>
                   <NumberCell
                     value={row.hours_worked}
@@ -292,26 +361,24 @@ export function PaychecksTable({
                     onCommit={(v) => commit(row.id, 'actual_net_wages', v)}
                   />
                   <NumberCell
-                    value={row.extra_deposit}
-                    step="0.01"
-                    onCommit={(v) => commit(row.id, 'extra_deposit', v)}
-                  />
-                  <NumberCell
                     value={row.vault_override}
                     step="0.01"
                     placeholder="auto"
                     onCommit={(v) => commit(row.id, 'vault_override', v)}
                   />
-                  <NumberCell
-                    value={row.rent_paid}
-                    step="0.01"
-                    onCommit={(v) => commit(row.id, 'rent_paid', v)}
-                  />
-                  <TableCell className="bg-muted/40 text-right tabular-nums text-muted-foreground">
-                    {money.format(c.gross)}
-                  </TableCell>
-                  <TableCell className="bg-muted/40 text-right tabular-nums text-muted-foreground">
-                    {pct.format(c.netPct)}
+                  <TableCell className="bg-amber-100/40">
+                    <Textarea
+                      key={row.notes ?? ''}
+                      defaultValue={row.notes ?? ''}
+                      rows={2}
+                      className="min-h-[48px] w-[220px] text-xs leading-tight px-2 py-1.5 focus:bg-amber-200/60 transition-colors"
+                      onBlur={(e) => {
+                        const v = e.currentTarget.value
+                        if ((row.notes ?? '') !== v) {
+                          commit(row.id, 'notes', v)
+                        }
+                      }}
+                    />
                   </TableCell>
                   <TableCell className="bg-muted/40 text-right tabular-nums text-muted-foreground">
                     {money.format(c.vault)}
@@ -319,13 +386,7 @@ export function PaychecksTable({
                   <TableCell className="bg-muted/40 text-right tabular-nums text-muted-foreground">
                     {money.format(c.co)}
                   </TableCell>
-                  <TableCell className="bg-muted/40 text-right tabular-nums text-muted-foreground">
-                    {money.format(c.buffer)}
-                  </TableCell>
-                  <TableCell className="bg-muted/40 text-right tabular-nums font-medium">
-                    {money.format(c.cumulativeVault)}
-                  </TableCell>
-                  <TableCell>
+                  <TableCell className="text-center">
                     <Badge
                       variant={c.status === 'Received' ? 'default' : 'outline'}
                       className={cn(
@@ -336,19 +397,6 @@ export function PaychecksTable({
                     >
                       {c.status}
                     </Badge>
-                  </TableCell>
-                  <TableCell className="bg-amber-100/40">
-                    <Input
-                      type="text"
-                      defaultValue={row.notes ?? ''}
-                      className="h-7 w-40 text-xs focus:bg-amber-200/60 transition-colors"
-                      onBlur={(e) => {
-                        const v = e.currentTarget.value
-                        if ((row.notes ?? '') !== v) {
-                          commit(row.id, 'notes', v)
-                        }
-                      }}
-                    />
                   </TableCell>
                 </TableRow>
               )
@@ -365,10 +413,10 @@ export function PaychecksTable({
           projected={`Projected ${money.format(totals.cumulative)}`}
         />
         <SummaryStat
-          label="Total CO"
-          tag="Current"
-          value={money.format(totals.currentCO)}
-          projected={`Projected ${money.format(totals.totalCO)}`}
+          label="Summer CO Budget"
+          tag="Projected"
+          value={money.format(totals.totalCO)}
+          projected={`Current allocated ${money.format(totals.currentCO)} of projected ${money.format(totals.totalCO)}`}
         />
         <SummaryStat
           label="Total Buffer"
@@ -408,7 +456,7 @@ function NumberCell({
         step={step}
         defaultValue={initial}
         placeholder={placeholder}
-        className="h-7 w-24 text-xs tabular-nums focus:bg-amber-200/60 transition-colors"
+        className="h-8 w-20 text-xs tabular-nums focus:bg-amber-200/60 transition-colors"
         onBlur={(e) => {
           const raw = e.currentTarget.value
           if (raw !== initial) onCommit(raw)

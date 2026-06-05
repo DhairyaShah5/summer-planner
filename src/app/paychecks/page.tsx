@@ -64,6 +64,7 @@ export default async function PaychecksPage() {
     vault_override: p.vault_override,
     rent_paid: p.rent_paid,
     notes: p.notes,
+    received: p.received,
   }))
 
   return (
