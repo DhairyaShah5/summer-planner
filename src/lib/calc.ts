@@ -276,14 +276,17 @@ export function computeAccountStates(
     // --- Paycheck-driven flows ---
     if (account.is_paycheck_destination) {
       // Paycheck destination (e.g. Chase Checking).
-      // baseNet hits checking, then vault + extra + rent + RH leave it.
+      // baseNet hits checking, then vault + rent + RH leave it.
+      // NOTE: extraDeposit is external income deposited directly into the
+      // vault (Marcus HYSA) — it never passes through Chase Checking, so it
+      // is excluded from this flow.
       for (const row of computed) {
         const baseNet =
           row.received && row.actualNetWages != null
             ? row.actualNetWages
             : row.estimatedNet
         const netFlow =
-          baseNet - row.vault - row.rentPaid - row.robinhood - row.extraDeposit
+          baseNet - row.vault - row.rentPaid - row.robinhood
         fullSummer += netFlow
         if (row.received) toDate += netFlow
       }
