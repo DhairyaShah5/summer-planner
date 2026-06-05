@@ -127,36 +127,51 @@ export function computeRow(
       ? Math.max(0, floor10(actualNetWages - rentPaid - robinhood))
       : null
 
+  // `intendedVault` = what we WANTED to vault before the cap throttle clipped
+  // us. When the cap room is smaller than the intended figure, the slack
+  // (vaultOverflow) must flow into BUFFER (unallocated checking cash), not
+  // into CO — otherwise CO inflates on the final paycheck once the vault
+  // hits its cap (see weekly chart's last-week spike bug).
+  let intendedVault: number
   let vault: number
   if (vaultOverride != null) {
     // Manual override: still respect cap room, and if received, also cap at
     // what the actual net check can cover after rent + RH. Same bug class.
-    let v = Math.min(vaultOverride, capRoom)
+    let intended = vaultOverride
     if (actualAvailableForVault != null) {
-      v = Math.min(v, actualAvailableForVault)
+      intended = Math.min(intended, actualAvailableForVault)
     }
-    vault = Math.max(0, v)
+    intended = Math.max(0, intended)
+    intendedVault = intended
+    vault = Math.max(0, Math.min(intended, capRoom))
   } else if (employer === 'USC On-Campus') {
     const uscDefault = rentPaid > 0 ? settings.uscRentVault : settings.uscNoRentVault
-    let v = Math.min(uscDefault, capRoom)
-    if (actualAvailableForVault != null && actualAvailableForVault < v) {
+    let intended = uscDefault
+    if (actualAvailableForVault != null && actualAvailableForVault < intended) {
       // Real check came in light — don't overdraw it.
-      v = actualAvailableForVault
+      intended = actualAvailableForVault
     }
-    vault = Math.max(0, v)
+    intended = Math.max(0, intended)
+    intendedVault = intended
+    vault = Math.max(0, Math.min(intended, capRoom))
   } else {
     // NTT: vault floor10(net) regardless. floor10 already lives in baseNet's
     // computation pathway above (we floor explicitly here for clarity).
-    vault = Math.min(floor10(baseNet), capRoom)
+    intendedVault = Math.max(0, floor10(baseNet))
+    vault = Math.max(0, Math.min(intendedVault, capRoom))
   }
 
-  // L: CO spend (floored to $10)
-  const co = Math.max(
-    0,
-    floor10(baseNet + perDiem - vault - rentPaid - robinhood),
-  )
+  // Cap throttle slack — when the vault cap pinches off our intended deposit,
+  // the leftover stays in checking as buffer rather than getting promoted to
+  // discretionary CO spend.
+  const vaultOverflow = Math.max(0, intendedVault - vault)
 
-  // M: Buffer (cents remainder)
+  // L: CO spend (floored to $10), minus any cap-throttle overflow (which goes
+  // to buffer instead). Clamped at 0.
+  const coRaw = floor10(baseNet + perDiem - vault - rentPaid - robinhood)
+  const co = Math.max(0, coRaw - vaultOverflow)
+
+  // M: Buffer (cents remainder + any cap-throttle overflow not absorbed by L)
   const buffer = Math.max(
     0,
     baseNet + perDiem - vault - rentPaid - robinhood - co,
