@@ -22,5 +22,6 @@ export interface Expense {
   description: string
   amount: number
   category: string
+  account_id: string | null
   created_at: string
 }

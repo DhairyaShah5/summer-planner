@@ -14,8 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      accounts: {
+        Row: {
+          created_at: string
+          current_balance: number
+          display_order: number
+          id: string
+          is_paycheck_destination: boolean
+          is_vault: boolean
+          name: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_balance?: number
+          display_order?: number
+          id?: string
+          is_paycheck_destination?: boolean
+          is_vault?: boolean
+          name: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_balance?: number
+          display_order?: number
+          id?: string
+          is_paycheck_destination?: boolean
+          is_vault?: boolean
+          name?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       expenses: {
         Row: {
+          account_id: string | null
           amount: number
           category: string | null
           created_at: string
@@ -25,6 +65,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          account_id?: string | null
           amount: number
           category?: string | null
           created_at?: string
@@ -34,6 +75,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          account_id?: string | null
           amount?: number
           category?: string | null
           created_at?: string
@@ -42,7 +84,15 @@ export type Database = {
           id?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "expenses_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       paychecks: {
         Row: {
