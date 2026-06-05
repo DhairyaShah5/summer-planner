@@ -1,9 +1,10 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, endOfWeek, startOfWeek } from 'date-fns'
-import { Loader2Icon, Trash2Icon } from 'lucide-react'
+import { Inbox, Loader2Icon, Trash2Icon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { createClient } from '@/lib/supabase/client'
@@ -73,6 +74,7 @@ interface Props {
 export function ExpenseList({ expenses, weeklyTarget }: Props) {
   const supabase = createClient()
   const queryClient = useQueryClient()
+  const router = useRouter()
   const [pendingDelete, setPendingDelete] = useState<Expense | null>(null)
 
   const groups = useMemo(() => groupByWeek(expenses), [expenses])
@@ -97,6 +99,7 @@ export function ExpenseList({ expenses, weeklyTarget }: Props) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] })
+      router.refresh()
       toast.success('Expense deleted')
       setPendingDelete(null)
     },
@@ -107,7 +110,7 @@ export function ExpenseList({ expenses, weeklyTarget }: Props) {
 
   return (
     <div className="space-y-4">
-      <Card size="sm">
+      <Card size="sm" className="transition-shadow hover:shadow-md">
         <CardContent>
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm">
             <div className="flex items-baseline gap-1.5">
@@ -140,9 +143,17 @@ export function ExpenseList({ expenses, weeklyTarget }: Props) {
       {groups.length === 0 ? (
         <Card>
           <CardContent>
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              No expenses yet. Add one above.
-            </p>
+            <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+              <div className="rounded-full bg-muted p-3">
+                <Inbox className="size-6 text-muted-foreground" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium">No expenses yet</p>
+                <p className="text-xs text-muted-foreground">
+                  Add your first one with the form above.
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       ) : (
@@ -156,13 +167,13 @@ export function ExpenseList({ expenses, weeklyTarget }: Props) {
                 {money.format(g.total)}
               </span>
             </div>
-            <Card>
+            <Card className="transition-shadow hover:shadow-md">
               <CardContent className="!p-0">
                 <ul className="divide-y">
                   {g.expenses.map((e) => (
                     <li
                       key={e.id}
-                      className="flex items-center gap-3 px-3 py-2.5"
+                      className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/40"
                     >
                       <div className="shrink-0 text-xs text-muted-foreground tabular-nums">
                         {format(parseLocalDate(e.expense_date), 'EEE MMM d')}
@@ -186,8 +197,9 @@ export function ExpenseList({ expenses, weeklyTarget }: Props) {
                         variant="ghost"
                         onClick={() => setPendingDelete(e)}
                         aria-label="Delete expense"
+                        className="transition-colors hover:text-destructive"
                       >
-                        <Trash2Icon className="size-4 text-muted-foreground" />
+                        <Trash2Icon className="size-4" />
                       </Button>
                     </li>
                   ))}

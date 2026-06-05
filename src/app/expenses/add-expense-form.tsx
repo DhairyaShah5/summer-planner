@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2Icon, PlusIcon } from 'lucide-react'
 import { toast } from 'sonner'
@@ -29,6 +30,7 @@ interface NewExpense {
 export function AddExpenseForm() {
   const supabase = createClient()
   const queryClient = useQueryClient()
+  const router = useRouter()
   const descriptionRef = useRef<HTMLInputElement>(null)
 
   const [date, setDate] = useState(todayISO())
@@ -57,6 +59,7 @@ export function AddExpenseForm() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] })
+      router.refresh()
       setDescription('')
       setAmount('')
       descriptionRef.current?.focus()
@@ -88,8 +91,8 @@ export function AddExpenseForm() {
   }
 
   return (
-    <Card className="sticky top-2 z-20 shadow-sm">
-      <CardContent>
+    <Card className="sticky top-2 z-20 shadow-sm transition-shadow hover:shadow-md">
+      <CardContent className="py-2">
         <form onSubmit={onSubmit} className="flex flex-col gap-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]">
             <div className="flex flex-col gap-1.5">
@@ -157,6 +160,7 @@ export function AddExpenseForm() {
                 variant={category === c ? 'default' : 'outline'}
                 onClick={() => setCategory(c)}
                 disabled={mutation.isPending}
+                className="transition-transform active:scale-95"
               >
                 {c}
               </Button>
@@ -166,7 +170,7 @@ export function AddExpenseForm() {
             type="submit"
             size="lg"
             disabled={mutation.isPending}
-            className="w-full"
+            className="w-full transition-transform active:scale-[0.99]"
           >
             {mutation.isPending ? (
               <>
