@@ -70,6 +70,7 @@ export default async function ExpensesPage() {
       extraDeposit: p.extra_deposit,
       vaultOverride: p.vault_override,
       rentPaid: p.rent_paid,
+      received: p.received,
     }))
 
     const computed = computeAll(inputs, settings)
