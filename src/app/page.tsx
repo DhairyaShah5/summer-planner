@@ -41,6 +41,8 @@ const moneyWhole = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
 });
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage() {
   const supabase = await createClient();
   const {
@@ -105,12 +107,28 @@ export default async function DashboardPage() {
   const computed = computeAll(inputs, settings);
   const totals = summarize(computed, settings);
 
-  const { data: expenseRows } = await supabase
-    .from("expenses")
-    .select("*")
-    .order("expense_date", { ascending: false });
+  const now = new Date();
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+  const weekStartISO = format(weekStart, "yyyy-MM-dd");
+  const weekEndISO = format(weekEnd, "yyyy-MM-dd");
 
-  const expenses: Expense[] = (expenseRows ?? []).map((e) => ({
+  // Two parallel queries: recent expenses for the list, and this-week expenses
+  // for the budget tile. Splitting avoids fetching the whole table.
+  const [recentExpensesRes, weekExpensesRes] = await Promise.all([
+    supabase
+      .from("expenses")
+      .select("*")
+      .order("expense_date", { ascending: false })
+      .limit(5),
+    supabase
+      .from("expenses")
+      .select("amount")
+      .gte("expense_date", weekStartISO)
+      .lte("expense_date", weekEndISO),
+  ]);
+
+  const recentExpenses: Expense[] = (recentExpensesRes.data ?? []).map((e) => ({
     id: e.id,
     expense_date: e.expense_date,
     description: e.description,
@@ -119,21 +137,21 @@ export default async function DashboardPage() {
     created_at: e.created_at,
   }));
 
-  const now = new Date();
-  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-  const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
-  const weekStartISO = format(weekStart, "yyyy-MM-dd");
-  const weekEndISO = format(weekEnd, "yyyy-MM-dd");
+  const actualThisWeek = (weekExpensesRes.data ?? []).reduce(
+    (s, e) => s + (e.amount ?? 0),
+    0,
+  );
 
+  // Target CO for this week = sum of CO from paychecks whose payDate falls
+  // within [weekStart, weekEnd]. Matches the tile label semantics — paychecks
+  // landing this week fund this week's CO spending.
   const targetCOThisWeek = computed
-    .filter((r) => String(r.payDate) <= weekEndISO)
-    .reduce((s, r) => s + r.co, 0);
-
-  const actualThisWeek = expenses
     .filter(
-      (e) => e.expense_date >= weekStartISO && e.expense_date <= weekEndISO,
+      (r) =>
+        String(r.payDate) >= weekStartISO &&
+        String(r.payDate) <= weekEndISO,
     )
-    .reduce((s, e) => s + e.amount, 0);
+    .reduce((s, r) => s + r.co, 0);
 
   const variance = targetCOThisWeek - actualThisWeek;
   const isUnder = variance >= 0;
@@ -147,9 +165,7 @@ export default async function DashboardPage() {
     settings.vaultCap > 0
       ? Math.min(100, (totals.totalVault / settings.vaultCap) * 100)
       : 0;
-  const vaultRemaining = settings.vaultCap - totals.totalVault;
-
-  const recentExpenses = expenses.slice(0, 5);
+  const vaultRemaining = Math.max(0, settings.vaultCap - totals.totalVault);
 
   return (
     <div className="container mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
