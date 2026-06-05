@@ -11,6 +11,7 @@ import {
   Settings,
   LogOut,
   Sun,
+  Landmark,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/paychecks", label: "Paychecks", icon: Wallet },
   { href: "/expenses", label: "Expenses", icon: Receipt },
+  { href: "/accounts", label: "Accounts", icon: Landmark },
   { href: "/weekly", label: "Weekly", icon: CalendarDays },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
