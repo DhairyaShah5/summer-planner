@@ -3,14 +3,23 @@
 import { useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { motion } from 'framer-motion'
 import { toast } from 'sonner'
+import { NotebookPen } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { computeAll } from '@/lib/calc'
 import type { Employer, PaycheckInput, Settings } from '@/lib/types'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
+import { GradientProgress } from '@/components/gradient-progress'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import {
   Tooltip,
   TooltipContent,
@@ -78,8 +87,8 @@ const money = new Intl.NumberFormat('en-US', {
 
 const pct = new Intl.NumberFormat('en-US', {
   style: 'percent',
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 })
 
 function toEmployer(s: string): Employer {
@@ -235,25 +244,32 @@ export function PaychecksTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-10 text-center">#</TableHead>
-              <TableHead className="w-[110px]">Pay Date</TableHead>
-              <TableHead className="w-[70px]">Employer</TableHead>
-              <TableHead className="w-[70px] text-center">Received</TableHead>
-              <TableHead className="bg-amber-100/40 w-[90px]">Hours</TableHead>
-              <TableHead className="bg-amber-100/40 w-[80px]">OT</TableHead>
-              <TableHead className="bg-amber-100/40 w-[90px]">Per Diem</TableHead>
-              <TableHead className="bg-amber-100/40 w-[110px]">Actual Net</TableHead>
-              <TableHead className="bg-amber-100/40 w-[110px]">
-                Vault Override
+              <TableHead className="w-10 px-2 text-center">#</TableHead>
+              <TableHead className="w-[100px] px-2">Pay Date</TableHead>
+              <TableHead className="w-[64px] px-2">Employer</TableHead>
+              <TableHead className="w-[70px] px-2 text-center">Received</TableHead>
+              <TableHead className="w-[68px] px-2">Hours</TableHead>
+              <TableHead className="w-[60px] px-2">OT</TableHead>
+              <TableHead className="w-[78px] px-2">Per Diem</TableHead>
+              <TableHead className="w-[92px] px-2">Actual Net</TableHead>
+              <TableHead className="w-[92px] px-2">Vault Override</TableHead>
+              <TableHead className="w-[68px] px-2 text-right">Net %</TableHead>
+              <TableHead className="w-[100px] px-2 text-right">
+                To Tuition Vault
               </TableHead>
-              <TableHead className="bg-amber-100/40 w-[240px]">Notes</TableHead>
-              <TableHead className="bg-muted/50 text-right w-[100px]">
-                Vault $
+              <TableHead className="w-[100px] px-2 text-right">
+                To CA Rent / Bills
               </TableHead>
-              <TableHead className="bg-muted/50 text-right w-[100px]">
-                CO $
+              <TableHead className="w-[88px] px-2 text-right">
+                To Robinhood
               </TableHead>
-              <TableHead className="w-[90px] text-center">Status</TableHead>
+              <TableHead className="w-[100px] px-2 text-right">
+                To Colorado Spending
+              </TableHead>
+              <TableHead className="w-[80px] px-2 text-center">Status</TableHead>
+              <TableHead className="w-[44px] px-2 text-center">
+                <span className="sr-only">Notes</span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -263,10 +279,15 @@ export function PaychecksTable({
               const projectedNetPlaceholder = money
                 .format(c.estimatedNet)
                 .replace('$', '')
+              const hasNotes = (row.notes ?? '').trim().length > 0
               return (
-                <TableRow
+                <motion.tr
                   key={row.id}
-                  className="odd:bg-muted/30 transition-colors hover:bg-muted/60 [&>td]:py-3 h-[72px]"
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.02, duration: 0.3 }}
+                  data-slot="table-row"
+                  className="border-b odd:bg-muted/20 transition-colors hover:bg-muted/40 [&>td]:py-2 [&>td]:px-2 h-14"
                 >
                   <TableCell className="text-center font-mono text-xs text-muted-foreground">
                     <Tooltip>
@@ -328,7 +349,7 @@ export function PaychecksTable({
                       {isUSC ? 'USC' : 'NTT'}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-center bg-amber-100/40">
+                  <TableCell className="text-center">
                     <div className="flex justify-center">
                       <Checkbox
                         checked={row.received}
@@ -342,63 +363,71 @@ export function PaychecksTable({
                   <NumberCell
                     value={row.hours_worked}
                     step="1"
+                    width="w-14"
                     onCommit={(v) => commit(row.id, 'hours_worked', v)}
                   />
                   <NumberCell
                     value={row.ot_hours}
                     step="1"
+                    width="w-12"
                     onCommit={(v) => commit(row.id, 'ot_hours', v)}
                   />
                   <NumberCell
                     value={row.per_diem}
                     step="0.01"
+                    width="w-16"
                     onCommit={(v) => commit(row.id, 'per_diem', v)}
                   />
                   <NumberCell
                     value={row.actual_net_wages}
                     step="0.01"
+                    width="w-20"
                     placeholder={projectedNetPlaceholder}
                     onCommit={(v) => commit(row.id, 'actual_net_wages', v)}
                   />
                   <NumberCell
                     value={row.vault_override}
                     step="0.01"
+                    width="w-20"
                     placeholder="auto"
                     onCommit={(v) => commit(row.id, 'vault_override', v)}
                   />
-                  <TableCell className="bg-amber-100/40">
-                    <Textarea
-                      key={row.notes ?? ''}
-                      defaultValue={row.notes ?? ''}
-                      rows={2}
-                      className="min-h-[48px] w-[220px] text-xs leading-tight px-2 py-1.5 focus:bg-amber-200/60 transition-colors"
-                      onBlur={(e) => {
-                        const v = e.currentTarget.value
-                        if ((row.notes ?? '') !== v) {
-                          commit(row.id, 'notes', v)
-                        }
-                      }}
-                    />
+                  <TableCell className="text-right tabular-nums text-xs font-medium text-muted-foreground">
+                    {pct.format(c.netPct)}
                   </TableCell>
-                  <TableCell className="bg-muted/40 text-right tabular-nums text-muted-foreground">
+                  <TableCell className="text-right tabular-nums text-xs font-medium text-muted-foreground">
                     {money.format(c.vault)}
                   </TableCell>
-                  <TableCell className="bg-muted/40 text-right tabular-nums text-muted-foreground">
+                  <TableCell className="text-right tabular-nums text-xs font-medium text-muted-foreground">
+                    {money.format(row.rent_paid)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-xs font-medium text-muted-foreground">
+                    {money.format(c.robinhood)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-xs font-medium text-muted-foreground">
                     {money.format(c.co)}
                   </TableCell>
                   <TableCell className="text-center">
                     <Badge
-                      variant={c.status === 'Received' ? 'default' : 'outline'}
+                      variant="outline"
                       className={cn(
-                        'font-normal',
-                        c.status === 'Pending' &&
-                          'bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300 border-transparent',
+                        'font-normal border-transparent',
+                        c.status === 'Pending'
+                          ? 'bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300'
+                          : 'bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300',
                       )}
                     >
                       {c.status}
                     </Badge>
                   </TableCell>
-                </TableRow>
+                  <TableCell className="text-center">
+                    <NotesPopover
+                      notes={row.notes}
+                      hasNotes={hasNotes}
+                      onCommit={(v) => commit(row.id, 'notes', v)}
+                    />
+                  </TableCell>
+                </motion.tr>
               )
             })}
           </TableBody>
@@ -407,24 +436,28 @@ export function PaychecksTable({
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <SummaryStat
+          index={0}
           label="Total Vault"
           tag="Current"
           value={money.format(totals.currentVault)}
           projected={`Projected ${money.format(totals.cumulative)}`}
         />
         <SummaryStat
+          index={1}
           label="Summer CO Budget"
           tag="Projected"
           value={money.format(totals.totalCO)}
           projected={`Current allocated ${money.format(totals.currentCO)} of projected ${money.format(totals.totalCO)}`}
         />
         <SummaryStat
+          index={2}
           label="Total Buffer"
           tag="Current"
           value={money.format(totals.currentBuffer)}
           projected={`Projected ${money.format(totals.totalBuffer)}`}
         />
         <SummaryStat
+          index={3}
           label="Vault Progress"
           tag="Current"
           value={`${vaultProgressPct.toFixed(1)}%`}
@@ -439,24 +472,29 @@ export function PaychecksTable({
 function NumberCell({
   value,
   step,
+  width = 'w-20',
   placeholder,
   onCommit,
 }: {
   value: number | null
   step: string
+  width?: string
   placeholder?: string
   onCommit: (v: string) => void
 }) {
   const initial = value == null ? '' : String(value)
   return (
-    <TableCell className="bg-amber-100/40">
+    <TableCell>
       <Input
         key={initial}
         type="number"
         step={step}
         defaultValue={initial}
         placeholder={placeholder}
-        className="h-8 w-20 text-xs tabular-nums focus:bg-amber-200/60 transition-colors"
+        className={cn(
+          'h-8 text-xs tabular-nums bg-muted/30 focus:ring-1 focus:ring-primary',
+          width,
+        )}
         onBlur={(e) => {
           const raw = e.currentTarget.value
           if (raw !== initial) onCommit(raw)
@@ -466,21 +504,77 @@ function NumberCell({
   )
 }
 
+function NotesPopover({
+  notes,
+  hasNotes,
+  onCommit,
+}: {
+  notes: string | null
+  hasNotes: boolean
+  onCommit: (v: string) => void
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            aria-label={hasNotes ? 'Edit notes' : 'Add notes'}
+          />
+        }
+      >
+        <NotebookPen
+          className={cn(
+            'size-4',
+            hasNotes ? 'text-primary' : 'text-muted-foreground',
+          )}
+        />
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72">
+        <Textarea
+          key={notes ?? ''}
+          defaultValue={notes ?? ''}
+          rows={4}
+          placeholder="Notes…"
+          className="min-h-[96px] w-full text-xs leading-snug focus:ring-1 focus:ring-primary"
+          onBlur={(e) => {
+            const v = e.currentTarget.value
+            if ((notes ?? '') !== v) {
+              onCommit(v)
+            }
+          }}
+        />
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 function SummaryStat({
   label,
   value,
   tag,
   projected,
   progress,
+  index = 0,
 }: {
   label: string
   value: string
   tag?: string
   projected?: string
   progress?: number
+  index?: number
 }) {
   return (
-    <div className="rounded-lg border bg-card p-4 transition-shadow hover:shadow-md">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.1 + index * 0.05, duration: 0.4 }}
+      whileHover={{ y: -2 }}
+      className="rounded-lg border bg-card p-4 transition-shadow hover:shadow-lg"
+    >
       <div className="flex items-center justify-between gap-2">
         <div className="text-xs text-muted-foreground">{label}</div>
         {tag && (
@@ -496,13 +590,10 @@ function SummaryStat({
         </div>
       )}
       {progress != null && (
-        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
-          <div
-            className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
-            style={{ width: `${progress}%` }}
-          />
+        <div className="mt-2">
+          <GradientProgress percent={progress} height="h-2" />
         </div>
       )}
-    </div>
+    </motion.div>
   )
 }
