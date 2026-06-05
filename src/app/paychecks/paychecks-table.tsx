@@ -241,39 +241,21 @@ export function PaychecksTable({
   return (
     <div className="space-y-6">
       <div className="rounded-lg border overflow-x-auto">
-        <Table className="min-w-[1120px] table-auto">
+        <Table className="min-w-[1380px] table-auto">
           <TableHeader>
             <TableRow>
               <TableHead className="w-8 px-1.5 text-center">#</TableHead>
               <TableHead className="w-[70px] px-1.5">Pay Date</TableHead>
               <TableHead className="w-[56px] px-1.5">Employer</TableHead>
               <TableHead className="w-[64px] px-1.5 text-center">Received</TableHead>
-              <TableHead className="w-[60px] px-1.5">Hours</TableHead>
-              <TableHead className="w-[52px] px-1.5">OT</TableHead>
-              <TableHead className="w-[68px] px-1.5">Per Diem</TableHead>
-              <TableHead className="w-[84px] px-1.5">Actual Net</TableHead>
-              <TableHead className="w-[84px] px-1.5">
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <span className="cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-2" />
-                    }
-                  >
-                    Custom Vault $
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <div className="max-w-[240px] text-left leading-snug">
-                      Override the auto-computed vault amount. Leave as
-                      &lsquo;auto&rsquo; to let the formula decide; enter a
-                      number to force a specific allocation for this paycheck
-                      (e.g., $0 on Jun 5 NTT to send the whole check to CO).
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TableHead>
-              <TableHead className="w-[84px] px-1.5">Extra Deposit</TableHead>
-              <TableHead className="w-[56px] px-1.5 text-right">Net %</TableHead>
-              <TableHead className="w-[100px] px-1.5 text-right">
+              <TableHead className="w-[72px] px-1.5">Hours</TableHead>
+              <TableHead className="w-[64px] px-1.5">OT</TableHead>
+              <TableHead className="w-[84px] px-1.5">Per Diem</TableHead>
+              <TableHead className="w-[100px] px-1.5">Actual Net</TableHead>
+              <TableHead className="w-[100px] px-1.5 text-right">Expected Pay</TableHead>
+              <TableHead className="w-[100px] px-1.5">Extra Deposit</TableHead>
+              <TableHead className="w-[68px] px-1.5 text-right">Net %</TableHead>
+              <TableHead className="w-[112px] px-1.5 text-right">
                 <Tooltip>
                   <TooltipTrigger
                     render={
@@ -285,7 +267,7 @@ export function PaychecksTable({
                   <TooltipContent>To Tuition Vault</TooltipContent>
                 </Tooltip>
               </TableHead>
-              <TableHead className="w-[100px] px-1.5 text-right">
+              <TableHead className="w-[112px] px-1.5 text-right">
                 <Tooltip>
                   <TooltipTrigger
                     render={
@@ -297,7 +279,7 @@ export function PaychecksTable({
                   <TooltipContent>To CA Rent / Bills</TooltipContent>
                 </Tooltip>
               </TableHead>
-              <TableHead className="w-[96px] px-1.5 text-right">
+              <TableHead className="w-[108px] px-1.5 text-right">
                 <Tooltip>
                   <TooltipTrigger
                     render={
@@ -309,7 +291,7 @@ export function PaychecksTable({
                   <TooltipContent>To Robinhood</TooltipContent>
                 </Tooltip>
               </TableHead>
-              <TableHead className="w-[100px] px-1.5 text-right">
+              <TableHead className="w-[112px] px-1.5 text-right">
                 <Tooltip>
                   <TooltipTrigger
                     render={
@@ -433,13 +415,9 @@ export function PaychecksTable({
                     placeholder={projectedNetPlaceholder}
                     onCommit={(v) => commit(row.id, 'actual_net_wages', v)}
                   />
-                  <NumberCell
-                    value={row.vault_override}
-                    step="0.01"
-                    width="w-16"
-                    placeholder="auto"
-                    onCommit={(v) => commit(row.id, 'vault_override', v)}
-                  />
+                  <TableCell className="text-right tabular-nums text-xs font-medium text-muted-foreground">
+                    {money.format(c.estimatedNet)}
+                  </TableCell>
                   <NumberCell
                     value={row.extra_deposit}
                     step="0.01"
