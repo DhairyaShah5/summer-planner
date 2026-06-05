@@ -157,6 +157,7 @@ export type Database = {
           id: string
           ntt_hourly_rate: number
           ntt_net_pct: number
+          ntt_vault_default: number
           rent_monthly: number
           rent_months: number
           robinhood_weekly: number
@@ -173,6 +174,7 @@ export type Database = {
           id?: string
           ntt_hourly_rate?: number
           ntt_net_pct?: number
+          ntt_vault_default?: number
           rent_monthly?: number
           rent_months?: number
           robinhood_weekly?: number
@@ -189,6 +191,7 @@ export type Database = {
           id?: string
           ntt_hourly_rate?: number
           ntt_net_pct?: number
+          ntt_vault_default?: number
           rent_monthly?: number
           rent_months?: number
           robinhood_weekly?: number
