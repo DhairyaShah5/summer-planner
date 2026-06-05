@@ -218,6 +218,106 @@ export function computeAll(
 }
 
 /**
+ * Account-state derivation: turn arrival balances + paychecks + expenses
+ * into "current" (to-date) and "projected" (full-summer) live balances.
+ *
+ * The paycheck destination (Chase Checking) sees the bulk of the net wage
+ * land, then bleeds out to vault (HYSA), rent (landlord), Robinhood, and
+ * extraDeposit (HYSA). The vault account is the inflow side of those
+ * vault/extra transfers. Other accounts (BofA, credit cards) get no
+ * paycheck flows — only expense activity.
+ *
+ * For expenses: checking/hysa accounts have the amount subtracted;
+ * credit cards have it added (the outstanding balance grows).
+ *
+ * Today's date is computed once at call time; "to-date" includes any
+ * paycheck/expense whose date is on or before today.
+ */
+export interface AccountInput {
+  id: string
+  name: string
+  type: 'checking' | 'credit_card' | 'hysa'
+  arrival_balance: number
+  is_paycheck_destination: boolean
+  is_vault: boolean
+  display_order: number
+}
+
+export interface ExpenseInput {
+  id: string
+  expense_date: string
+  amount: number
+  account_id: string | null
+}
+
+export interface AccountState {
+  account: AccountInput
+  arrival: number
+  /** arrival + activity through today (received paychecks, dated expenses) */
+  current: number
+  /** arrival + activity for the full summer (all paychecks, all known expenses) */
+  projected: number
+}
+
+export function computeAccountStates(
+  accounts: AccountInput[],
+  paychecks: PaycheckInput[],
+  expenses: ExpenseInput[],
+  settings: Settings,
+): AccountState[] {
+  const computed = computeAll(paychecks, settings)
+  const todayISO = new Date().toISOString().slice(0, 10)
+
+  return accounts.map((account) => {
+    const arrival = account.arrival_balance
+    let toDate = 0
+    let fullSummer = 0
+
+    // --- Paycheck-driven flows ---
+    if (account.is_paycheck_destination) {
+      // Paycheck destination (e.g. Chase Checking).
+      // baseNet hits checking, then vault + extra + rent + RH leave it.
+      for (const row of computed) {
+        const baseNet =
+          row.received && row.actualNetWages != null
+            ? row.actualNetWages
+            : row.estimatedNet
+        const netFlow =
+          baseNet - row.vault - row.rentPaid - row.robinhood - row.extraDeposit
+        fullSummer += netFlow
+        if (row.received) toDate += netFlow
+      }
+    } else if (account.is_vault) {
+      // Vault account (Marcus HYSA): receives vault + extraDeposit each check.
+      for (const row of computed) {
+        const inflow = row.vault + row.extraDeposit
+        fullSummer += inflow
+        if (row.received) toDate += inflow
+      }
+    }
+    // Other accounts (BofA Checking, credit cards): no paycheck flows.
+
+    // --- Expense flows ---
+    for (const exp of expenses) {
+      if (exp.account_id !== account.id) continue
+      const delta = account.type === 'credit_card' ? exp.amount : -exp.amount
+      fullSummer += delta
+      // No projected (future-dated) expenses are tracked separately yet, so
+      // to-date matches full-summer for any expense already in the system.
+      // We still gate by today's date for forward-compatibility.
+      if (exp.expense_date <= todayISO) toDate += delta
+    }
+
+    return {
+      account,
+      arrival,
+      current: arrival + toDate,
+      projected: arrival + fullSummer,
+    }
+  })
+}
+
+/**
  * Aggregate totals across all computed rows for dashboard/summary views.
  *
  * `settings` is optional: pass it to get an exact `vaultRemaining`
