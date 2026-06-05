@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm, type UseFormReturn, type FieldPath } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -331,9 +331,31 @@ function PercentField({ form, name, label, description }: FieldProps) {
   const value = form.watch(name);
   const error = form.formState.errors[name];
   const numericValue = typeof value === "number" ? value : Number(value);
-  const displayPct = Number.isFinite(numericValue)
+  const canonicalDisplay = Number.isFinite(numericValue)
     ? (numericValue * 100).toFixed(4)
     : "";
+
+  // Local input string so typing isn't disrupted by re-renders. We only sync
+  // from form state when the underlying decimal value diverges from what the
+  // local string would produce (e.g. reset to defaults, discard changes).
+  const [localText, setLocalText] = useState<string>(canonicalDisplay);
+  const lastSyncedRef = useRef<number>(numericValue);
+
+  useEffect(() => {
+    if (numericValue !== lastSyncedRef.current) {
+      const parsedLocal = parseFloat(localText);
+      const localAsDecimal = Number.isFinite(parsedLocal) ? parsedLocal / 100 : NaN;
+      // Only overwrite local text if the form value was changed externally
+      // (i.e. doesn't match what the user has currently typed).
+      if (
+        !Number.isFinite(localAsDecimal) ||
+        Math.abs(localAsDecimal - numericValue) > 1e-9
+      ) {
+        setLocalText(canonicalDisplay);
+      }
+      lastSyncedRef.current = numericValue;
+    }
+  }, [numericValue, canonicalDisplay, localText]);
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -344,14 +366,15 @@ function PercentField({ form, name, label, description }: FieldProps) {
           type="number"
           step="0.0001"
           inputMode="decimal"
-          defaultValue={displayPct}
-          key={displayPct}
+          value={localText}
           aria-invalid={!!error}
           className="pr-8"
           onChange={(e) => {
             const raw = e.target.value;
+            setLocalText(raw);
             const pct = parseFloat(raw);
             const next = Number.isFinite(pct) ? pct / 100 : 0;
+            lastSyncedRef.current = next;
             form.setValue(name, next, {
               shouldDirty: true,
               shouldValidate: true,
