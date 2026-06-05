@@ -9,6 +9,7 @@ import { NotebookPen } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { computeAll } from '@/lib/calc'
 import type { Employer, PaycheckInput, Settings } from '@/lib/types'
+import { onReceivedToggled } from './paycheck-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -168,6 +169,16 @@ export function PaychecksTable({
         .update(patch)
         .eq('id', id)
       if (error) throw error
+      // If the user just toggled `received`, fire the server action that
+      // adjusts the Chase Checking balance by the paycheck's actual net wages.
+      // We do this AFTER the supabase write succeeds so the action reads the
+      // up-to-date row.
+      if (Object.prototype.hasOwnProperty.call(patch, 'received')) {
+        const res = await onReceivedToggled(id, Boolean(patch.received))
+        if (!res.ok) {
+          throw new Error(res.error ?? 'Balance update failed')
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['paychecks'] })
@@ -241,33 +252,52 @@ export function PaychecksTable({
   return (
     <div className="space-y-6">
       <div className="rounded-lg border overflow-x-auto">
-        <Table>
+        <Table className="min-w-[1168px] table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-10 px-2 text-center">#</TableHead>
-              <TableHead className="w-[100px] px-2">Pay Date</TableHead>
-              <TableHead className="w-[64px] px-2">Employer</TableHead>
-              <TableHead className="w-[70px] px-2 text-center">Received</TableHead>
-              <TableHead className="w-[68px] px-2">Hours</TableHead>
-              <TableHead className="w-[60px] px-2">OT</TableHead>
-              <TableHead className="w-[78px] px-2">Per Diem</TableHead>
-              <TableHead className="w-[92px] px-2">Actual Net</TableHead>
-              <TableHead className="w-[92px] px-2">Vault Override</TableHead>
-              <TableHead className="w-[68px] px-2 text-right">Net %</TableHead>
-              <TableHead className="w-[100px] px-2 text-right">
+              <TableHead className="w-8 px-1.5 text-center">#</TableHead>
+              <TableHead className="w-[70px] px-1.5">Pay Date</TableHead>
+              <TableHead className="w-[56px] px-1.5">Employer</TableHead>
+              <TableHead className="w-[64px] px-1.5 text-center">Received</TableHead>
+              <TableHead className="w-[60px] px-1.5">Hours</TableHead>
+              <TableHead className="w-[52px] px-1.5">OT</TableHead>
+              <TableHead className="w-[68px] px-1.5">Per Diem</TableHead>
+              <TableHead className="w-[84px] px-1.5">Actual Net</TableHead>
+              <TableHead className="w-[84px] px-1.5">
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <span className="cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-2" />
+                    }
+                  >
+                    Custom Vault $
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <div className="max-w-[240px] text-left leading-snug">
+                      Override the auto-computed vault amount. Leave as
+                      &lsquo;auto&rsquo; to let the formula decide; enter a
+                      number to force a specific allocation for this paycheck
+                      (e.g., $0 on Jun 5 NTT to send the whole check to CO).
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TableHead>
+              <TableHead className="w-[84px] px-1.5">Extra Deposit</TableHead>
+              <TableHead className="w-[56px] px-1.5 text-right">Net %</TableHead>
+              <TableHead className="w-[90px] px-1.5 text-right">
                 To Tuition Vault
               </TableHead>
-              <TableHead className="w-[100px] px-2 text-right">
+              <TableHead className="w-[90px] px-1.5 text-right">
                 To CA Rent / Bills
               </TableHead>
-              <TableHead className="w-[88px] px-2 text-right">
+              <TableHead className="w-[84px] px-1.5 text-right">
                 To Robinhood
               </TableHead>
-              <TableHead className="w-[100px] px-2 text-right">
+              <TableHead className="w-[90px] px-1.5 text-right">
                 To Colorado Spending
               </TableHead>
-              <TableHead className="w-[80px] px-2 text-center">Status</TableHead>
-              <TableHead className="w-[44px] px-2 text-center">
+              <TableHead className="w-[72px] px-1.5 text-center">Status</TableHead>
+              <TableHead className="w-8 px-1.5 text-center">
                 <span className="sr-only">Notes</span>
               </TableHead>
             </TableRow>
@@ -287,7 +317,7 @@ export function PaychecksTable({
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.02, duration: 0.3 }}
                   data-slot="table-row"
-                  className="border-b odd:bg-muted/20 transition-colors hover:bg-muted/40 [&>td]:py-2 [&>td]:px-2 h-14"
+                  className="border-b odd:bg-muted/20 transition-colors hover:bg-muted/40 [&>td]:py-1 [&>td]:px-1.5 h-12"
                 >
                   <TableCell className="text-center font-mono text-xs text-muted-foreground">
                     <Tooltip>
@@ -315,12 +345,6 @@ export function PaychecksTable({
                             <span>{money.format(row.rent_paid)}</span>
                           </div>
                           <div className="flex justify-between gap-3">
-                            <span className="text-background/70">
-                              Extra Deposit
-                            </span>
-                            <span>{money.format(row.extra_deposit)}</span>
-                          </div>
-                          <div className="flex justify-between gap-3">
                             <span className="text-background/70">Buffer</span>
                             <span>{money.format(c.buffer)}</span>
                           </div>
@@ -334,13 +358,13 @@ export function PaychecksTable({
                       </TooltipContent>
                     </Tooltip>
                   </TableCell>
-                  <TableCell className="text-xs tabular-nums">
-                    {format(parseISO(row.pay_date), 'MMM d, yyyy')}
+                  <TableCell className="text-xs tabular-nums whitespace-nowrap">
+                    {format(parseISO(row.pay_date), 'MMM d')}
                   </TableCell>
                   <TableCell>
                     <Badge
                       className={cn(
-                        'font-normal',
+                        'font-normal px-1.5 py-0 text-[10px]',
                         isUSC
                           ? 'bg-blue-500/15 text-blue-700 hover:bg-blue-500/20 dark:text-blue-300'
                           : 'bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300',
@@ -363,34 +387,40 @@ export function PaychecksTable({
                   <NumberCell
                     value={row.hours_worked}
                     step="1"
-                    width="w-14"
+                    width="w-12"
                     onCommit={(v) => commit(row.id, 'hours_worked', v)}
                   />
                   <NumberCell
                     value={row.ot_hours}
                     step="1"
-                    width="w-12"
+                    width="w-10"
                     onCommit={(v) => commit(row.id, 'ot_hours', v)}
                   />
                   <NumberCell
                     value={row.per_diem}
                     step="0.01"
-                    width="w-16"
+                    width="w-14"
                     onCommit={(v) => commit(row.id, 'per_diem', v)}
                   />
                   <NumberCell
                     value={row.actual_net_wages}
                     step="0.01"
-                    width="w-20"
+                    width="w-16"
                     placeholder={projectedNetPlaceholder}
                     onCommit={(v) => commit(row.id, 'actual_net_wages', v)}
                   />
                   <NumberCell
                     value={row.vault_override}
                     step="0.01"
-                    width="w-20"
+                    width="w-16"
                     placeholder="auto"
                     onCommit={(v) => commit(row.id, 'vault_override', v)}
+                  />
+                  <NumberCell
+                    value={row.extra_deposit}
+                    step="0.01"
+                    width="w-16"
+                    onCommit={(v) => commit(row.id, 'extra_deposit', v)}
                   />
                   <TableCell className="text-right tabular-nums text-xs font-medium text-muted-foreground">
                     {pct.format(c.netPct)}
@@ -411,7 +441,7 @@ export function PaychecksTable({
                     <Badge
                       variant="outline"
                       className={cn(
-                        'font-normal border-transparent',
+                        'font-normal border-transparent px-1.5 py-0 text-[10px]',
                         c.status === 'Pending'
                           ? 'bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300'
                           : 'bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300',
