@@ -133,6 +133,7 @@ export default async function WeeklyPage() {
     extraDeposit: p.extra_deposit,
     vaultOverride: p.vault_override,
     rentPaid: p.rent_paid,
+    received: p.received,
   }))
 
   const computed = computeAll(paycheckInputs, settings)
@@ -186,6 +187,14 @@ export default async function WeeklyPage() {
     actual: Math.round(w.actualCumulative * 100) / 100,
   }))
 
+  const totalSummerCO = computed.reduce((sum, r) => sum + r.co, 0)
+  const totalActualToDate = expenseRows.reduce(
+    (sum, e) => sum + (e.amount ?? 0),
+    0,
+  )
+  const summerRemaining = totalSummerCO - totalActualToDate
+  const summerIsUnder = summerRemaining >= 0
+
   return (
     <div className="container mx-auto max-w-6xl space-y-6 px-4 py-8">
       <div className="space-y-1">
@@ -194,6 +203,30 @@ export default async function WeeklyPage() {
           Cumulative target vs actual CO spend, week ending Sunday.
         </p>
       </div>
+
+      <Card size="sm" className="transition-shadow hover:shadow-md">
+        <CardContent className="space-y-1">
+          <div className="flex items-baseline gap-2">
+            <span
+              className={cn(
+                'text-2xl font-semibold tabular-nums',
+                summerIsUnder ? '' : 'text-destructive',
+              )}
+            >
+              {money.format(Math.abs(summerRemaining))}
+            </span>
+            <span className="text-sm text-muted-foreground">
+              {summerIsUnder
+                ? 'left to spend this summer'
+                : 'over budget for the summer'}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground tabular-nums">
+            Spent {money.format(totalActualToDate)} of{' '}
+            {money.format(totalSummerCO)} projected CO
+          </p>
+        </CardContent>
+      </Card>
 
       <Card className="transition-shadow hover:shadow-md">
         <CardHeader>

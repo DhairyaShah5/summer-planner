@@ -111,32 +111,25 @@ export function ExpenseList({ expenses, weeklyTarget }: Props) {
   return (
     <div className="space-y-4">
       <Card size="sm" className="transition-shadow hover:shadow-md">
-        <CardContent>
-          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-muted-foreground">This week:</span>
-              <span className="font-semibold tabular-nums">
-                {money.format(thisWeekSpent)}
-              </span>
-              <span className="text-muted-foreground">spent</span>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="font-medium tabular-nums">
-                {money.format(weeklyTarget)}
-              </span>
-              <span className="text-muted-foreground">target</span>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span
-                className={`font-semibold tabular-nums ${
-                  remaining >= 0 ? 'text-emerald-600' : 'text-red-600'
-                }`}
-              >
-                {money.format(remaining)}
-              </span>
-              <span className="text-muted-foreground">remaining</span>
-            </div>
+        <CardContent className="space-y-1">
+          <div className="flex items-baseline gap-2">
+            <span
+              className={`text-2xl font-semibold tabular-nums ${
+                remaining >= 0 ? '' : 'text-destructive'
+              }`}
+            >
+              {money.format(Math.abs(remaining))}
+            </span>
+            <span className="text-sm text-muted-foreground">
+              {remaining >= 0
+                ? 'left to spend this week'
+                : 'over budget'}
+            </span>
           </div>
+          <p className="text-xs text-muted-foreground tabular-nums">
+            Spent {money.format(thisWeekSpent)} &middot; Target{' '}
+            {money.format(weeklyTarget)}
+          </p>
         </CardContent>
       </Card>
 

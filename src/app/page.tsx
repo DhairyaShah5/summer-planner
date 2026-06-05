@@ -103,6 +103,7 @@ export default async function DashboardPage() {
     extraDeposit: p.extra_deposit,
     vaultOverride: p.vault_override,
     rentPaid: p.rent_paid,
+    received: p.received,
   }));
 
   const computed = computeAll(inputs, settings);
@@ -157,8 +158,9 @@ export default async function DashboardPage() {
   const variance = targetCOThisWeek - actualThisWeek;
   const isUnder = variance >= 0;
 
+  // Next paycheck = first row that hasn't been marked received yet.
   const nextPaycheck =
-    computed.find((r) => r.status === "Pending") ?? computed[0] ?? null;
+    computed.find((r) => !r.received) ?? computed[0] ?? null;
 
   const totalRentPaid = computed.reduce((s, r) => s + r.rentPaid, 0);
 
@@ -193,6 +195,10 @@ export default async function DashboardPage() {
             <div className="text-4xl font-semibold tracking-tight tabular-nums transition-transform group-hover/card:scale-[1.01]">
               {money.format(totals.currentVault)}
             </div>
+            <p className="text-sm text-muted-foreground tabular-nums">
+              Saving toward {moneyWhole.format(settings.vaultCap)} (
+              {vaultPct.toFixed(1)}% of the way)
+            </p>
             <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
               <div
                 className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
@@ -219,32 +225,20 @@ export default async function DashboardPage() {
               {format(weekStart, "MMM d")} - {format(weekEnd, "MMM d")}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-baseline justify-between">
-              <span className="text-xs text-muted-foreground">Target</span>
-              <span className="font-medium tabular-nums">
-                {money.format(targetCOThisWeek)}
-              </span>
+          <CardContent className="space-y-2">
+            <div
+              className={`text-3xl font-semibold tracking-tight tabular-nums ${
+                isUnder ? "" : "text-destructive"
+              }`}
+            >
+              {money.format(Math.abs(variance))}
             </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-xs text-muted-foreground">Actual</span>
-              <span className="font-medium tabular-nums">
-                {money.format(actualThisWeek)}
-              </span>
-            </div>
-            <div className="border-t pt-2 flex items-baseline justify-between">
-              <span className="text-xs text-muted-foreground">Variance</span>
-              <span
-                className={`text-lg font-semibold tabular-nums ${
-                  isUnder ? "text-emerald-600" : "text-red-600"
-                }`}
-              >
-                {isUnder ? "+" : "-"}
-                {money.format(Math.abs(variance))}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {isUnder ? "Under budget" : "Over budget"}
+            <p className="text-sm text-muted-foreground">
+              {isUnder ? "left to spend this week" : "over budget"}
+            </p>
+            <p className="text-xs text-muted-foreground tabular-nums">
+              Spent {money.format(actualThisWeek)} of{" "}
+              {money.format(targetCOThisWeek)} target
             </p>
           </CardContent>
         </Card>
@@ -273,7 +267,9 @@ export default async function DashboardPage() {
                     <span className="text-muted-foreground">Projected net</span>
                     <span className="font-medium tabular-nums">
                       {money.format(
-                        nextPaycheck.actualNetWages ?? nextPaycheck.estimatedNet,
+                        nextPaycheck.received && nextPaycheck.actualNetWages != null
+                          ? nextPaycheck.actualNetWages
+                          : nextPaycheck.estimatedNet,
                       )}
                     </span>
                   </div>
