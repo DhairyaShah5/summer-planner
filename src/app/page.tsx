@@ -7,6 +7,7 @@ import {
   TrendingUp,
   Receipt,
   ClipboardList,
+  Inbox,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
@@ -163,49 +164,52 @@ export default async function DashboardPage() {
 
   const vaultPct =
     settings.vaultCap > 0
-      ? Math.min(100, (totals.totalVault / settings.vaultCap) * 100)
+      ? Math.min(100, (totals.currentVault / settings.vaultCap) * 100)
       : 0;
-  const vaultRemaining = Math.max(0, settings.vaultCap - totals.totalVault);
+  const vaultRemaining = Math.max(0, settings.vaultCap - totals.currentVault);
 
   return (
     <div className="container mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
         <p className="text-sm text-muted-foreground">
           Summer 2026 paycheck allocation overview
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 bg-gradient-to-br from-primary/10 to-transparent transition-shadow hover:shadow-md">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Vault className="size-4 text-primary" />
               Vault Progress
             </CardTitle>
-            <CardDescription>
-              {money.format(totals.totalVault)} of{" "}
-              {moneyWhole.format(settings.vaultCap)} toward tuition + fees
+            <CardDescription className="tabular-nums">
+              {money.format(totals.currentVault)} today &middot; projected{" "}
+              {moneyWhole.format(totals.totalVault)} by Aug 28
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="text-4xl font-semibold tracking-tight tabular-nums">
-              {money.format(totals.totalVault)}
+          <CardContent className="space-y-4">
+            <div className="text-4xl font-semibold tracking-tight tabular-nums transition-transform group-hover/card:scale-[1.01]">
+              {money.format(totals.currentVault)}
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-primary transition-all"
+                className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
                 style={{ width: `${vaultPct}%` }}
               />
             </div>
-            <div className="flex justify-between text-xs text-muted-foreground">
+            <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
               <span>{vaultPct.toFixed(1)}% funded</span>
-              <span>{money.format(vaultRemaining)} remaining</span>
+              <span>
+                {money.format(vaultRemaining)} to{" "}
+                {moneyWhole.format(settings.vaultCap)} cap
+              </span>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="transition-shadow hover:shadow-md">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="size-4 text-primary" />
@@ -245,7 +249,7 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="transition-shadow hover:shadow-md">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Wallet className="size-4 text-primary" />
@@ -261,18 +265,8 @@ export default async function DashboardPage() {
             {nextPaycheck ? (
               <>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">
-                    {nextPaycheck.employer}
-                  </span>
-                  <Badge
-                    variant={
-                      nextPaycheck.status === "Pending"
-                        ? "secondary"
-                        : "outline"
-                    }
-                  >
-                    {nextPaycheck.status}
-                  </Badge>
+                  <EmployerBadge employer={nextPaycheck.employer} />
+                  <StatusBadge status={nextPaycheck.status} />
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-sm">
@@ -305,11 +299,11 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="transition-shadow hover:shadow-md">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="size-4 text-primary" />
-              Summer Totals
+              Projected (end of summer)
             </CardTitle>
             <CardDescription>Projected allocations across summer</CardDescription>
           </CardHeader>
@@ -343,7 +337,7 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="transition-shadow hover:shadow-md">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ClipboardList className="size-4 text-primary" />
@@ -361,13 +355,13 @@ export default async function DashboardPage() {
               <span className="text-sm text-muted-foreground">pending</span>
             </div>
             <div className="flex gap-2">
-              <Badge variant="secondary">{totals.rowsReceived} received</Badge>
-              <Badge variant="outline">{totals.rowsPending} pending</Badge>
+              <StatusBadge status="Received" count={totals.rowsReceived} />
+              <StatusBadge status="Pending" count={totals.rowsPending} />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="md:col-span-2 lg:col-span-1">
+        <Card className="md:col-span-2 lg:col-span-1 transition-shadow hover:shadow-md">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Receipt className="size-4 text-primary" />
@@ -376,7 +370,7 @@ export default async function DashboardPage() {
             <CardDescription>
               {recentExpenses.length > 0
                 ? `Last ${recentExpenses.length} entries`
-                : "No expenses yet"}
+                : "Nothing logged yet"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -385,13 +379,13 @@ export default async function DashboardPage() {
                 {recentExpenses.map((e) => (
                   <li
                     key={e.id}
-                    className="flex items-center justify-between py-2 first:pt-0 last:pb-0"
+                    className="flex items-center justify-between py-2 first:pt-0 last:pb-0 transition-colors hover:bg-muted/40 -mx-2 px-2 rounded"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">
                         {e.description}
                       </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground tabular-nums">
                         {format(new Date(e.expense_date), "MMM d")}
                       </p>
                     </div>
@@ -402,13 +396,52 @@ export default async function DashboardPage() {
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                Log expenses on the Expenses page to see them here.
-              </p>
+              <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">
+                <div className="rounded-full bg-muted p-3">
+                  <Inbox className="size-5 text-muted-foreground" />
+                </div>
+                <p className="text-sm font-medium">No expenses yet</p>
+                <p className="text-xs text-muted-foreground">
+                  Log spend on the Expenses page to see it here.
+                </p>
+              </div>
             )}
           </CardContent>
         </Card>
       </div>
     </div>
+  );
+}
+
+function EmployerBadge({ employer }: { employer: string }) {
+  const isUSC = employer === "USC On-Campus";
+  return (
+    <Badge
+      className={
+        isUSC
+          ? "bg-blue-500/15 text-blue-700 hover:bg-blue-500/20 dark:text-blue-300 font-normal"
+          : "bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300 font-normal"
+      }
+    >
+      {isUSC ? "USC" : "NTT"}
+    </Badge>
+  );
+}
+
+function StatusBadge({
+  status,
+  count,
+}: {
+  status: "Received" | "Pending";
+  count?: number;
+}) {
+  const label = count == null ? status : `${count} ${status.toLowerCase()}`;
+  if (status === "Received") {
+    return <Badge variant="default">{label}</Badge>;
+  }
+  return (
+    <Badge className="bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300 font-normal">
+      {label}
+    </Badge>
   );
 }
