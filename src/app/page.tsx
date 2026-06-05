@@ -1,14 +1,5 @@
 import { redirect } from "next/navigation";
 import { format, startOfWeek, endOfWeek } from "date-fns";
-import {
-  Vault,
-  Calendar,
-  Wallet,
-  TrendingUp,
-  Receipt,
-  ClipboardList,
-  Inbox,
-} from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -19,28 +10,8 @@ import {
   type Employer,
 } from "@/lib/calc";
 import type { Expense } from "@/lib/types";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-
-const money = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-const moneyWhole = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
-});
+import type { AllocationDatum } from "@/components/allocation-breakdown";
+import { DashboardTiles } from "./dashboard-tiles";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +36,9 @@ export default async function DashboardPage() {
       .select("*")
       .single();
     if (insertError) {
-      throw new Error(`Failed to create settings: ${insertError.message} (code=${insertError.code})`);
+      throw new Error(
+        `Failed to create settings: ${insertError.message} (code=${insertError.code})`,
+      );
     }
     settingsRow = inserted;
   }
@@ -159,10 +132,11 @@ export default async function DashboardPage() {
   const isUnder = variance >= 0;
 
   // Next paycheck = first row that hasn't been marked received yet.
-  const nextPaycheck =
+  const nextPaycheckRow =
     computed.find((r) => !r.received) ?? computed[0] ?? null;
 
   const totalRentPaid = computed.reduce((s, r) => s + r.rentPaid, 0);
+  const totalRobinhood = computed.reduce((s, r) => s + r.robinhood, 0);
 
   const vaultPct =
     settings.vaultCap > 0
@@ -170,274 +144,74 @@ export default async function DashboardPage() {
       : 0;
   const vaultRemaining = Math.max(0, settings.vaultCap - totals.currentVault);
 
+  const allocation: AllocationDatum[] = [
+    { name: "Vault", value: totals.totalVault },
+    { name: "Rent", value: totalRentPaid },
+    { name: "Robinhood", value: totalRobinhood },
+    { name: "CO", value: totals.totalCO },
+    { name: "Buffer", value: totals.totalBuffer },
+  ].filter((d) => d.value > 0) as AllocationDatum[];
+
   return (
-    <div className="container mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
+    <div className="container mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
       <div className="space-y-1">
-        <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
+        <h1 className="bg-gradient-to-r from-indigo-500 via-fuchsia-500 to-amber-500 bg-clip-text text-3xl font-semibold tracking-tight text-transparent">
+          Dashboard
+        </h1>
         <p className="text-sm text-muted-foreground">
           Summer 2026 paycheck allocation overview
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="lg:col-span-2 bg-gradient-to-br from-primary/10 to-transparent transition-shadow hover:shadow-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Vault className="size-4 text-primary" />
-              Vault Progress
-            </CardTitle>
-            <CardDescription className="tabular-nums">
-              {money.format(totals.currentVault)} today &middot; projected{" "}
-              {moneyWhole.format(totals.totalVault)} by Aug 28
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="text-4xl font-semibold tracking-tight tabular-nums transition-transform group-hover/card:scale-[1.01]">
-              {money.format(totals.currentVault)}
-            </div>
-            <p className="text-sm text-muted-foreground tabular-nums">
-              Saving toward {moneyWhole.format(settings.vaultCap)} (
-              {vaultPct.toFixed(1)}% of the way)
-            </p>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
-                style={{ width: `${vaultPct}%` }}
-              />
-            </div>
-            <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
-              <span>{vaultPct.toFixed(1)}% funded</span>
-              <span>
-                {money.format(vaultRemaining)} to{" "}
-                {moneyWhole.format(settings.vaultCap)} cap
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="transition-shadow hover:shadow-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="size-4 text-primary" />
-              This Week CO Budget
-            </CardTitle>
-            <CardDescription>
-              {format(weekStart, "MMM d")} - {format(weekEnd, "MMM d")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div
-              className={`text-3xl font-semibold tracking-tight tabular-nums ${
-                isUnder ? "" : "text-destructive"
-              }`}
-            >
-              {money.format(Math.abs(variance))}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {isUnder ? "left to spend this week" : "over budget"}
-            </p>
-            <p className="text-xs text-muted-foreground tabular-nums">
-              Spent {money.format(actualThisWeek)} of{" "}
-              {money.format(targetCOThisWeek)} target
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="transition-shadow hover:shadow-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wallet className="size-4 text-primary" />
-              Next Paycheck
-            </CardTitle>
-            <CardDescription>
-              {nextPaycheck
-                ? format(new Date(String(nextPaycheck.payDate)), "EEE, MMM d")
-                : "No paychecks scheduled"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {nextPaycheck ? (
-              <>
-                <div className="flex items-center justify-between">
-                  <EmployerBadge employer={nextPaycheck.employer} />
-                  <StatusBadge status={nextPaycheck.status} />
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Projected net</span>
-                    <span className="font-medium tabular-nums">
-                      {money.format(
-                        nextPaycheck.received && nextPaycheck.actualNetWages != null
-                          ? nextPaycheck.actualNetWages
-                          : nextPaycheck.estimatedNet,
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Vault</span>
-                    <span className="font-medium tabular-nums">
-                      {money.format(nextPaycheck.vault)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">CO spend</span>
-                    <span className="font-medium tabular-nums">
-                      {money.format(nextPaycheck.co)}
-                    </span>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Add a paycheck on the Paychecks page.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="transition-shadow hover:shadow-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="size-4 text-primary" />
-              Projected (end of summer)
-            </CardTitle>
-            <CardDescription>Projected allocations across summer</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-              <div>
-                <dt className="text-xs text-muted-foreground">Vault</dt>
-                <dd className="text-base font-semibold tabular-nums">
-                  {money.format(totals.totalVault)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted-foreground">CO</dt>
-                <dd className="text-base font-semibold tabular-nums">
-                  {money.format(totals.totalCO)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted-foreground">Buffer</dt>
-                <dd className="text-base font-semibold tabular-nums">
-                  {money.format(totals.totalBuffer)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted-foreground">Rent paid</dt>
-                <dd className="text-base font-semibold tabular-nums">
-                  {money.format(totalRentPaid)}
-                </dd>
-              </div>
-            </dl>
-          </CardContent>
-        </Card>
-
-        <Card className="transition-shadow hover:shadow-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ClipboardList className="size-4 text-primary" />
-              Paycheck Status
-            </CardTitle>
-            <CardDescription>
-              {totals.rowsPending} pending of {computed.length} total
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-semibold tabular-nums">
-                {totals.rowsPending}
-              </span>
-              <span className="text-sm text-muted-foreground">pending</span>
-            </div>
-            <div className="flex gap-2">
-              <StatusBadge status="Received" count={totals.rowsReceived} />
-              <StatusBadge status="Pending" count={totals.rowsPending} />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="md:col-span-2 lg:col-span-1 transition-shadow hover:shadow-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Receipt className="size-4 text-primary" />
-              Recent Expenses
-            </CardTitle>
-            <CardDescription>
-              {recentExpenses.length > 0
-                ? `Last ${recentExpenses.length} entries`
-                : "Nothing logged yet"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {recentExpenses.length > 0 ? (
-              <ul className="divide-y">
-                {recentExpenses.map((e) => (
-                  <li
-                    key={e.id}
-                    className="flex items-center justify-between py-2 first:pt-0 last:pb-0 transition-colors hover:bg-muted/40 -mx-2 px-2 rounded"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">
-                        {e.description}
-                      </p>
-                      <p className="text-xs text-muted-foreground tabular-nums">
-                        {format(new Date(e.expense_date), "MMM d")}
-                      </p>
-                    </div>
-                    <span className="ml-3 text-sm font-medium tabular-nums">
-                      {money.format(e.amount)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">
-                <div className="rounded-full bg-muted p-3">
-                  <Inbox className="size-5 text-muted-foreground" />
-                </div>
-                <p className="text-sm font-medium">No expenses yet</p>
-                <p className="text-xs text-muted-foreground">
-                  Log spend on the Expenses page to see it here.
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <DashboardTiles
+        vault={{
+          current: totals.currentVault,
+          projected: totals.totalVault,
+          cap: settings.vaultCap,
+          percent: vaultPct,
+          remaining: vaultRemaining,
+        }}
+        weekBudget={{
+          weekStartLabel: format(weekStart, "MMM d"),
+          weekEndLabel: format(weekEnd, "MMM d"),
+          variance,
+          isUnder,
+          actual: actualThisWeek,
+          target: targetCOThisWeek,
+        }}
+        nextPaycheck={
+          nextPaycheckRow
+            ? {
+                payDateLabel: format(
+                  new Date(String(nextPaycheckRow.payDate)),
+                  "EEE, MMM d",
+                ),
+                employer: nextPaycheckRow.employer,
+                status: nextPaycheckRow.status,
+                projectedNet:
+                  nextPaycheckRow.received &&
+                  nextPaycheckRow.actualNetWages != null
+                    ? nextPaycheckRow.actualNetWages
+                    : nextPaycheckRow.estimatedNet,
+                vault: nextPaycheckRow.vault,
+                co: nextPaycheckRow.co,
+              }
+            : null
+        }
+        projected={{
+          totalVault: totals.totalVault,
+          totalCO: totals.totalCO,
+          totalBuffer: totals.totalBuffer,
+          totalRentPaid,
+        }}
+        paycheckStatus={{
+          pending: totals.rowsPending,
+          received: totals.rowsReceived,
+          total: computed.length,
+        }}
+        recentExpenses={recentExpenses}
+        allocation={allocation}
+      />
     </div>
-  );
-}
-
-function EmployerBadge({ employer }: { employer: string }) {
-  const isUSC = employer === "USC On-Campus";
-  return (
-    <Badge
-      className={
-        isUSC
-          ? "bg-blue-500/15 text-blue-700 hover:bg-blue-500/20 dark:text-blue-300 font-normal"
-          : "bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300 font-normal"
-      }
-    >
-      {isUSC ? "USC" : "NTT"}
-    </Badge>
-  );
-}
-
-function StatusBadge({
-  status,
-  count,
-}: {
-  status: "Received" | "Pending";
-  count?: number;
-}) {
-  const label = count == null ? status : `${count} ${status.toLowerCase()}`;
-  if (status === "Received") {
-    return <Badge variant="default">{label}</Badge>;
-  }
-  return (
-    <Badge className="bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300 font-normal">
-      {label}
-    </Badge>
   );
 }
