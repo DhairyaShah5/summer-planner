@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Summer Planner
 
-## Getting Started
+Personal paycheck allocation + expense tracker for summer 2026. Replaces a sprawling Excel workbook with a Next.js app I can use from anywhere.
 
-First, run the development server:
+## What it does
+
+- Tracks 14 summer paychecks (USC on-campus + NTT internship) against a $22,858 tuition vault target
+- Auto-cascades each paycheck's net into Vault / Rent / Robinhood / CO Spending / Buffer per fixed rules (mirrors the original xlsx formulas in `src/lib/calc.ts`)
+- Routes per diem to CO spending, hourly wages to vault
+- Logs expenses on the go (mobile-first add form), groups by week, compares actual vs. target CO budget
+- Surfaces vault progress, current-week budget status, and projected end-of-summer totals on a single dashboard
+
+## Stack
+
+- Next.js 16 (App Router) + React 19 + TypeScript
+- Tailwind v4 + shadcn/ui
+- Supabase (Postgres + Auth via magic link + Row Level Security)
+- @tanstack/react-query for client cache + mutations
+- date-fns, recharts, lucide-react, sonner
+- Deployed on Vercel
+
+## Local dev
 
 ```bash
+cp .env.local.example .env.local   # fill in Supabase URL + keys
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 → log in via magic link to your email → start logging.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Schema
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Three tables, all RLS-scoped by `auth.uid()`:
 
-## Learn More
+- `settings` — one row per user (vault cap, pay rates, rent, allocation rules)
+- `paychecks` — 14 rows per summer (pay date, employer, hours, per diem, actual net, computed allocations)
+- `expenses` — many rows (date, description, amount, category)
 
-To learn more about Next.js, take a look at the following resources:
+Migrations live in `supabase/migrations/`. Apply with `supabase db push` after `supabase link`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Why the Excel needed replacing
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The xlsx worked, but it broke down for daily use: no mobile entry, no auth on the file itself, formulas were brittle when adding columns, and I couldn't audit my CO budget at a glance from my phone. This app keeps the same allocation math (ported from the xlsx) while making everything else nicer.
