@@ -1,0 +1,375 @@
+"use client";
+
+import { useState } from "react";
+import { useForm, type UseFormReturn, type FieldPath } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+const schema = z.object({
+  vault_cap: z.number().min(0),
+  usc_gross_baseline: z.number().min(0),
+  ntt_hourly_rate: z.number().min(0),
+  usc_net_pct: z.number().min(0).max(1),
+  ntt_net_pct: z.number().min(0).max(1),
+  rent_monthly: z.number().min(0),
+  rent_months: z.number().int().min(0),
+  robinhood_weekly: z.number().min(0),
+  usc_no_rent_vault: z.number().min(0),
+  usc_rent_vault: z.number().min(0),
+});
+
+export type SettingsFormValues = z.infer<typeof schema>;
+
+const SETTINGS_QUERY_KEY = ["settings"] as const;
+
+type SettingsForm = UseFormReturn<SettingsFormValues>;
+type SettingsFieldName = FieldPath<SettingsFormValues>;
+
+export function SettingsForm({
+  initialValues,
+  defaults,
+}: {
+  initialValues: SettingsFormValues;
+  defaults: SettingsFormValues;
+}) {
+  const form = useForm<SettingsFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: initialValues,
+  });
+  const queryClient = useQueryClient();
+  const [resetOpen, setResetOpen] = useState(false);
+
+  const mutation = useMutation({
+    mutationFn: async (values: SettingsFormValues) => {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { error } = await supabase
+        .from("settings")
+        .update(values)
+        .eq("user_id", user.id);
+      if (error) throw error;
+      return values;
+    },
+    onSuccess: (values) => {
+      form.reset(values);
+      queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY });
+      toast.success("Settings saved");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Failed to save settings");
+    },
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: async () => {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { error } = await supabase
+        .from("settings")
+        .update(defaults)
+        .eq("user_id", user.id);
+      if (error) throw error;
+      return defaults;
+    },
+    onSuccess: (values) => {
+      form.reset(values);
+      queryClient.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY });
+      toast.success("Settings reset to defaults");
+      setResetOpen(false);
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Failed to reset settings");
+    },
+  });
+
+  const onSubmit = form.handleSubmit((values) => mutation.mutate(values));
+
+  return (
+    <>
+      <form onSubmit={onSubmit} className="space-y-8">
+        <Section title="Tuition Vault">
+          <MoneyField
+            form={form}
+            name="vault_cap"
+            label="Vault Cap"
+            description="Target balance for the tuition vault."
+          />
+        </Section>
+
+        <Separator />
+
+        <Section title="Pay Assumptions">
+          <MoneyField
+            form={form}
+            name="usc_gross_baseline"
+            label="USC Gross Baseline"
+            description="Default biweekly gross used for USC paychecks."
+          />
+          <MoneyField
+            form={form}
+            name="ntt_hourly_rate"
+            label="NTT Hourly Rate"
+            description="Hourly rate at the Colorado internship."
+          />
+          <PercentField
+            form={form}
+            name="usc_net_pct"
+            label="USC Net %"
+            description="Estimated net-of-gross ratio for USC."
+          />
+          <PercentField
+            form={form}
+            name="ntt_net_pct"
+            label="NTT Net %"
+            description="Estimated net-of-gross ratio for NTT."
+          />
+        </Section>
+
+        <Separator />
+
+        <Section title="Fixed Commitments">
+          <MoneyField
+            form={form}
+            name="rent_monthly"
+            label="Rent Monthly"
+            description="Rent paid each month while in Colorado."
+          />
+          <IntField
+            form={form}
+            name="rent_months"
+            label="Rent Months"
+            description="Number of months rent will be paid."
+          />
+          <MoneyField
+            form={form}
+            name="robinhood_weekly"
+            label="Robinhood Weekly"
+            description="Weekly Robinhood deposit (doubled per biweekly USC check)."
+          />
+        </Section>
+
+        <Separator />
+
+        <Section title="USC Allocation Rules">
+          <MoneyField
+            form={form}
+            name="usc_no_rent_vault"
+            label="USC No-Rent Vault"
+            description="Default vault deposit on USC checks with no rent."
+          />
+          <MoneyField
+            form={form}
+            name="usc_rent_vault"
+            label="USC Rent Vault"
+            description="Default vault deposit on USC checks that also pay rent."
+          />
+        </Section>
+
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => form.reset(initialValues)}
+            disabled={mutation.isPending || !form.formState.isDirty}
+          >
+            Discard changes
+          </Button>
+          <Button
+            type="submit"
+            disabled={mutation.isPending || !form.formState.isDirty}
+          >
+            {mutation.isPending ? "Saving..." : "Save settings"}
+          </Button>
+        </div>
+      </form>
+
+      <div className="mt-12">
+        <Separator />
+        <div className="mt-6 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+          <h3 className="font-heading text-sm font-medium text-destructive">
+            Danger zone
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Reset every field to the original migration defaults. This cannot be undone.
+          </p>
+          <div className="mt-4">
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => setResetOpen(true)}
+              disabled={resetMutation.isPending}
+            >
+              Reset to defaults
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <Dialog open={resetOpen} onOpenChange={setResetOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset all settings?</DialogTitle>
+            <DialogDescription>
+              This replaces every field with the original migration defaults. Your
+              current values will be lost.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setResetOpen(false)}
+              disabled={resetMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => resetMutation.mutate()}
+              disabled={resetMutation.isPending}
+            >
+              {resetMutation.isPending ? "Resetting..." : "Reset to defaults"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-4">
+      <h2 className="font-heading text-base font-medium">{title}</h2>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{children}</div>
+    </section>
+  );
+}
+
+type FieldProps = {
+  form: SettingsForm;
+  name: SettingsFieldName;
+  label: string;
+  description?: string;
+};
+
+function MoneyField({ form, name, label, description }: FieldProps) {
+  const error = form.formState.errors[name];
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={name}>{label} ($)</Label>
+      <Input
+        id={name}
+        type="number"
+        step="0.01"
+        inputMode="decimal"
+        aria-invalid={!!error}
+        {...form.register(name, { valueAsNumber: true })}
+      />
+      {description && !error && (
+        <p className="text-xs text-muted-foreground">{description}</p>
+      )}
+      {error?.message && (
+        <p className="text-xs text-destructive">{String(error.message)}</p>
+      )}
+    </div>
+  );
+}
+
+function IntField({ form, name, label, description }: FieldProps) {
+  const error = form.formState.errors[name];
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={name}>{label}</Label>
+      <Input
+        id={name}
+        type="number"
+        step="1"
+        inputMode="numeric"
+        aria-invalid={!!error}
+        {...form.register(name, { valueAsNumber: true })}
+      />
+      {description && !error && (
+        <p className="text-xs text-muted-foreground">{description}</p>
+      )}
+      {error?.message && (
+        <p className="text-xs text-destructive">{String(error.message)}</p>
+      )}
+    </div>
+  );
+}
+
+function PercentField({ form, name, label, description }: FieldProps) {
+  const value = form.watch(name);
+  const error = form.formState.errors[name];
+  const numericValue = typeof value === "number" ? value : Number(value);
+  const displayPct = Number.isFinite(numericValue)
+    ? (numericValue * 100).toFixed(4)
+    : "";
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={`${name}-display`}>{label} (%)</Label>
+      <div className="relative">
+        <Input
+          id={`${name}-display`}
+          type="number"
+          step="0.0001"
+          inputMode="decimal"
+          defaultValue={displayPct}
+          key={displayPct}
+          aria-invalid={!!error}
+          className="pr-8"
+          onChange={(e) => {
+            const raw = e.target.value;
+            const pct = parseFloat(raw);
+            const next = Number.isFinite(pct) ? pct / 100 : 0;
+            form.setValue(name, next, {
+              shouldDirty: true,
+              shouldValidate: true,
+            });
+          }}
+        />
+        <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+          %
+        </span>
+      </div>
+      {description && !error && (
+        <p className="text-xs text-muted-foreground">
+          {description} Stored as {numericValue.toFixed(6)}.
+        </p>
+      )}
+      {error?.message && (
+        <p className="text-xs text-destructive">{String(error.message)}</p>
+      )}
+    </div>
+  );
+}
