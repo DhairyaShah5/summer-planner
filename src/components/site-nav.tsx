@@ -97,10 +97,12 @@ export function SiteNav() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-2">
-            <LogOut className="size-4" />
-            <span className="hidden sm:inline">Sign out</span>
-          </Button>
+          <form action="/auth/signout" method="post">
+            <Button type="submit" variant="outline" size="sm" className="gap-2">
+              <LogOut className="size-4" />
+              <span className="hidden sm:inline">Sign out</span>
+            </Button>
+          </form>
         </div>
       </div>
     </header>
