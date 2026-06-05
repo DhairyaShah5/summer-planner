@@ -198,31 +198,29 @@ export function SettingsForm({
           <Button
             type="submit"
             disabled={mutation.isPending || !form.formState.isDirty}
+            className="transition-transform active:scale-[0.98]"
           >
             {mutation.isPending ? "Saving..." : "Save settings"}
           </Button>
         </div>
       </form>
 
-      <div className="mt-12">
+      <div className="mt-8">
         <Separator />
-        <div className="mt-6 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-          <h3 className="font-heading text-sm font-medium text-destructive">
-            Danger zone
-          </h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Reset every field to the original migration defaults. This cannot be undone.
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-muted-foreground">
+            Reset every field to the original migration defaults.
           </p>
-          <div className="mt-4">
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => setResetOpen(true)}
-              disabled={resetMutation.isPending}
-            >
-              Reset to defaults
-            </Button>
-          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setResetOpen(true)}
+            disabled={resetMutation.isPending}
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+          >
+            Reset to defaults
+          </Button>
         </div>
       </div>
 

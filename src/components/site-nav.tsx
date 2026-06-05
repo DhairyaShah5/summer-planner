@@ -42,9 +42,9 @@ export function SiteNav() {
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
         <Link
           href="/"
-          className="flex items-center gap-2 font-semibold tracking-tight"
+          className="flex items-center gap-2 font-semibold tracking-tight transition-opacity hover:opacity-80"
         >
-          <Sun className="size-5 text-primary" />
+          <Sun className="size-5 text-primary transition-transform group-hover:rotate-12" />
           <span>Summer Planner</span>
         </Link>
 
@@ -61,7 +61,7 @@ export function SiteNav() {
                     variant: active ? "secondary" : "ghost",
                     size: "sm",
                   }),
-                  "gap-2",
+                  "gap-2 transition-colors",
                   active && "font-medium"
                 )}
                 aria-current={active ? "page" : undefined}
@@ -87,7 +87,8 @@ export function SiteNav() {
                   buttonVariants({
                     variant: active ? "secondary" : "ghost",
                     size: "icon-sm",
-                  })
+                  }),
+                  "transition-colors"
                 )}
               >
                 <Icon className="size-4" />
@@ -98,7 +99,12 @@ export function SiteNav() {
 
         <div className="ml-auto flex items-center gap-2">
           <form action="/auth/signout" method="post">
-            <Button type="submit" variant="outline" size="sm" className="gap-2">
+            <Button
+              type="submit"
+              variant="outline"
+              size="sm"
+              className="gap-2 transition-colors hover:bg-muted"
+            >
               <LogOut className="size-4" />
               <span className="hidden sm:inline">Sign out</span>
             </Button>

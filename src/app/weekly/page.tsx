@@ -91,9 +91,15 @@ export default async function WeeklyPage() {
   if (!settingsRow) {
     return (
       <div className="container mx-auto max-w-6xl space-y-6 px-4 py-8">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-semibold tracking-tight">Weekly Tracker</h1>
+          <p className="text-sm text-muted-foreground">
+            Cumulative target vs actual CO spend, week ending Sunday.
+          </p>
+        </div>
         <Card>
           <CardHeader>
-            <CardTitle>Weekly Tracker</CardTitle>
+            <CardTitle>Settings required</CardTitle>
             <CardDescription>
               Configure your settings to see the weekly breakdown.
             </CardDescription>
@@ -182,17 +188,17 @@ export default async function WeeklyPage() {
 
   return (
     <div className="container mx-auto max-w-6xl space-y-6 px-4 py-8">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Weekly Tracker</h1>
+      <div className="space-y-1">
+        <h1 className="text-3xl font-semibold tracking-tight">Weekly Tracker</h1>
         <p className="text-sm text-muted-foreground">
           Cumulative target vs actual CO spend, week ending Sunday.
         </p>
       </div>
 
-      <Card>
+      <Card className="transition-shadow hover:shadow-md">
         <CardHeader>
           <CardTitle>Target vs Actual</CardTitle>
-          <CardDescription>
+          <CardDescription className="tabular-nums">
             {format(startDate, 'MMM d, yyyy')} - {format(endDate, 'MMM d, yyyy')}
           </CardDescription>
         </CardHeader>
@@ -201,9 +207,12 @@ export default async function WeeklyPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="transition-shadow hover:shadow-md">
         <CardHeader>
           <CardTitle>Weekly Breakdown</CardTitle>
+          <CardDescription>
+            Per-week target vs actual, variance, and projected vault balance.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -224,13 +233,15 @@ export default async function WeeklyPage() {
                 <TableRow
                   key={w.index}
                   className={cn(
-                    w.status === 'Current' &&
-                      'bg-primary/5 border-l-4 border-l-primary',
+                    'transition-colors hover:bg-muted/60 [&>td]:py-3',
+                    w.status === 'Current'
+                      ? 'bg-primary/5 border-l-4 border-l-primary'
+                      : 'odd:bg-muted/30',
                   )}
                 >
-                  <TableCell className="font-medium">{w.index}</TableCell>
-                  <TableCell>{format(w.start, 'MMM d')}</TableCell>
-                  <TableCell>{format(w.end, 'MMM d')}</TableCell>
+                  <TableCell className="font-medium tabular-nums">{w.index}</TableCell>
+                  <TableCell className="tabular-nums">{format(w.start, 'MMM d')}</TableCell>
+                  <TableCell className="tabular-nums">{format(w.end, 'MMM d')}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {money.format(w.targetCumulative)}
                   </TableCell>
@@ -257,6 +268,10 @@ export default async function WeeklyPage() {
                             ? 'secondary'
                             : 'outline'
                       }
+                      className={cn(
+                        w.status === 'Future' &&
+                          'bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300 border-transparent font-normal',
+                      )}
                     >
                       {w.status}
                     </Badge>

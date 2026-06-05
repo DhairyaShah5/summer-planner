@@ -26,7 +26,7 @@ export default async function PaychecksPage() {
   if (!s) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Paycheck Plan</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Paycheck Plan</h1>
         <p className="mt-4 text-muted-foreground">
           Settings not found. Visit{' '}
           <a href="/settings" className="underline">
@@ -68,9 +68,9 @@ export default async function PaychecksPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Paycheck Plan</h1>
-        <p className="text-sm text-muted-foreground mt-1">
+      <div className="mb-6 space-y-1">
+        <h1 className="text-3xl font-semibold tracking-tight">Paycheck Plan</h1>
+        <p className="text-sm text-muted-foreground">
           Edit hours, per diem, and actual net wages as paychecks arrive. Computed
           columns update live; saves happen on blur.
         </p>

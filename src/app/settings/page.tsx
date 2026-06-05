@@ -57,11 +57,18 @@ export default async function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      <Card>
+      <div className="space-y-1">
+        <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
+        <p className="text-sm text-muted-foreground">
+          Edit the assumptions powering paycheck allocation and the dashboard.
+        </p>
+      </div>
+
+      <Card className="transition-shadow hover:shadow-md">
         <CardHeader>
-          <CardTitle className="text-xl">Settings</CardTitle>
+          <CardTitle className="text-xl">Plan assumptions</CardTitle>
           <CardDescription>
-            Edit the assumptions powering paycheck allocation and the dashboard.
+            Vault, pay, rent, and allocation rules.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -69,7 +76,7 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="transition-shadow hover:shadow-md">
         <CardHeader>
           <CardTitle className="text-xl">Import from Excel</CardTitle>
           <CardDescription>
