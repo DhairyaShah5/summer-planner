@@ -164,11 +164,8 @@ export function ExpenseList({ expenses, weeklyTarget }: Props) {
                       key={e.id}
                       className="flex items-center gap-3 px-3 py-2.5"
                     >
-                      <div className="w-10 shrink-0 text-xs text-muted-foreground tabular-nums">
-                        {format(parseLocalDate(e.expense_date), 'EEE')}
-                        <div className="text-[10px]">
-                          {format(parseLocalDate(e.expense_date), 'MMM d')}
-                        </div>
+                      <div className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                        {format(parseLocalDate(e.expense_date), 'EEE MMM d')}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">

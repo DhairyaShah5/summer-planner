@@ -60,7 +60,7 @@ export function AddExpenseForm() {
       setDescription('')
       setAmount('')
       descriptionRef.current?.focus()
-      toast.success('Expense added')
+      toast.success('Saved')
     },
     onError: (err) => {
       toast.error(err instanceof Error ? err.message : 'Could not add expense')
