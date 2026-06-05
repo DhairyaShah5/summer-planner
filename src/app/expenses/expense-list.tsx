@@ -1,14 +1,12 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, endOfWeek, startOfWeek } from 'date-fns'
 import { motion } from 'framer-motion'
 import { Sparkles, Loader2Icon, Trash2Icon } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { createClient } from '@/lib/supabase/client'
 import type { Expense } from '@/lib/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,6 +19,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { deleteExpense } from './expense-actions'
+import type { AccountOption } from './add-expense-form'
 
 const money = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -32,6 +32,21 @@ const money = new Intl.NumberFormat('en-US', {
 function parseLocalDate(iso: string): Date {
   const [y, m, d] = iso.split('-').map(Number)
   return new Date(y, (m ?? 1) - 1, d ?? 1)
+}
+
+/** Compress a long account name into a chip-friendly short label. */
+function shortAccountLabel(name: string, type: AccountOption['type']): string {
+  if (type === 'credit_card') {
+    // "Chase Credit Card" → "Chase CC"; otherwise append "CC".
+    const stripped = name.replace(/credit card/i, '').trim()
+    return `${stripped || name} CC`.replace(/\s+/g, ' ')
+  }
+  if (type === 'hysa') {
+    // Keep HYSA names mostly intact, just trim.
+    return name
+  }
+  // checking — drop trailing "Checking"
+  return name.replace(/checking/i, '').trim() || name
 }
 
 interface WeekGroup {
@@ -69,45 +84,49 @@ function groupByWeek(expenses: Expense[]): WeekGroup[] {
 
 interface Props {
   expenses: Expense[]
-  weeklyTarget: number
+  accounts: AccountOption[]
+  /** Cumulative CO from every paycheck whose pay_date <= this Sunday. */
+  cumMaxAllowed: number
+  /** Cumulative expense total through today. */
+  cumSpent: number
 }
 
-export function ExpenseList({ expenses, weeklyTarget }: Props) {
-  const supabase = createClient()
-  const queryClient = useQueryClient()
+export function ExpenseList({
+  expenses,
+  accounts,
+  cumMaxAllowed,
+  cumSpent,
+}: Props) {
   const router = useRouter()
   const [pendingDelete, setPendingDelete] = useState<Expense | null>(null)
+  const [deleting, startDeleting] = useTransition()
 
   const groups = useMemo(() => groupByWeek(expenses), [expenses])
 
-  const thisWeekSpent = useMemo(() => {
-    const now = new Date()
-    const start = startOfWeek(now, { weekStartsOn: 1 })
-    const end = endOfWeek(now, { weekStartsOn: 1 })
-    const startISO = format(start, 'yyyy-MM-dd')
-    const endISO = format(end, 'yyyy-MM-dd')
-    return expenses
-      .filter((e) => e.expense_date >= startISO && e.expense_date <= endISO)
-      .reduce((s, e) => s + e.amount, 0)
-  }, [expenses])
+  const accountById = useMemo(() => {
+    const m = new Map<string, AccountOption>()
+    for (const a of accounts) m.set(a.id, a)
+    return m
+  }, [accounts])
 
-  const remaining = weeklyTarget - thisWeekSpent
+  // Carry-over framing: unspent CO from earlier weeks rolls forward, so the
+  // headline measures cumulative cushion across the summer to date.
+  const remaining = cumMaxAllowed - cumSpent
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('expenses').delete().eq('id', id)
-      if (error) throw error
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['expenses'] })
-      router.refresh()
+  function handleDelete() {
+    if (!pendingDelete) return
+    const id = pendingDelete.id
+    startDeleting(async () => {
+      const res = await deleteExpense(id)
+      if (!res.ok) {
+        toast.error(res.error ?? 'Could not delete')
+        return
+      }
       toast.success('Expense deleted')
       setPendingDelete(null)
-    },
-    onError: (err) => {
-      toast.error(err instanceof Error ? err.message : 'Could not delete')
-    },
-  })
+      router.refresh()
+    })
+  }
 
   return (
     <div className="space-y-4">
@@ -130,13 +149,13 @@ export function ExpenseList({ expenses, weeklyTarget }: Props) {
             </span>
             <span className="text-sm text-muted-foreground">
               {remaining >= 0
-                ? 'left to spend this week'
-                : 'over budget'}
+                ? 'left to spend overall'
+                : 'over budget overall'}
             </span>
           </div>
           <p className="text-xs text-muted-foreground tabular-nums">
-            Spent {money.format(thisWeekSpent)} &middot; Target{' '}
-            {money.format(weeklyTarget)}
+            Spent {money.format(cumSpent)} &middot; Maximum allowed{' '}
+            {money.format(cumMaxAllowed)}
           </p>
         </CardContent>
       </Card>
@@ -186,42 +205,58 @@ export function ExpenseList({ expenses, weeklyTarget }: Props) {
             <Card className="transition-shadow hover:shadow-md">
               <CardContent className="!p-0">
                 <ul className="divide-y">
-                  {g.expenses.map((e, i) => (
-                    <motion.li
-                      key={e.id}
-                      initial={{ opacity: 0, x: -6 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: gi * 0.06 + i * 0.02, duration: 0.3 }}
-                      className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/40"
-                    >
-                      <div className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                        {format(parseLocalDate(e.expense_date), 'EEE MMM d')}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">
-                          {e.description}
-                        </p>
-                        {e.category && (
-                          <Badge variant="outline" className="mt-0.5">
-                            {e.category}
-                          </Badge>
-                        )}
-                      </div>
-                      <span className="text-sm font-semibold tabular-nums">
-                        {money.format(e.amount)}
-                      </span>
-                      <Button
-                        type="button"
-                        size="icon-sm"
-                        variant="ghost"
-                        onClick={() => setPendingDelete(e)}
-                        aria-label="Delete expense"
-                        className="transition-colors hover:text-destructive"
+                  {g.expenses.map((e, i) => {
+                    const acct = e.account_id
+                      ? accountById.get(e.account_id)
+                      : undefined
+                    return (
+                      <motion.li
+                        key={e.id}
+                        initial={{ opacity: 0, x: -6 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{
+                          delay: gi * 0.06 + i * 0.02,
+                          duration: 0.3,
+                        }}
+                        className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/40"
                       >
-                        <Trash2Icon className="size-4" />
-                      </Button>
-                    </motion.li>
-                  ))}
+                        <div className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                          {format(parseLocalDate(e.expense_date), 'EEE MMM d')}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">
+                            {e.description}
+                          </p>
+                          <div className="mt-0.5 flex flex-wrap gap-1">
+                            {e.category && (
+                              <Badge variant="outline">{e.category}</Badge>
+                            )}
+                            {acct && (
+                              <Badge
+                                variant="secondary"
+                                className="font-normal"
+                              >
+                                {shortAccountLabel(acct.name, acct.type)}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-sm font-semibold tabular-nums">
+                          {money.format(e.amount)}
+                        </span>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() => setPendingDelete(e)}
+                          aria-label="Delete expense"
+                          className="transition-colors hover:text-destructive"
+                        >
+                          <Trash2Icon className="size-4" />
+                        </Button>
+                      </motion.li>
+                    )
+                  })}
                 </ul>
               </CardContent>
             </Card>
@@ -248,18 +283,16 @@ export function ExpenseList({ expenses, weeklyTarget }: Props) {
             <Button
               variant="outline"
               onClick={() => setPendingDelete(null)}
-              disabled={deleteMutation.isPending}
+              disabled={deleting}
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
-              onClick={() => {
-                if (pendingDelete) deleteMutation.mutate(pendingDelete.id)
-              }}
-              disabled={deleteMutation.isPending}
+              onClick={handleDelete}
+              disabled={deleting}
             >
-              {deleteMutation.isPending ? (
+              {deleting ? (
                 <>
                   <Loader2Icon className="size-4 animate-spin" />
                   Deleting...

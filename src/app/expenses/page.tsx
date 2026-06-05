@@ -9,6 +9,7 @@ import {
 import type { Expense } from '@/lib/types'
 import { AddExpenseForm } from './add-expense-form'
 import { ExpenseList } from './expense-list'
+import type { AccountOption } from './add-expense-form'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +21,7 @@ export default async function ExpensesPage() {
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [settingsRes, paychecksRes, expensesRes] = await Promise.all([
+  const [settingsRes, paychecksRes, expensesRes, accountsRes] = await Promise.all([
     supabase.from('settings').select('*').maybeSingle(),
     supabase.from('paychecks').select('*').order('pay_num', { ascending: true }),
     supabase
@@ -28,11 +29,16 @@ export default async function ExpensesPage() {
       .select('*')
       .order('expense_date', { ascending: false })
       .limit(200),
+    supabase
+      .from('accounts')
+      .select('id, name, type')
+      .order('display_order', { ascending: true }),
   ])
 
   if (settingsRes.error) throw settingsRes.error
   if (paychecksRes.error) throw paychecksRes.error
   if (expensesRes.error) throw expensesRes.error
+  if (accountsRes.error) throw accountsRes.error
 
   const expenses: Expense[] = (expensesRes.data ?? []).map((e) => ({
     id: e.id,
@@ -40,10 +46,31 @@ export default async function ExpensesPage() {
     description: e.description,
     amount: e.amount,
     category: e.category ?? '',
+    account_id: e.account_id ?? null,
     created_at: e.created_at,
   }))
 
-  let weeklyTarget = 0
+  const accounts: AccountOption[] = (accountsRes.data ?? []).map((a) => ({
+    id: a.id,
+    name: a.name,
+    type: a.type as AccountOption['type'],
+  }))
+
+  // Pre-select the Chase Credit Card by default if present.
+  const defaultAccountId =
+    accounts.find(
+      (a) => a.type === 'credit_card' && /chase/i.test(a.name),
+    )?.id ??
+    accounts.find((a) => a.type === 'credit_card')?.id ??
+    accounts[0]?.id ??
+    null
+
+  // `cumMaxAllowed` = sum of CO from every paycheck whose pay_date <= this
+  // Sunday. `cumSpent` = sum of every expense whose date <= today. The
+  // headline on the Expenses page compares these two so unspent CO from
+  // earlier weeks rolls forward into the current "left to spend".
+  let cumMaxAllowed = 0
+  let cumSpent = 0
   const s = settingsRes.data
   if (s) {
     const settings: Settings = {
@@ -81,10 +108,15 @@ export default async function ExpensesPage() {
     const sunday = new Date(now)
     sunday.setDate(now.getDate() + daysUntilSunday)
     const sundayISO = sunday.toISOString().slice(0, 10)
+    const todayISO = now.toISOString().slice(0, 10)
 
-    weeklyTarget = computed
+    cumMaxAllowed = computed
       .filter((r) => String(r.payDate) <= sundayISO)
       .reduce((acc, r) => acc + r.co, 0)
+
+    cumSpent = expenses
+      .filter((e) => e.expense_date <= todayISO)
+      .reduce((acc, e) => acc + e.amount, 0)
   }
 
   return (
@@ -97,8 +129,16 @@ export default async function ExpensesPage() {
           Log spend as it happens. Grouped by week.
         </p>
       </div>
-      <AddExpenseForm />
-      <ExpenseList expenses={expenses} weeklyTarget={weeklyTarget} />
+      <AddExpenseForm
+        accounts={accounts}
+        defaultAccountId={defaultAccountId}
+      />
+      <ExpenseList
+        expenses={expenses}
+        accounts={accounts}
+        cumMaxAllowed={cumMaxAllowed}
+        cumSpent={cumSpent}
+      />
     </div>
   )
 }

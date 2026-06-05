@@ -254,7 +254,7 @@ export default async function WeeklyPage() {
         <CardHeader>
           <CardTitle>Weekly Breakdown</CardTitle>
           <CardDescription>
-            Per-week target vs actual, variance, and projected vault balance.
+            Per-week maximum allowed vs actual, variance, and projected vault balance.
           </CardDescription>
         </CardHeader>
         <CardContent>

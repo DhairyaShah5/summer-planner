@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { format } from 'date-fns'
 import {
@@ -13,6 +14,8 @@ import {
   Inbox,
   Sparkles,
   PieChart,
+  Landmark,
+  ArrowRight,
 } from 'lucide-react'
 
 import {
@@ -89,6 +92,12 @@ export interface DashboardTilesProps {
   }
   recentExpenses: Expense[]
   allocation: AllocationDatum[]
+  accountsPreview: {
+    id: string
+    name: string
+    type: 'checking' | 'credit_card' | 'hysa'
+    current_balance: number
+  }[]
 }
 
 export function DashboardTiles(props: DashboardTilesProps) {
@@ -100,6 +109,7 @@ export function DashboardTiles(props: DashboardTilesProps) {
     paycheckStatus,
     recentExpenses,
     allocation,
+    accountsPreview,
   } = props
 
   return (
@@ -163,7 +173,7 @@ export function DashboardTiles(props: DashboardTilesProps) {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="size-4 text-primary" />
-                This Week CO Budget
+                CO Budget
               </CardTitle>
               <CardDescription>
                 {weekBudget.weekStartLabel} - {weekBudget.weekEndLabel}
@@ -185,12 +195,12 @@ export function DashboardTiles(props: DashboardTilesProps) {
               </div>
               <p className="text-sm text-muted-foreground">
                 {weekBudget.isUnder
-                  ? 'left to spend this week'
-                  : 'over budget'}
+                  ? 'left to spend overall'
+                  : 'over budget overall'}
               </p>
               <p className="text-xs text-muted-foreground tabular-nums">
-                Spent {money.format(weekBudget.actual)} of{' '}
-                {money.format(weekBudget.target)} target
+                Spent {money.format(weekBudget.actual)} &middot; Maximum allowed{' '}
+                {money.format(weekBudget.target)}
               </p>
             </CardContent>
           </Card>
@@ -315,9 +325,69 @@ export function DashboardTiles(props: DashboardTilesProps) {
         </MotionTile>
       </div>
 
-      {/* Bottom row: 2 columns */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:grid-rows-[1fr]">
+      {/* Bottom row: 3 columns */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:grid-rows-[1fr]">
         <MotionTile index={5}>
+          <Card className={tileChrome}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Landmark className="size-4 text-indigo-500" />
+                Accounts
+              </CardTitle>
+              <CardDescription>Top balances by display order</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {accountsPreview.length > 0 ? (
+                <ul className="divide-y">
+                  {accountsPreview.map((a, i) => {
+                    const isCC = a.type === 'credit_card'
+                    return (
+                      <motion.li
+                        key={a.id}
+                        initial={{ opacity: 0, x: -6 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.4 + i * 0.04, duration: 0.3 }}
+                        className="-mx-2 flex items-center justify-between rounded px-2 py-2 first:pt-0 last:pb-0 transition-colors hover:bg-muted/40"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">
+                            {a.name}
+                          </p>
+                          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                            {accountTypeLabel(a.type)}
+                          </p>
+                        </div>
+                        <span
+                          className={cn(
+                            'ml-3 text-sm font-semibold tabular-nums',
+                            isCC && 'text-destructive',
+                          )}
+                        >
+                          {money.format(a.current_balance)}
+                        </span>
+                      </motion.li>
+                    )
+                  })}
+                </ul>
+              ) : (
+                <EmptyHint
+                  icon={<Landmark className="size-5 text-muted-foreground" />}
+                  title="No accounts yet"
+                  body="Seed accounts in the database to see balances here."
+                />
+              )}
+              <Link
+                href="/accounts"
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary transition-colors hover:underline"
+              >
+                View all
+                <ArrowRight className="size-3" />
+              </Link>
+            </CardContent>
+          </Card>
+        </MotionTile>
+
+        <MotionTile index={6}>
           <Card className={tileChrome}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -366,7 +436,7 @@ export function DashboardTiles(props: DashboardTilesProps) {
           </Card>
         </MotionTile>
 
-        <MotionTile index={6}>
+        <MotionTile index={7}>
           <Card className={tileChrome}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -426,6 +496,17 @@ function EmptyHint({
       <p className="text-xs text-muted-foreground">{body}</p>
     </motion.div>
   )
+}
+
+function accountTypeLabel(t: 'checking' | 'credit_card' | 'hysa'): string {
+  switch (t) {
+    case 'checking':
+      return 'Checking'
+    case 'credit_card':
+      return 'Credit Card'
+    case 'hysa':
+      return 'HYSA'
+  }
 }
 
 function EmployerBadge({ employer }: { employer: string }) {

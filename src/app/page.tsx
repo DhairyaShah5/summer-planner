@@ -85,12 +85,14 @@ export default async function DashboardPage() {
   const now = new Date();
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
-  const weekStartISO = format(weekStart, "yyyy-MM-dd");
   const weekEndISO = format(weekEnd, "yyyy-MM-dd");
+  const todayISO = format(now, "yyyy-MM-dd");
 
-  // Two parallel queries: recent expenses for the list, and this-week expenses
-  // for the budget tile. Splitting avoids fetching the whole table.
-  const [recentExpensesRes, weekExpensesRes] = await Promise.all([
+  // Three parallel queries: recent expenses for the list, cumulative
+  // expenses through today for the CO Budget tile, and accounts for the
+  // Accounts dashboard tile. The CO tile uses cumulative framing so unspent
+  // CO from earlier weeks rolls forward.
+  const [recentExpensesRes, cumExpensesRes, accountsRes] = await Promise.all([
     supabase
       .from("expenses")
       .select("*")
@@ -99,8 +101,12 @@ export default async function DashboardPage() {
     supabase
       .from("expenses")
       .select("amount")
-      .gte("expense_date", weekStartISO)
-      .lte("expense_date", weekEndISO),
+      .lte("expense_date", todayISO),
+    supabase
+      .from("accounts")
+      .select("id, name, type, current_balance, display_order")
+      .order("display_order", { ascending: true })
+      .limit(3),
   ]);
 
   const recentExpenses: Expense[] = (recentExpensesRes.data ?? []).map((e) => ({
@@ -109,26 +115,31 @@ export default async function DashboardPage() {
     description: e.description,
     amount: e.amount,
     category: e.category ?? "",
+    account_id: e.account_id ?? null,
     created_at: e.created_at,
   }));
 
-  const actualThisWeek = (weekExpensesRes.data ?? []).reduce(
+  const accountsPreview = (accountsRes.data ?? []).map((a) => ({
+    id: a.id,
+    name: a.name,
+    type: a.type as 'checking' | 'credit_card' | 'hysa',
+    current_balance: Number(a.current_balance),
+  }));
+
+  // Cumulative spend across the summer through today.
+  const cumSpent = (cumExpensesRes.data ?? []).reduce(
     (s, e) => s + (e.amount ?? 0),
     0,
   );
 
-  // Target CO for this week = sum of CO from paychecks whose payDate falls
-  // within [weekStart, weekEnd]. Matches the tile label semantics — paychecks
-  // landing this week fund this week's CO spending.
-  const targetCOThisWeek = computed
-    .filter(
-      (r) =>
-        String(r.payDate) >= weekStartISO &&
-        String(r.payDate) <= weekEndISO,
-    )
+  // Cumulative CO maximum allowed = sum of CO from every paycheck whose
+  // pay_date <= this Sunday (end of current week). Unspent CO from prior
+  // weeks rolls forward into the current "left to spend" headline.
+  const cumMaxAllowed = computed
+    .filter((r) => String(r.payDate) <= weekEndISO)
     .reduce((s, r) => s + r.co, 0);
 
-  const variance = targetCOThisWeek - actualThisWeek;
+  const variance = cumMaxAllowed - cumSpent;
   const isUnder = variance >= 0;
 
   // Next paycheck = first row that hasn't been marked received yet.
@@ -176,8 +187,8 @@ export default async function DashboardPage() {
           weekEndLabel: format(weekEnd, "MMM d"),
           variance,
           isUnder,
-          actual: actualThisWeek,
-          target: targetCOThisWeek,
+          actual: cumSpent,
+          target: cumMaxAllowed,
         }}
         nextPaycheck={
           nextPaycheckRow
@@ -211,6 +222,7 @@ export default async function DashboardPage() {
         }}
         recentExpenses={recentExpenses}
         allocation={allocation}
+        accountsPreview={accountsPreview}
       />
     </div>
   );
