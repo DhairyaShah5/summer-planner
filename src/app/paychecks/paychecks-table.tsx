@@ -40,6 +40,8 @@ type EditableField =
   | 'per_diem'
   | 'actual_net_wages'
   | 'extra_deposit'
+  | 'vault_override'
+  | 'rent_paid'
   | 'notes'
 
 type UpdatePayload = {
@@ -139,50 +141,54 @@ export function PaychecksTable({
   })
 
   function commit(id: string, field: EditableField, raw: string) {
-    setRows((prev) => {
-      const next = prev.map((r) => {
-        if (r.id !== id) return r
-        const updated = { ...r }
-        switch (field) {
-          case 'actual_net_wages': {
-            updated.actual_net_wages = raw.trim() === '' ? null : Number(raw)
-            break
-          }
-          case 'hours_worked': {
-            updated.hours_worked = raw.trim() === '' ? null : Number(raw)
-            break
-          }
-          case 'ot_hours': {
-            updated.ot_hours = raw.trim() === '' ? 0 : Number(raw)
-            break
-          }
-          case 'per_diem': {
-            updated.per_diem = raw.trim() === '' ? 0 : Number(raw)
-            break
-          }
-          case 'extra_deposit': {
-            updated.extra_deposit = raw.trim() === '' ? 0 : Number(raw)
-            break
-          }
-          case 'notes': {
-            updated.notes = raw === '' ? null : raw
-            break
-          }
-        }
+    // Build the patch first (pure), then update state and fire mutation
+    // outside the setState updater so React StrictMode double-invocations
+    // don't fire the mutation twice.
+    const patch: UpdatePayload['patch'] = {}
+    const trimmed = raw.trim()
+    switch (field) {
+      case 'actual_net_wages': {
+        patch.actual_net_wages = trimmed === '' ? null : Number(trimmed)
+        break
+      }
+      case 'vault_override': {
+        patch.vault_override = trimmed === '' ? null : Number(trimmed)
+        break
+      }
+      case 'hours_worked': {
+        patch.hours_worked = trimmed === '' ? null : Number(trimmed)
+        break
+      }
+      case 'ot_hours': {
+        patch.ot_hours = trimmed === '' ? 0 : Number(trimmed)
+        break
+      }
+      case 'per_diem': {
+        patch.per_diem = trimmed === '' ? 0 : Number(trimmed)
+        break
+      }
+      case 'extra_deposit': {
+        patch.extra_deposit = trimmed === '' ? 0 : Number(trimmed)
+        break
+      }
+      case 'rent_paid': {
+        patch.rent_paid = trimmed === '' ? 0 : Number(trimmed)
+        break
+      }
+      case 'notes': {
+        // Notes preserves whitespace; use raw for blank check.
+        patch.notes = raw === '' ? null : raw
+        break
+      }
+    }
 
-        const patch: UpdatePayload['patch'] = {}
-        if (field === 'actual_net_wages') patch.actual_net_wages = updated.actual_net_wages
-        if (field === 'hours_worked') patch.hours_worked = updated.hours_worked
-        if (field === 'ot_hours') patch.ot_hours = updated.ot_hours
-        if (field === 'per_diem') patch.per_diem = updated.per_diem
-        if (field === 'extra_deposit') patch.extra_deposit = updated.extra_deposit
-        if (field === 'notes') patch.notes = updated.notes
+    // Optimistic local update so computed cells (vault/CO/buffer/cumulative)
+    // reflect the new value immediately without waiting for refetch.
+    setRows((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+    )
 
-        mutation.mutate({ id, patch })
-        return updated
-      })
-      return next
-    })
+    mutation.mutate({ id, patch })
   }
 
   const vaultProgressPct = settings.vaultCap
@@ -192,7 +198,7 @@ export function PaychecksTable({
   return (
     <div className="space-y-6">
       <div className="rounded-lg border overflow-x-auto">
-        <Table className="min-w-[1400px]">
+        <Table className="min-w-[1600px]">
           <TableHeader>
             <TableRow>
               <TableHead className="w-10 text-center">#</TableHead>
@@ -203,6 +209,8 @@ export function PaychecksTable({
               <TableHead className="bg-amber-50/60">Per Diem</TableHead>
               <TableHead className="bg-amber-50/60">Actual Net</TableHead>
               <TableHead className="bg-amber-50/60">Extra Deposit</TableHead>
+              <TableHead className="bg-amber-50/60">Vault Override</TableHead>
+              <TableHead className="bg-amber-50/60">Rent Paid</TableHead>
               <TableHead className="bg-muted/50 text-right">Gross</TableHead>
               <TableHead className="bg-muted/50 text-right">Net %</TableHead>
               <TableHead className="bg-muted/50 text-right">Vault</TableHead>
@@ -265,6 +273,17 @@ export function PaychecksTable({
                     value={row.extra_deposit}
                     step="0.01"
                     onCommit={(v) => commit(row.id, 'extra_deposit', v)}
+                  />
+                  <NumberCell
+                    value={row.vault_override}
+                    step="0.01"
+                    placeholder="auto"
+                    onCommit={(v) => commit(row.id, 'vault_override', v)}
+                  />
+                  <NumberCell
+                    value={row.rent_paid}
+                    step="0.01"
+                    onCommit={(v) => commit(row.id, 'rent_paid', v)}
                   />
                   <TableCell className="bg-muted/40 text-right tabular-nums text-muted-foreground">
                     {money.format(c.gross)}
