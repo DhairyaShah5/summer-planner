@@ -1,20 +1,34 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Loader2Icon, PlusIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import { addExpense } from './expense-actions'
 
 const CATEGORIES = ['Food', 'Transit', 'Entertainment', 'Groceries', 'Other']
+
+export type AccountOptionType = 'checking' | 'credit_card' | 'hysa'
+
+export interface AccountOption {
+  id: string
+  name: string
+  type: AccountOptionType
+}
 
 function todayISO() {
   const d = new Date()
@@ -22,56 +36,26 @@ function todayISO() {
   return new Date(d.getTime() - tz).toISOString().slice(0, 10)
 }
 
-interface NewExpense {
-  expense_date: string
-  description: string
-  amount: number
-  category: string
+interface Props {
+  accounts: AccountOption[]
+  defaultAccountId: string | null
 }
 
-export function AddExpenseForm() {
-  const supabase = createClient()
-  const queryClient = useQueryClient()
+export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
   const router = useRouter()
   const descriptionRef = useRef<HTMLInputElement>(null)
+  const [pending, startTransition] = useTransition()
 
   const [date, setDate] = useState(todayISO())
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('Food')
+  const [accountId, setAccountId] = useState<string>(defaultAccountId ?? '')
   const [descFocused, setDescFocused] = useState(false)
 
   useEffect(() => {
     descriptionRef.current?.focus()
   }, [])
-
-  const mutation = useMutation({
-    mutationFn: async (e: NewExpense) => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not signed in')
-      const { error } = await supabase.from('expenses').insert({
-        user_id: user.id,
-        expense_date: e.expense_date,
-        description: e.description,
-        amount: e.amount,
-        category: e.category || null,
-      })
-      if (error) throw error
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['expenses'] })
-      router.refresh()
-      setDescription('')
-      setAmount('')
-      descriptionRef.current?.focus()
-      toast.success('Saved')
-    },
-    onError: (err) => {
-      toast.error(err instanceof Error ? err.message : 'Could not add expense')
-    },
-  })
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -85,11 +69,28 @@ export function AddExpenseForm() {
       toast.error('Enter a valid amount')
       return
     }
-    mutation.mutate({
-      expense_date: date,
-      description: desc,
-      amount: amt,
-      category: category.trim(),
+    if (!accountId) {
+      toast.error('Pick an account')
+      return
+    }
+
+    startTransition(async () => {
+      const res = await addExpense({
+        expense_date: date,
+        description: desc,
+        amount: amt,
+        category: category.trim(),
+        account_id: accountId,
+      })
+      if (!res.ok) {
+        toast.error(res.error ?? 'Could not add expense')
+        return
+      }
+      setDescription('')
+      setAmount('')
+      descriptionRef.current?.focus()
+      toast.success('Saved')
+      router.refresh()
     })
   }
 
@@ -120,7 +121,7 @@ export function AddExpenseForm() {
                 onBlur={() => setDescFocused(false)}
                 placeholder="Coffee, gas, etc."
                 autoComplete="off"
-                disabled={mutation.isPending}
+                disabled={pending}
                 className={cn(
                   'transition-all duration-300',
                   descFocused && 'ring-1 ring-indigo-400/60',
@@ -138,7 +139,7 @@ export function AddExpenseForm() {
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
-                disabled={mutation.isPending}
+                disabled={pending}
               />
             </div>
           </div>
@@ -150,7 +151,7 @@ export function AddExpenseForm() {
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                disabled={mutation.isPending}
+                disabled={pending}
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -162,7 +163,7 @@ export function AddExpenseForm() {
                 onChange={(e) => setCategory(e.target.value)}
                 placeholder="Pick or type"
                 autoComplete="off"
-                disabled={mutation.isPending}
+                disabled={pending}
               />
               <datalist id="expense-categories">
                 {CATEGORIES.map((c) => (
@@ -170,6 +171,25 @@ export function AddExpenseForm() {
                 ))}
               </datalist>
             </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="account">Account</Label>
+            <Select
+              value={accountId}
+              onValueChange={(v) => setAccountId(String(v))}
+              disabled={pending || accounts.length === 0}
+            >
+              <SelectTrigger id="account" className="w-full">
+                <SelectValue placeholder="Pick an account" />
+              </SelectTrigger>
+              <SelectContent>
+                {accounts.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex flex-wrap gap-1.5">
             {CATEGORIES.map((c) => (
@@ -179,7 +199,7 @@ export function AddExpenseForm() {
                   size="xs"
                   variant={category === c ? 'default' : 'outline'}
                   onClick={() => setCategory(c)}
-                  disabled={mutation.isPending}
+                  disabled={pending}
                   className="transition-colors"
                 >
                   {c}
@@ -191,10 +211,10 @@ export function AddExpenseForm() {
           <Button
             type="submit"
             size="lg"
-            disabled={mutation.isPending}
+            disabled={pending}
             className="w-full transition-transform"
           >
-            {mutation.isPending ? (
+            {pending ? (
               <>
                 <Loader2Icon className="size-4 animate-spin" />
                 Adding...
