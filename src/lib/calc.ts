@@ -183,6 +183,9 @@ export function summarize(
   vaultRemaining: number
   rowsReceived: number
   rowsPending: number
+  currentVault: number
+  currentCO: number
+  currentBuffer: number
 } {
   const last = rows[rows.length - 1]
   const totalVault = last ? last.cumulativeVault : 0
@@ -190,11 +193,24 @@ export function summarize(
   let totalBuffer = 0
   let rowsReceived = 0
   let rowsPending = 0
+  let currentVault = 0
+  let currentCO = 0
+  let currentBuffer = 0
   for (const r of rows) {
     totalCO += r.co
     totalBuffer += r.buffer
-    if (r.status === 'Received') rowsReceived++
-    else rowsPending++
+    if (r.status === 'Received') {
+      rowsReceived++
+      currentVault += r.vault + r.extraDeposit
+      currentCO += r.co
+      currentBuffer += r.buffer
+    } else {
+      rowsPending++
+    }
+  }
+  // Clamp currentVault at the cap, mirroring cumulativeVault semantics.
+  if (settings) {
+    currentVault = Math.min(currentVault, settings.vaultCap)
   }
   const vaultRemaining = settings
     ? Math.max(0, settings.vaultCap - totalVault)
@@ -206,5 +222,8 @@ export function summarize(
     vaultRemaining,
     rowsReceived,
     rowsPending,
+    currentVault,
+    currentCO,
+    currentBuffer,
   }
 }
