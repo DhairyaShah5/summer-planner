@@ -57,6 +57,7 @@ export type Database = {
           pay_date: string
           pay_num: number
           per_diem: number
+          received: boolean
           rent_paid: number
           updated_at: string
           user_id: string
@@ -74,6 +75,7 @@ export type Database = {
           pay_date: string
           pay_num: number
           per_diem?: number
+          received?: boolean
           rent_paid?: number
           updated_at?: string
           user_id: string
@@ -91,6 +93,7 @@ export type Database = {
           pay_date?: string
           pay_num?: number
           per_diem?: number
+          received?: boolean
           rent_paid?: number
           updated_at?: string
           user_id?: string
