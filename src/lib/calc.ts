@@ -1,12 +1,15 @@
 /**
- * Pure TypeScript port of the Summer Planner Excel allocation formulas.
+ * Pure TypeScript port of the Summer Planner allocation formulas.
  *
- * Mirrors the canonical xlsx logic (see project_paycheck_planner.md memory):
- *   - USC paychecks are baseline-gross with a $1,080 vault default, $600 on rent months
- *   - NTT paychecks compute gross from hours (OT @ 1.5x) and vault the net floored to $10
- *   - Vault is capped at settings.vaultCap; cumulativeVault tracks running total
- *   - Robinhood is a flat $200/check for USC, $0 for NTT
- *   - CO spend is floored to $10; the cents remainder lands in Buffer
+ * Allocation philosophy (post-2026-06 refactor):
+ *   - All allocations (vault, CO Spend, BofA overflow) are multiples of $100.
+ *   - Vault is SCHEDULED — it does not grow with overtime. The NTT vault target
+ *     is `settings.nttVaultDefault` regardless of how big the actual check is;
+ *     the USC vault target is `settings.uscNoRentVault` (or `uscRentVault` on
+ *     a rent month).
+ *   - Any pay above the no-OT projection (`expectedNoOT`) is "OT-driven excess"
+ *     and routes to BofA Checking (an overflow buffer), NOT to vault or CO.
+ *   - The cents/sub-$100 remainder lands in Buffer (still in Chase).
  *
  * Status (Received vs Pending) is driven by an explicit `received` flag on
  * each row, NOT inferred from actualNetWages. This avoids the bug where typing
@@ -27,6 +30,7 @@ export interface Settings {
   robinhoodWeekly: number
   uscNoRentVault: number
   uscRentVault: number
+  nttVaultDefault: number
 }
 
 export interface PaycheckInput {
@@ -47,17 +51,26 @@ export interface PaycheckComputed extends PaycheckInput {
   gross: number
   netPct: number
   estimatedNet: number
+  /** Projected net assuming no overtime — the "scheduled" check size. */
+  expectedNoOT: number
   robinhood: number
   vault: number
   co: number
+  /** OT-driven excess routed to BofA Checking (multiple of $100). */
+  bofaOverflow: number
   buffer: number
   status: 'Received' | 'Pending'
   cumulativeVault: number
 }
 
-/** Floor `x` to the nearest multiple of 10 (e.g. 247.83 → 240). */
+/** Floor `x` to the nearest multiple of 10 (legacy helper, kept for callers). */
 export function floor10(x: number): number {
   return Math.floor(x / 10) * 10
+}
+
+/** Floor `x` to the nearest multiple of 100. */
+export function floor100(x: number): number {
+  return Math.floor(x / 100) * 100
 }
 
 /**
@@ -81,19 +94,21 @@ export function computeRow(
     received,
   } = input
 
-  // E: Gross
+  // 1. Gross (actual, with OT)
   let gross: number
+  let expectedNoOTGross: number
   if (employer === 'USC On-Campus') {
     gross = settings.uscGrossBaseline
+    expectedNoOTGross = settings.uscGrossBaseline
   } else {
     const hours = hoursWorked ?? 0
     gross = hours * settings.nttHourlyRate + otHours * settings.nttHourlyRate * 1.5
+    expectedNoOTGross = hours * settings.nttHourlyRate
   }
 
-  // F: Net %
+  // 3. Net %
   // Use observed net% only if the row is received AND we have an actual figure;
-  // otherwise fall back to the projection rate. This prevents a stale typed
-  // actualNetWages on a pending row from poisoning the projection.
+  // otherwise fall back to the projection rate.
   let netPct: number
   if (received && actualNetWages != null && gross > 0) {
     netPct = actualNetWages / gross
@@ -101,86 +116,74 @@ export function computeRow(
     netPct = employer === 'USC On-Campus' ? settings.uscNetPct : settings.nttNetPct
   }
 
-  // G: Estimated Net (always the projection)
+  // 4. Estimated Net (projection from actual gross)
   const estimatedNet = gross * netPct
 
-  // Base net used downstream (L/M):
-  //   received && actualNetWages != null → use actual
-  //   otherwise                          → use the projection
-  // An unchecked row therefore uses the projection even if a stale actual
-  // value is sitting in the input field.
+  // 5. Expected no-OT net — the "scheduled" check size used to detect OT excess.
+  //    Always projects using the settings default rate (never the observed rate),
+  //    so a high-tax-bracket actual paycheck doesn't pull this down.
+  const expectedNoOTNetPct =
+    employer === 'USC On-Campus' ? settings.uscNetPct : settings.nttNetPct
+  const expectedNoOT = expectedNoOTGross * expectedNoOTNetPct
+
+  // 6. Base net used downstream:
+  //    received && actualNetWages != null → use actual
+  //    otherwise                          → use the projection
   const baseNet =
     received && actualNetWages != null ? actualNetWages : estimatedNet
 
-  // K: Robinhood
+  // 7-8. OT-driven excess routes to BofA, not vault/CO. usableNet is what we
+  //      allocate against (capped at the scheduled no-OT check).
+  const excess = Math.max(0, baseNet - expectedNoOT)
+  const usableNet = baseNet - excess
+
+  // 9. Robinhood
   const robinhood =
     employer === 'USC On-Campus' ? settings.robinhoodWeekly * 2 : 0
 
-  // I: Vault — capped at remaining cap room
-  const capRoom = Math.max(0, settings.vaultCap - prevCumulative - extraDeposit)
-
-  // When the row is received, the actual net is the hard ceiling on how much
-  // we can allocate to vault after rent + RH. (When NOT received we project
-  // against estimatedNet, but the baseline figures already assume that.)
-  const actualAvailableForVault =
-    received && actualNetWages != null
-      ? Math.max(0, floor10(actualNetWages - rentPaid - robinhood))
-      : null
-
-  // `intendedVault` = what we WANTED to vault before the cap throttle clipped
-  // us. When the cap room is smaller than the intended figure, the slack
-  // (vaultOverflow) must flow into BUFFER (unallocated checking cash), not
-  // into CO — otherwise CO inflates on the final paycheck once the vault
-  // hits its cap (see weekly chart's last-week spike bug).
-  let intendedVault: number
-  let vault: number
+  // 10. Vault target — manual override, else employer-specific schedule
+  let vaultTarget: number
   if (vaultOverride != null) {
-    // Manual override: still respect cap room, and if received, also cap at
-    // what the actual net check can cover after rent + RH. Same bug class.
-    let intended = vaultOverride
-    if (actualAvailableForVault != null) {
-      intended = Math.min(intended, actualAvailableForVault)
-    }
-    intended = Math.max(0, intended)
-    intendedVault = intended
-    vault = Math.max(0, Math.min(intended, capRoom))
+    vaultTarget = Math.max(0, vaultOverride)
   } else if (employer === 'USC On-Campus') {
-    const uscDefault = rentPaid > 0 ? settings.uscRentVault : settings.uscNoRentVault
-    let intended = uscDefault
-    if (actualAvailableForVault != null && actualAvailableForVault < intended) {
-      // Real check came in light — don't overdraw it.
-      intended = actualAvailableForVault
-    }
-    intended = Math.max(0, intended)
-    intendedVault = intended
-    vault = Math.max(0, Math.min(intended, capRoom))
+    vaultTarget = rentPaid > 0 ? settings.uscRentVault : settings.uscNoRentVault
   } else {
-    // NTT: vault floor10(net) regardless. floor10 already lives in baseNet's
-    // computation pathway above (we floor explicitly here for clarity).
-    intendedVault = Math.max(0, floor10(baseNet))
-    vault = Math.max(0, Math.min(intendedVault, capRoom))
+    vaultTarget = settings.nttVaultDefault
   }
 
-  // Cap throttle slack — when the vault cap pinches off our intended deposit,
-  // the leftover stays in checking as buffer rather than getting promoted to
-  // discretionary CO spend.
-  const vaultOverflow = Math.max(0, intendedVault - vault)
-
-  // L: CO spend (floored to $10), minus any cap-throttle overflow (which goes
-  // to buffer instead). Clamped at 0.
-  const coRaw = floor10(baseNet + perDiem - vault - rentPaid - robinhood)
-  const co = Math.max(0, coRaw - vaultOverflow)
-
-  // M: Buffer (cents remainder + any cap-throttle overflow not absorbed by L)
-  const buffer = Math.max(
-    0,
-    baseNet + perDiem - vault - rentPaid - robinhood - co,
+  // 11. Vault available — what's left of usableNet after rent + RH, floored to $100
+  const vaultAvailable = floor100(
+    Math.max(0, usableNet - rentPaid - robinhood),
   )
 
-  // O: Status — driven by the explicit `received` flag only.
+  // 12. Vault cap room
+  const vaultCapRoom = Math.max(
+    0,
+    settings.vaultCap - prevCumulative - extraDeposit,
+  )
+
+  // 13. Vault — pick the most restrictive limit, then floor100 for override safety
+  const vault = floor100(Math.min(vaultTarget, vaultAvailable, vaultCapRoom))
+
+  // 14. CO Spend — what's left of usableNet (+ per diem) after vault/rent/RH,
+  //     floored to $100. Per diem is a CO-specific reimbursement so it lifts CO.
+  const co = floor100(
+    Math.max(0, usableNet + perDiem - vault - rentPaid - robinhood),
+  )
+
+  // 15. BofA overflow — OT-driven excess, floored to $100
+  const bofaOverflow = floor100(excess)
+
+  // 16. Buffer — sub-$100 remainder that didn't fit into any bucket, stays in Chase
+  const buffer = Math.max(
+    0,
+    baseNet + perDiem - vault - rentPaid - robinhood - co - bofaOverflow,
+  )
+
+  // 17. Status — driven by the explicit `received` flag only.
   const status: 'Received' | 'Pending' = received ? 'Received' : 'Pending'
 
-  // R: Cumulative Vault
+  // 18. Cumulative Vault
   const cumulativeVault = Math.min(
     settings.vaultCap,
     prevCumulative + extraDeposit + vault,
@@ -191,9 +194,11 @@ export function computeRow(
     gross,
     netPct,
     estimatedNet,
+    expectedNoOT,
     robinhood,
     vault,
     co,
+    bofaOverflow,
     buffer,
     status,
     cumulativeVault,
@@ -222,10 +227,11 @@ export function computeAll(
  * into "current" (to-date) and "projected" (full-summer) live balances.
  *
  * The paycheck destination (Chase Checking) sees the bulk of the net wage
- * land, then bleeds out to vault (HYSA), rent (landlord), Robinhood, and
- * extraDeposit (HYSA). The vault account is the inflow side of those
- * vault/extra transfers. Other accounts (BofA, credit cards) get no
- * paycheck flows — only expense activity.
+ * land, then bleeds out to vault (HYSA), rent (landlord), Robinhood,
+ * extraDeposit (HYSA), and BofA overflow (BofA Checking). The vault account
+ * is the inflow side of the vault/extra transfers. BofA Checking receives
+ * the OT-driven overflow. Other accounts (credit cards) get no paycheck
+ * flows — only expense activity.
  *
  * For expenses: checking/hysa accounts have the amount subtracted;
  * credit cards have it added (the outstanding balance grows).
@@ -274,9 +280,13 @@ export function computeAccountStates(
     let fullSummer = 0
 
     // --- Paycheck-driven flows ---
+    // Temporary heuristic: BofA Checking is matched by name. Replace with a
+    // dedicated `is_overflow_destination` column once schema permits.
+    const isBofaOverflow = account.name === 'BofA Checking'
+
     if (account.is_paycheck_destination) {
       // Paycheck destination (e.g. Chase Checking).
-      // baseNet hits checking, then vault + rent + RH leave it.
+      // baseNet hits checking, then vault + rent + RH + bofaOverflow leave it.
       // NOTE: extraDeposit is external income deposited directly into the
       // vault (Marcus HYSA) — it never passes through Chase Checking, so it
       // is excluded from this flow.
@@ -286,7 +296,7 @@ export function computeAccountStates(
             ? row.actualNetWages
             : row.estimatedNet
         const netFlow =
-          baseNet - row.vault - row.rentPaid - row.robinhood
+          baseNet - row.vault - row.rentPaid - row.robinhood - row.bofaOverflow
         fullSummer += netFlow
         if (row.received) toDate += netFlow
       }
@@ -297,8 +307,15 @@ export function computeAccountStates(
         fullSummer += inflow
         if (row.received) toDate += inflow
       }
+    } else if (isBofaOverflow) {
+      // BofA Checking: receives the OT-driven excess each check.
+      for (const row of computed) {
+        const inflow = row.bofaOverflow
+        fullSummer += inflow
+        if (row.received) toDate += inflow
+      }
     }
-    // Other accounts (BofA Checking, credit cards): no paycheck flows.
+    // Other accounts (credit cards): no paycheck flows.
 
     // --- Expense flows ---
     for (const exp of expenses) {
