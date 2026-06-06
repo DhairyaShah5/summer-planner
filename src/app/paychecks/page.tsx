@@ -49,6 +49,7 @@ export default async function PaychecksPage() {
     robinhoodWeekly: s.robinhood_weekly,
     uscNoRentVault: s.usc_no_rent_vault,
     uscRentVault: s.usc_rent_vault,
+    nttVaultDefault: s.ntt_vault_default,
   }
 
   const rows: PaycheckRow[] = (paychecksRes.data ?? []).map((p) => ({

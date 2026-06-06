@@ -61,6 +61,7 @@ export default async function AccountsPage() {
         robinhoodWeekly: Number(settingsRow.robinhood_weekly),
         uscNoRentVault: Number(settingsRow.usc_no_rent_vault),
         uscRentVault: Number(settingsRow.usc_rent_vault),
+        nttVaultDefault: Number(settingsRow.ntt_vault_default),
       }
     : {
         vaultCap: 0,
@@ -73,6 +74,7 @@ export default async function AccountsPage() {
         robinhoodWeekly: 0,
         uscNoRentVault: 0,
         uscRentVault: 0,
+        nttVaultDefault: 0,
       }
 
   const paychecks: PaycheckInput[] = (paychecksRes.data ?? []).map((p) => ({

@@ -120,6 +120,7 @@ export default async function WeeklyPage() {
     robinhoodWeekly: settingsRow.robinhood_weekly,
     uscNoRentVault: settingsRow.usc_no_rent_vault,
     uscRentVault: settingsRow.usc_rent_vault,
+    nttVaultDefault: settingsRow.ntt_vault_default,
   }
 
   const paycheckInputs: PaycheckInput[] = paycheckRows.map((p) => ({

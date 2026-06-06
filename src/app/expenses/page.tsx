@@ -84,6 +84,7 @@ export default async function ExpensesPage() {
       robinhoodWeekly: s.robinhood_weekly,
       uscNoRentVault: s.usc_no_rent_vault,
       uscRentVault: s.usc_rent_vault,
+      nttVaultDefault: s.ntt_vault_default,
     }
 
     const inputs: PaycheckInput[] = (paychecksRes.data ?? []).map((p) => ({

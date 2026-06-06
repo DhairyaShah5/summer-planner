@@ -58,6 +58,7 @@ export default async function DashboardPage() {
     robinhoodWeekly: settingsRow.robinhood_weekly,
     uscNoRentVault: settingsRow.usc_no_rent_vault,
     uscRentVault: settingsRow.usc_rent_vault,
+    nttVaultDefault: settingsRow.ntt_vault_default,
   };
 
   const { data: paycheckRows } = await supabase
