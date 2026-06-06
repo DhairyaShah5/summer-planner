@@ -133,6 +133,7 @@ export default async function WeeklyPage() {
     perDiem: p.per_diem,
     extraDeposit: p.extra_deposit,
     vaultOverride: p.vault_override,
+    grossOverride: p.gross_override,
     rentPaid: p.rent_paid,
     received: p.received,
   }))

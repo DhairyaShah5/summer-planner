@@ -63,6 +63,7 @@ export default async function PaychecksPage() {
     per_diem: p.per_diem,
     extra_deposit: p.extra_deposit,
     vault_override: p.vault_override,
+    gross_override: p.gross_override,
     rent_paid: p.rent_paid,
     notes: p.notes,
     received: p.received,

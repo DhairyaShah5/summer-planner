@@ -43,6 +43,8 @@ export interface PaycheckInput {
   perDiem: number
   extraDeposit: number
   vaultOverride: number | null
+  /** Optional per-row gross override (one-off non-standard pay periods). */
+  grossOverride: number | null
   rentPaid: number
   received: boolean
 }
@@ -90,14 +92,20 @@ export function computeRow(
     perDiem,
     extraDeposit,
     vaultOverride,
+    grossOverride,
     rentPaid,
     received,
   } = input
 
-  // 1. Gross (actual, with OT)
+  // 1. Gross (actual, with OT). Per-row grossOverride wins when set —
+  //    use it as both gross and expectedNoOTGross since it represents
+  //    the actual full-period gross for this specific check.
   let gross: number
   let expectedNoOTGross: number
-  if (employer === 'USC On-Campus') {
+  if (grossOverride != null) {
+    gross = grossOverride
+    expectedNoOTGross = grossOverride
+  } else if (employer === 'USC On-Campus') {
     gross = settings.uscGrossBaseline
     expectedNoOTGross = settings.uscGrossBaseline
   } else {

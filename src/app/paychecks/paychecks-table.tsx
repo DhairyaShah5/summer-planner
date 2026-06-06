@@ -46,6 +46,7 @@ export type PaycheckRow = {
   per_diem: number
   extra_deposit: number
   vault_override: number | null
+  gross_override: number | null
   rent_paid: number
   notes: string | null
   received: boolean
@@ -106,6 +107,7 @@ function toInput(r: PaycheckRow): PaycheckInput {
     perDiem: r.per_diem,
     extraDeposit: r.extra_deposit,
     vaultOverride: r.vault_override,
+    grossOverride: r.gross_override,
     rentPaid: r.rent_paid,
     received: r.received,
   }

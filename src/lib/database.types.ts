@@ -145,6 +145,7 @@ export type Database = {
           updated_at: string
           user_id: string
           vault_override: number | null
+          gross_override: number | null
         }
         Insert: {
           actual_net_wages?: number | null
@@ -163,6 +164,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           vault_override?: number | null
+          gross_override?: number | null
         }
         Update: {
           actual_net_wages?: number | null
@@ -181,6 +183,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           vault_override?: number | null
+          gross_override?: number | null
         }
         Relationships: []
       }
