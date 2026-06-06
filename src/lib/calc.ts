@@ -151,9 +151,12 @@ export function computeRow(
     vaultTarget = settings.nttVaultDefault
   }
 
-  // 11. Vault available — what's left of usableNet after rent + RH, floored to $100
+  // 11. Vault available — actual money left after rent + RH, floored to $100.
+  //     We use baseNet (full actual/projected) here, NOT usableNet — the scheduled
+  //     vault contribution is meant to come from real money in the check, not
+  //     just the no-OT expected portion. (Excess money still flows to BofA below.)
   const vaultAvailable = floor100(
-    Math.max(0, usableNet - rentPaid - robinhood),
+    Math.max(0, baseNet - rentPaid - robinhood),
   )
 
   // 12. Vault cap room
