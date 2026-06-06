@@ -53,6 +53,39 @@ export type Database = {
         }
         Relationships: []
       }
+      cc_payments: {
+        Row: {
+          id: string
+          user_id: string
+          paid_at: string
+          from_account_id: string
+          to_account_id: string
+          amount: number
+          note: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          paid_at?: string
+          from_account_id: string
+          to_account_id: string
+          amount: number
+          note?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          paid_at?: string
+          from_account_id?: string
+          to_account_id?: string
+          amount?: number
+          note?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       expenses: {
         Row: {
           account_id: string | null
