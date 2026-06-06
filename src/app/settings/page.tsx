@@ -7,7 +7,7 @@ import { ImportFromXlsx } from "./import-from-xlsx";
 export const dynamic = "force-dynamic";
 
 const DEFAULTS: SettingsFormValues = {
-  vault_cap: 22858,
+  vault_cap: 20000,
   usc_gross_baseline: 1760,
   ntt_hourly_rate: 30,
   usc_net_pct: 0.902088,
@@ -15,7 +15,7 @@ const DEFAULTS: SettingsFormValues = {
   rent_monthly: 812.25,
   rent_months: 3,
   robinhood_weekly: 100,
-  usc_no_rent_vault: 900,
+  usc_no_rent_vault: 1000,
   usc_rent_vault: 600,
   ntt_vault_default: 2100,
 };
