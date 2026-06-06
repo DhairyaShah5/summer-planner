@@ -658,7 +658,12 @@ export function AccountsList({ states, vaultCap }: Props) {
                 disabled={payPending}
               >
                 <SelectTrigger id="pay-from" className="w-full">
-                  <SelectValue placeholder="Pick an account" />
+                  <SelectValue placeholder="Pick an account">
+                    {(value) => {
+                      const acct = checkingAccounts.find((a) => a.id === value)
+                      return acct ? acct.name : 'Pick an account'
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {checkingAccounts.map((a) => (

@@ -180,7 +180,12 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
               disabled={pending || accounts.length === 0}
             >
               <SelectTrigger id="account" className="w-full">
-                <SelectValue placeholder="Pick an account" />
+                <SelectValue placeholder="Pick an account">
+                  {(value) => {
+                    const acct = accounts.find((a) => a.id === value)
+                    return acct ? acct.name : 'Pick an account'
+                  }}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {accounts.map((a) => (
