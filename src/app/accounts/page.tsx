@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import {
   computeAccountStates,
   type AccountInput,
+  type CCPaymentInput,
   type ExpenseInput,
   type PaycheckInput,
   type Employer,
@@ -20,7 +21,7 @@ export default async function AccountsPage() {
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [accountsRes, settingsRes, paychecksRes, expensesRes] =
+  const [accountsRes, settingsRes, paychecksRes, expensesRes, ccPaymentsRes] =
     await Promise.all([
       supabase
         .from('accounts')
@@ -31,12 +32,17 @@ export default async function AccountsPage() {
       supabase
         .from('expenses')
         .select('id, expense_date, amount, account_id'),
+      supabase
+        .from('cc_payments')
+        .select('*')
+        .order('paid_at', { ascending: false }),
     ])
 
   if (accountsRes.error) throw accountsRes.error
   if (settingsRes.error) throw settingsRes.error
   if (paychecksRes.error) throw paychecksRes.error
   if (expensesRes.error) throw expensesRes.error
+  if (ccPaymentsRes.error) throw ccPaymentsRes.error
 
   const accounts: AccountInput[] = (accountsRes.data ?? []).map((a) => ({
     id: a.id,
@@ -98,7 +104,21 @@ export default async function AccountsPage() {
     account_id: e.account_id,
   }))
 
-  const states = computeAccountStates(accounts, paychecks, expenses, settings)
+  const ccPayments: CCPaymentInput[] = (ccPaymentsRes.data ?? []).map((p) => ({
+    id: p.id,
+    paid_at: p.paid_at,
+    from_account_id: p.from_account_id,
+    to_account_id: p.to_account_id,
+    amount: Number(p.amount),
+  }))
+
+  const states = computeAccountStates(
+    accounts,
+    paychecks,
+    expenses,
+    settings,
+    ccPayments,
+  )
 
   const stateRows: AccountStateRow[] = states.map((s) => ({
     id: s.account.id,

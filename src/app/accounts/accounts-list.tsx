@@ -1,12 +1,13 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
   ActivityIcon,
   ArrowDownRightIcon,
   ArrowUpRightIcon,
+  CreditCardIcon,
   Loader2Icon,
   PencilIcon,
   PlaneIcon,
@@ -28,9 +29,17 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { AnimatedNumber } from '@/components/animated-number'
 import { GradientProgress } from '@/components/gradient-progress'
 import { cn } from '@/lib/utils'
+import { payCreditCard } from './cc-payment-actions'
 
 export type AccountType = 'checking' | 'credit_card' | 'hysa'
 
@@ -59,6 +68,12 @@ const moneyWhole = new Intl.NumberFormat('en-US', {
   minimumFractionDigits: 0,
   maximumFractionDigits: 0,
 })
+
+function todayISO(): string {
+  const d = new Date()
+  const tz = d.getTimezoneOffset() * 60000
+  return new Date(d.getTime() - tz).toISOString().slice(0, 10)
+}
 
 function typeLabel(t: AccountType): string {
   switch (t) {
@@ -92,6 +107,67 @@ export function AccountsList({ states, vaultCap }: Props) {
   const [editing, setEditing] = useState<AccountStateRow | null>(null)
   const [editValue, setEditValue] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Pay-CC dialog state
+  const [paying, setPaying] = useState<AccountStateRow | null>(null)
+  const [payFromId, setPayFromId] = useState<string>('')
+  const [payAmount, setPayAmount] = useState<string>('')
+  const [payDate, setPayDate] = useState<string>(todayISO())
+  const [payPending, startPayTransition] = useTransition()
+
+  const checkingAccounts = useMemo(
+    () => states.filter((s) => s.type === 'checking'),
+    [states],
+  )
+  const defaultFromAccount = useMemo(
+    () =>
+      checkingAccounts.find((s) => s.is_paycheck_destination) ??
+      checkingAccounts[0] ??
+      null,
+    [checkingAccounts],
+  )
+
+  function openPayDialog(cc: AccountStateRow) {
+    setPaying(cc)
+    setPayFromId(defaultFromAccount?.id ?? '')
+    // Default amount: the CC's current outstanding (rounded to 2 decimals)
+    setPayAmount(cc.current > 0 ? cc.current.toFixed(2) : '0.00')
+    setPayDate(todayISO())
+  }
+
+  function closePayDialog() {
+    setPaying(null)
+  }
+
+  function handlePaySubmit() {
+    if (!paying) return
+    const amount = parseFloat(payAmount)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error('Enter a valid amount')
+      return
+    }
+    if (!payFromId) {
+      toast.error('Select a from account')
+      return
+    }
+    const ccName = paying.name
+    const toAccountId = paying.id
+    startPayTransition(async () => {
+      const res = await payCreditCard({
+        fromAccountId: payFromId,
+        toAccountId,
+        amount,
+        paidAt: payDate,
+      })
+      if (!res.ok) {
+        toast.error(res.error ?? 'Could not record payment')
+        return
+      }
+      toast.success(`Paid ${money.format(amount)} to ${ccName}`)
+      setPaying(null)
+      router.refresh()
+    })
+  }
 
   const summerCash = useMemo(() => {
     let arrivalCash = 0
@@ -463,6 +539,21 @@ export function AccountsList({ states, vaultCap }: Props) {
                         </div>
                       </div>
 
+                      {isCC && (
+                        <div className="border-t pt-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openPayDialog(s)}
+                            className="w-full sm:w-auto"
+                          >
+                            <CreditCardIcon className="size-4" />
+                            Pay credit card
+                          </Button>
+                        </div>
+                      )}
+
                       {isVault && vaultCap > 0 && (
                         <div className="space-y-1.5 border-t pt-3">
                           <div className="flex items-center justify-between text-xs text-muted-foreground tabular-nums">
@@ -537,6 +628,88 @@ export function AccountsList({ states, vaultCap }: Props) {
                 </>
               ) : (
                 'Save'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={paying !== null}
+        onOpenChange={(open) => {
+          if (!open) closePayDialog()
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {paying ? `Pay ${paying.name} from...` : 'Pay credit card'}
+            </DialogTitle>
+            <DialogDescription>
+              Record a payment from a checking account to this credit card.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="pay-from">From account</Label>
+              <Select
+                value={payFromId}
+                onValueChange={(v) => setPayFromId(String(v ?? ''))}
+                disabled={payPending}
+              >
+                <SelectTrigger id="pay-from" className="w-full">
+                  <SelectValue placeholder="Pick an account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {checkingAccounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pay-amount">Amount</Label>
+              <Input
+                id="pay-amount"
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                value={payAmount}
+                onChange={(e) => setPayAmount(e.target.value)}
+                placeholder="0.00"
+                disabled={payPending}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pay-date">Date</Label>
+              <Input
+                id="pay-date"
+                type="date"
+                value={payDate}
+                onChange={(e) => setPayDate(e.target.value)}
+                disabled={payPending}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={closePayDialog}
+              disabled={payPending}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handlePaySubmit} disabled={payPending}>
+              {payPending ? (
+                <>
+                  <Loader2Icon className="size-4 animate-spin" />
+                  Paying...
+                </>
+              ) : (
+                `Pay ${money.format(parseFloat(payAmount) || 0)}`
               )}
             </Button>
           </DialogFooter>
