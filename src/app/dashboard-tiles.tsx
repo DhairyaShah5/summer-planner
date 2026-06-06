@@ -99,7 +99,7 @@ export interface DashboardTilesProps {
     id: string
     name: string
     type: 'checking' | 'credit_card' | 'hysa'
-    arrival_balance: number
+    current_balance: number
   }[]
 }
 
@@ -354,7 +354,7 @@ export function DashboardTiles(props: DashboardTilesProps) {
                   <Landmark className="size-4 text-indigo-500" />
                   Accounts
                 </CardTitle>
-                <CardDescription>Top balances by display order</CardDescription>
+                <CardDescription>Live balances right now</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {accountsPreview.length > 0 ? (
@@ -383,7 +383,7 @@ export function DashboardTiles(props: DashboardTilesProps) {
                               isCC && 'text-destructive',
                             )}
                           >
-                            {money.format(a.arrival_balance)}
+                            {money.format(a.current_balance)}
                           </span>
                         </motion.li>
                       )
@@ -463,7 +463,7 @@ export function DashboardTiles(props: DashboardTilesProps) {
                   Allocation Breakdown
                 </CardTitle>
                 <CardDescription>
-                  Projected summer net pay, by bucket
+                  Allocated so far, by bucket
                 </CardDescription>
               </CardHeader>
               <CardContent>

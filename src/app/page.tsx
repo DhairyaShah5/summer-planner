@@ -4,10 +4,14 @@ import { format, startOfWeek, endOfWeek } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
 import {
   computeAll,
+  computeAccountStates,
   summarize,
   type Settings,
   type PaycheckInput,
   type Employer,
+  type AccountInput,
+  type ExpenseInput,
+  type CCPaymentInput,
 } from "@/lib/calc";
 import type { Expense } from "@/lib/types";
 import type { AllocationDatum } from "@/components/allocation-breakdown";
@@ -90,11 +94,19 @@ export default async function DashboardPage() {
   const weekEndISO = format(weekEnd, "yyyy-MM-dd");
   const todayISO = format(now, "yyyy-MM-dd");
 
-  // Three parallel queries: recent expenses for the list, cumulative
-  // expenses through today for the CO Budget tile, and accounts for the
-  // Accounts dashboard tile. The CO tile uses cumulative framing so unspent
-  // CO from earlier weeks rolls forward.
-  const [recentExpensesRes, cumExpensesRes, accountsRes] = await Promise.all([
+  // Parallel queries: recent expenses for the list, cumulative expenses
+  // through today for the CO Budget tile, all accounts (full set is needed
+  // so per-account paycheck / expense / cc-payment flows can be applied
+  // before the top 3 are sliced), all expenses keyed by account, and all
+  // cc_payments. The CO tile uses cumulative framing so unspent CO from
+  // earlier weeks rolls forward.
+  const [
+    recentExpensesRes,
+    cumExpensesRes,
+    accountsRes,
+    allExpensesRes,
+    ccPaymentsRes,
+  ] = await Promise.all([
     supabase
       .from("expenses")
       .select("*")
@@ -106,9 +118,16 @@ export default async function DashboardPage() {
       .lte("expense_date", todayISO),
     supabase
       .from("accounts")
-      .select("id, name, type, arrival_balance, display_order")
-      .order("display_order", { ascending: true })
-      .limit(3),
+      .select(
+        "id, name, type, arrival_balance, display_order, is_paycheck_destination, is_vault",
+      )
+      .order("display_order", { ascending: true }),
+    supabase
+      .from("expenses")
+      .select("id, expense_date, amount, account_id"),
+    supabase
+      .from("cc_payments")
+      .select("id, paid_at, from_account_id, to_account_id, amount"),
   ]);
 
   const recentExpenses: Expense[] = (recentExpensesRes.data ?? []).map((e) => ({
@@ -121,11 +140,49 @@ export default async function DashboardPage() {
     created_at: e.created_at,
   }));
 
-  const accountsPreview = (accountsRes.data ?? []).map((a) => ({
+  // Derive live account balances (current = received-paycheck activity +
+  // dated expenses + cc payments through today). Then take the top 3 by
+  // display_order for the dashboard preview.
+  const accountInputs: AccountInput[] = (accountsRes.data ?? []).map((a) => ({
     id: a.id,
     name: a.name,
     type: a.type as 'checking' | 'credit_card' | 'hysa',
     arrival_balance: Number(a.arrival_balance),
+    is_paycheck_destination: a.is_paycheck_destination,
+    is_vault: a.is_vault,
+    display_order: a.display_order,
+  }));
+
+  const expenseInputs: ExpenseInput[] = (allExpensesRes.data ?? []).map((e) => ({
+    id: e.id,
+    expense_date: e.expense_date,
+    amount: Number(e.amount),
+    account_id: e.account_id ?? null,
+  }));
+
+  const ccPaymentInputs: CCPaymentInput[] = (ccPaymentsRes.data ?? []).map(
+    (p) => ({
+      id: p.id,
+      paid_at: p.paid_at,
+      from_account_id: p.from_account_id,
+      to_account_id: p.to_account_id,
+      amount: Number(p.amount),
+    }),
+  );
+
+  const accountStates = computeAccountStates(
+    accountInputs,
+    inputs,
+    expenseInputs,
+    settings,
+    ccPaymentInputs,
+  );
+
+  const accountsPreview = accountStates.slice(0, 3).map((s) => ({
+    id: s.account.id,
+    name: s.account.name,
+    type: s.account.type,
+    current_balance: s.current,
   }));
 
   // Cumulative spend across the summer through today.
@@ -151,6 +208,16 @@ export default async function DashboardPage() {
   const totalRentPaid = computed.reduce((s, r) => s + r.rentPaid, 0);
   const totalRobinhood = computed.reduce((s, r) => s + r.robinhood, 0);
 
+  // Live (received-only) allocation totals for the Allocation Breakdown tile.
+  // We want the donut to reflect money actually allocated so far, not the
+  // full-summer projection.
+  const currentRentPaid = computed
+    .filter((r) => r.received)
+    .reduce((s, r) => s + r.rentPaid, 0);
+  const currentRobinhood = computed
+    .filter((r) => r.received)
+    .reduce((s, r) => s + r.robinhood, 0);
+
   const vaultPct =
     settings.vaultCap > 0
       ? Math.min(100, (totals.currentVault / settings.vaultCap) * 100)
@@ -158,11 +225,11 @@ export default async function DashboardPage() {
   const vaultRemaining = Math.max(0, settings.vaultCap - totals.currentVault);
 
   const allocation: AllocationDatum[] = [
-    { name: "Vault", value: totals.totalVault },
-    { name: "Rent", value: totalRentPaid },
-    { name: "Robinhood", value: totalRobinhood },
-    { name: "CO", value: totals.totalCO },
-    { name: "Buffer", value: totals.totalBuffer },
+    { name: "Vault", value: totals.currentVault },
+    { name: "Rent", value: currentRentPaid },
+    { name: "Robinhood", value: currentRobinhood },
+    { name: "CO", value: totals.currentCO },
+    { name: "Buffer", value: totals.currentBuffer },
   ].filter((d) => d.value > 0) as AllocationDatum[];
 
   return (
