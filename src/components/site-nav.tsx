@@ -14,6 +14,7 @@ import {
   Landmark,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
@@ -119,6 +120,7 @@ export function SiteNav() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          <ThemeToggle />
           <form action="/auth/signout" method="post">
             <motion.div whileTap={{ scale: 0.96 }}>
               <Button
