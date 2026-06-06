@@ -15,8 +15,9 @@ const DEFAULTS: SettingsFormValues = {
   rent_monthly: 812.25,
   rent_months: 3,
   robinhood_weekly: 100,
-  usc_no_rent_vault: 1080,
+  usc_no_rent_vault: 900,
   usc_rent_vault: 600,
+  ntt_vault_default: 2100,
 };
 
 export default async function SettingsPage() {
@@ -53,6 +54,7 @@ export default async function SettingsPage() {
     robinhood_weekly: Number(row.robinhood_weekly),
     usc_no_rent_vault: Number(row.usc_no_rent_vault),
     usc_rent_vault: Number(row.usc_rent_vault),
+    ntt_vault_default: Number(row.ntt_vault_default),
   };
 
   return (

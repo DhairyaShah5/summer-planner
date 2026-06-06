@@ -32,6 +32,7 @@ const schema = z.object({
   robinhood_weekly: z.number().min(0),
   usc_no_rent_vault: z.number().min(0),
   usc_rent_vault: z.number().min(0),
+  ntt_vault_default: z.number().min(0),
 });
 
 export type SettingsFormValues = z.infer<typeof schema>;
@@ -172,7 +173,7 @@ export function SettingsForm({
 
         <Separator />
 
-        <Section index={3} title="USC Allocation Rules">
+        <Section index={3} title="Allocation Rules">
           <MoneyField
             form={form}
             name="usc_no_rent_vault"
@@ -184,6 +185,12 @@ export function SettingsForm({
             name="usc_rent_vault"
             label="USC Rent Vault"
             description="Default vault deposit on USC checks that also pay rent."
+          />
+          <MoneyField
+            form={form}
+            name="ntt_vault_default"
+            label="NTT default vault $ per check"
+            description="Default vault deposit on each NTT paycheck."
           />
         </Section>
 
