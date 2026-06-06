@@ -252,7 +252,7 @@ export function PaychecksTable({
               <TableHead className="w-[64px] px-1.5 text-right">OT</TableHead>
               <TableHead className="w-[84px] px-1.5 text-right">Per Diem</TableHead>
               <TableHead className="w-[100px] px-1.5 text-right">Actual Net</TableHead>
-              <TableHead className="w-[100px] px-1.5 text-right">Expected Pay</TableHead>
+              <TableHead className="w-[100px] px-1.5 text-right">Gross Pay</TableHead>
               <TableHead className="w-[100px] px-1.5 text-right">Extra Deposit</TableHead>
               <TableHead className="w-[68px] px-1.5 text-right">Net %</TableHead>
               <TableHead className="w-[112px] px-1.5 text-right">
@@ -432,7 +432,7 @@ export function PaychecksTable({
                     onCommit={(v) => commit(row.id, 'actual_net_wages', v)}
                   />
                   <TableCell className="text-right tabular-nums text-xs font-medium text-muted-foreground">
-                    {money.format(c.estimatedNet)}
+                    {money.format(c.gross)}
                   </TableCell>
                   <NumberCell
                     value={row.extra_deposit}
