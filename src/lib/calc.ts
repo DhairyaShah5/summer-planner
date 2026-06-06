@@ -259,6 +259,14 @@ export interface ExpenseInput {
   account_id: string | null
 }
 
+export interface CCPaymentInput {
+  id: string
+  paid_at: string
+  from_account_id: string
+  to_account_id: string
+  amount: number
+}
+
 export interface AccountState {
   account: AccountInput
   arrival: number
@@ -273,6 +281,7 @@ export function computeAccountStates(
   paychecks: PaycheckInput[],
   expenses: ExpenseInput[],
   settings: Settings,
+  ccPayments: CCPaymentInput[] = [],
 ): AccountState[] {
   const computed = computeAll(paychecks, settings)
   const todayISO = new Date().toISOString().slice(0, 10)
@@ -329,6 +338,23 @@ export function computeAccountStates(
       // to-date matches full-summer for any expense already in the system.
       // We still gate by today's date for forward-compatibility.
       if (exp.expense_date <= todayISO) toDate += delta
+    }
+
+    // --- CC payment flows ---
+    // A CC payment moves money from a checking-type "from" account to a
+    // credit-card "to" account, reducing both balances. The from-account
+    // loses cash; the to-account's outstanding balance shrinks.
+    for (const pay of ccPayments) {
+      let delta = 0
+      if (pay.from_account_id === account.id) {
+        delta -= pay.amount
+      }
+      if (pay.to_account_id === account.id) {
+        delta -= pay.amount
+      }
+      if (delta === 0) continue
+      fullSummer += delta
+      if (pay.paid_at <= todayISO) toDate += delta
     }
 
     return {
