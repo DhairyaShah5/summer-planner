@@ -241,7 +241,7 @@ export function PaychecksTable({
   return (
     <div className="space-y-6">
       <div className="rounded-lg border overflow-x-auto">
-        <Table className="min-w-[1380px] table-auto">
+        <Table className="min-w-[1476px] table-auto">
           <TableHeader>
             <TableRow>
               <TableHead className="w-8 px-1.5 text-center">#</TableHead>
@@ -301,6 +301,22 @@ export function PaychecksTable({
                     CO Spend
                   </TooltipTrigger>
                   <TooltipContent>To Colorado Spending</TooltipContent>
+                </Tooltip>
+              </TableHead>
+              <TableHead className="w-[96px] px-1.5 text-right">
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <span className="cursor-help underline decoration-dotted decoration-from-font decoration-muted-foreground/50 underline-offset-4" />
+                    }
+                  >
+                    BofA
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    OT-driven overflow above expected pay. Routed to BofA
+                    Checking (rounded down to nearest $100). Stays $0 on rows
+                    without OT income above the plan.
+                  </TooltipContent>
                 </Tooltip>
               </TableHead>
               <TableHead className="w-8 px-1.5 text-center">
@@ -438,6 +454,9 @@ export function PaychecksTable({
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-xs font-medium text-muted-foreground">
                     {money.format(c.co)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-xs font-medium text-muted-foreground">
+                    {money.format(c.bofaOverflow)}
                   </TableCell>
                   <TableCell className="text-center">
                     <NotesPopover
