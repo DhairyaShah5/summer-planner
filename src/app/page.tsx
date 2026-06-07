@@ -267,6 +267,7 @@ export default async function DashboardPage() {
     label:
       i % 2 === 0 ? format(new Date(String(r.payDate)), "MMM d") : "",
     value: r.cumulativeVault,
+    received: r.received,
   }));
 
   const allocation: AllocationDatum[] = [

@@ -35,7 +35,11 @@ import {
   fmtDate,
 } from '@/components/redesign'
 
-export type VaultGrowthPoint = { label: string; value: number }
+export type VaultGrowthPoint = {
+  label: string
+  value: number
+  received: boolean
+}
 
 export interface DashboardTilesProps {
   todayLabel: string
@@ -587,6 +591,13 @@ function VaultGrowthTile({
           series={series}
           width={680}
           height={200}
+          splitAt={(() => {
+            const lastReceived = points
+              .map((p, i) => ({ i, received: p.received }))
+              .filter((p) => p.received)
+              .pop()
+            return lastReceived ? lastReceived.i : -1
+          })()}
           tooltipContent={(x, pts) => {
             const v = pts[0]?.value ?? 0
             const pct = cap > 0 ? Math.min(100, (v / cap) * 100) : 0

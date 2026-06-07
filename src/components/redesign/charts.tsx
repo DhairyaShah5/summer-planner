@@ -201,9 +201,9 @@ export function Donut({
         <div
           style={{
             position: "absolute",
-            top: "50%",
+            bottom: "calc(100% + 8px)",
             left: "50%",
-            transform: "translate(-50%, -50%)",
+            transform: "translateX(-50%)",
             background: "var(--surface-2)",
             border: "1px solid var(--hair)",
             borderRadius: 10,
@@ -213,7 +213,6 @@ export function Donut({
               "0 12px 32px -10px color-mix(in oklch, black 50%, transparent)",
             whiteSpace: "nowrap",
             zIndex: 10,
-            maxWidth: size - 12,
           }}
         >
           {tooltipContent(hovered, hoveredPct)}
@@ -249,6 +248,10 @@ type AreaChartProps = {
     x: string | number,
     points: AreaTooltipPoint[],
   ) => React.ReactNode;
+  /** Index after which the line/area should render as dashed (projected
+   *  future) and point circles as hollow rings. Indices ≤ splitAt are
+   *  drawn as solid with filled circles (past/received). */
+  splitAt?: number;
 };
 
 export function AreaChart({
@@ -257,6 +260,7 @@ export function AreaChart({
   height = 220,
   pad = 28,
   tooltipContent,
+  splitAt,
 }: AreaChartProps) {
   const [ref, seen] = useInView<HTMLDivElement>();
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -318,13 +322,29 @@ export function AreaChart({
         {series.map((s, si) => {
           const pts = s.points.filter((p): p is { x: string | number; y: number } => p.y != null);
           if (pts.length === 0) return null;
-          const line = pts
-            .map(
-              (p, i) =>
-                `${i === 0 ? "M" : "L"} ${xAt(s.points.indexOf(p))} ${yAt(p.y)}`,
-            )
-            .join(" ");
-          const area = `${line} L ${xAt(s.points.indexOf(pts[pts.length - 1]))} ${pad + innerH} L ${xAt(s.points.indexOf(pts[0]))} ${pad + innerH} Z`;
+          const indexed = pts.map((p) => ({ p, idx: s.points.indexOf(p) }));
+          const pathFor = (slice: typeof indexed) =>
+            slice
+              .map(({ p, idx }, i) => `${i === 0 ? "M" : "L"} ${xAt(idx)} ${yAt(p.y)}`)
+              .join(" ");
+
+          let solidIndexed: typeof indexed = indexed;
+          let dashedIndexed: typeof indexed = [];
+          if (splitAt != null) {
+            const splitOrigIdx = Math.max(0, Math.min(xs.length - 1, splitAt));
+            solidIndexed = indexed.filter(({ idx }) => idx <= splitOrigIdx);
+            // dashed segment must include the split point so the two
+            // paths connect visually.
+            dashedIndexed = indexed.filter(({ idx }) => idx >= splitOrigIdx);
+          }
+
+          const solidLine = pathFor(solidIndexed);
+          const dashedLine = pathFor(dashedIndexed);
+          const fullLine = pathFor(indexed);
+
+          const firstIdx = indexed[0].idx;
+          const lastIdx = indexed[indexed.length - 1].idx;
+          const area = `${fullLine} L ${xAt(lastIdx)} ${pad + innerH} L ${xAt(firstIdx)} ${pad + innerH} Z`;
           const gid = `ar${si}`;
           return (
             <g key={si}>
@@ -350,35 +370,65 @@ export function AreaChart({
                   />
                 </>
               )}
-              <path
-                d={line}
-                fill="none"
-                stroke={s.color}
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                pathLength="1"
-                strokeDasharray="1"
-                strokeDashoffset={seen ? 0 : 1}
-                style={{
-                  transition: `stroke-dashoffset ${dur}s cubic-bezier(.4,0,.2,1) ${si * 0.12}s`,
-                }}
-              />
-              {pts.map((p, i) => (
-                <circle
-                  key={i}
-                  cx={xAt(s.points.indexOf(p))}
-                  cy={yAt(p.y)}
-                  r="3.5"
-                  fill="var(--surface)"
+              {splitAt == null ? (
+                <path
+                  d={fullLine}
+                  fill="none"
                   stroke={s.color}
                   strokeWidth="2.5"
-                  opacity={seen ? 1 : 0}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  pathLength="1"
+                  strokeDasharray="1"
+                  strokeDashoffset={seen ? 0 : 1}
                   style={{
-                    transition: `opacity .3s ease ${dur * 0.7 + i * 0.04}s`,
+                    transition: `stroke-dashoffset ${dur}s cubic-bezier(.4,0,.2,1) ${si * 0.12}s`,
                   }}
                 />
-              ))}
+              ) : (
+                <>
+                  {solidIndexed.length > 1 && (
+                    <path
+                      d={solidLine}
+                      fill="none"
+                      stroke={s.color}
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  )}
+                  {dashedIndexed.length > 1 && (
+                    <path
+                      d={dashedLine}
+                      fill="none"
+                      stroke={s.color}
+                      strokeOpacity="0.7"
+                      strokeWidth="2"
+                      strokeDasharray="3 4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  )}
+                </>
+              )}
+              {indexed.map(({ p, idx }, i) => {
+                const isFuture = splitAt != null && idx > splitAt;
+                return (
+                  <circle
+                    key={i}
+                    cx={xAt(idx)}
+                    cy={yAt(p.y)}
+                    r="3.5"
+                    fill={isFuture ? 'var(--surface)' : s.color}
+                    stroke={s.color}
+                    strokeWidth={isFuture ? '1.5' : '2.5'}
+                    opacity={seen ? 1 : 0}
+                    style={{
+                      transition: `opacity .3s ease ${dur * 0.7 + i * 0.04}s`,
+                    }}
+                  />
+                )
+              })}
             </g>
           );
         })}
@@ -412,53 +462,50 @@ export function AreaChart({
           </g>
         )}
       </svg>
-      {tooltipContent && hoverIdx != null && (
-        <AreaTooltip
-          left={`${(xAt(hoverIdx) / width) * 100}%`}
-          content={tooltipContent(
-            xs[hoverIdx],
-            series.map((s) => ({
-              name: s.name,
-              color: s.color,
-              value: s.points[hoverIdx]?.y ?? null,
-            })),
-          )}
-        />
-      )}
-    </div>
-  );
-}
-
-function AreaTooltip({
-  left,
-  content,
-}: {
-  left: string;
-  content: React.ReactNode;
-}) {
-  // Position the tooltip relative to the chart container; horizontally we
-  // anchor to the hovered x (transform: translateX(-50%)) so it stays
-  // centered above the point and is clamped near the edges by the parent.
-  return (
-    <div
-      style={{
-        position: "absolute",
-        top: 0,
-        left,
-        transform: "translate(-50%, -100%)",
-        marginTop: -8,
-        background: "var(--surface-2)",
-        border: "1px solid var(--hair)",
-        borderRadius: 10,
-        padding: "10px 12px",
-        pointerEvents: "none",
-        boxShadow:
-          "0 12px 32px -10px color-mix(in oklch, black 50%, transparent)",
-        whiteSpace: "nowrap",
-        zIndex: 10,
-      }}
-    >
-      {content}
+      {tooltipContent && hoverIdx != null && (() => {
+        // Anchor the tooltip near the hovered x but flip its horizontal
+        // alignment near the edges so it always stays inside the chart
+        // container — no more half-off-screen tooltips on the first/last
+        // few points.
+        const xPct = (xAt(hoverIdx) / width) * 100;
+        let translateX = "-50%";
+        let alignLeft = `${xPct}%`;
+        if (xPct < 16) {
+          translateX = "0";
+          alignLeft = "8px";
+        } else if (xPct > 84) {
+          translateX = "-100%";
+          alignLeft = `calc(100% - 8px)`;
+        }
+        return (
+          <div
+            style={{
+              position: "absolute",
+              top: 8,
+              left: alignLeft,
+              transform: `translateX(${translateX})`,
+              background: "var(--surface-2)",
+              border: "1px solid var(--hair)",
+              borderRadius: 10,
+              padding: "10px 12px",
+              pointerEvents: "none",
+              boxShadow:
+                "0 12px 32px -10px color-mix(in oklch, black 50%, transparent)",
+              whiteSpace: "nowrap",
+              zIndex: 10,
+            }}
+          >
+            {tooltipContent(
+              xs[hoverIdx],
+              series.map((s) => ({
+                name: s.name,
+                color: s.color,
+                value: s.points[hoverIdx]?.y ?? null,
+              })),
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
