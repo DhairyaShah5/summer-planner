@@ -26,7 +26,6 @@ import {
   ProgressBar,
   Reveal,
   SectionLabel,
-  StackedBars,
   fmtDate,
   fmtMoney,
 } from '@/components/redesign'
@@ -238,20 +237,24 @@ export function PaychecksTable({
     mutation.mutate({ id, patch })
   }
 
-  const vaultProgressPct = settings.vaultCap
-    ? Math.min(100, (totals.currentVault / settings.vaultCap) * 100)
-    : 0
-
-  const allocData = computed.map((c) => ({
+  const nextPendingIndex = computed.findIndex((c) => !c.received)
+  const allocBars: AllocBar[] = computed.map((c, i) => ({
     label: fmtDate(typeof c.payDate === 'string' ? c.payDate : c.payDate.toISOString().slice(0, 10), 'short'),
+    employer: c.employer === 'USC On-Campus' ? 'USC' : 'NTT',
+    received: c.received,
+    isNext: i === nextPendingIndex,
     segments: [
-      { value: c.vault + c.extraDeposit, hue: HUE.vault },
-      { value: c.rentPaid, hue: HUE.rent },
-      { value: c.robinhood, hue: HUE.rh },
-      { value: c.co, hue: HUE.co },
-      { value: c.bofaOverflow, hue: HUE.bofa },
+      { key: 'Vault', value: c.vault + c.extraDeposit, hue: HUE.vault },
+      { key: 'Rent', value: c.rentPaid, hue: HUE.rent },
+      { key: 'RH', value: c.robinhood, hue: HUE.rh },
+      { key: 'CO', value: c.co, hue: HUE.co },
+      { key: 'BofA', value: c.bofaOverflow, hue: HUE.bofa },
     ],
   }))
+  const allocMax = Math.max(
+    1,
+    ...allocBars.map((b) => b.segments.reduce((s, x) => s + x.value, 0)),
+  )
 
   const uscNet = computed
     .filter((c) => c.employer === 'USC On-Campus')
@@ -526,46 +529,6 @@ export function PaychecksTable({
 
       <Reveal delay={80}>
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: 14,
-          }}
-        >
-          <SummaryStat
-            label="Total Vault"
-            tag="Current"
-            value={fmtMoney(totals.currentVault, { cents: true })}
-            sub={`Projected ${fmtMoney(totals.cumulative)}`}
-            hue={HUE.vault}
-          />
-          <SummaryStat
-            label="Summer CO Budget"
-            tag="Projected"
-            value={fmtMoney(totals.totalCO, { cents: true })}
-            sub={`Allocated ${fmtMoney(totals.currentCO)} so far`}
-            hue={HUE.co}
-          />
-          <SummaryStat
-            label="Total Buffer"
-            tag="Current"
-            value={fmtMoney(totals.currentBuffer, { cents: true })}
-            sub={`Projected ${fmtMoney(totals.totalBuffer)}`}
-            hue={HUE.bofa}
-          />
-          <SummaryStat
-            label="Vault Progress"
-            tag="Current"
-            value={`${vaultProgressPct.toFixed(1)}%`}
-            sub={`${fmtMoney(totals.currentVault)} of ${fmtMoney(settings.vaultCap)}`}
-            hue={45}
-            progress={vaultProgressPct / 100}
-          />
-        </div>
-      </Reveal>
-
-      <Reveal delay={120}>
-        <div
           className="card fx-card"
           style={{
             background: 'var(--surface)',
@@ -574,8 +537,76 @@ export function PaychecksTable({
             padding: 22,
           }}
         >
-          <SectionLabel
-            right={
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-end',
+              justifyContent: 'space-between',
+              gap: 18,
+              flexWrap: 'wrap',
+              marginBottom: 18,
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  font: '600 12px/1 var(--ui)',
+                  letterSpacing: '.05em',
+                  textTransform: 'uppercase',
+                  color: 'var(--ink-3)',
+                  marginBottom: 6,
+                }}
+              >
+                Allocation per paycheck
+              </div>
+              <div
+                style={{
+                  font: '500 12px var(--ui)',
+                  color: 'var(--ink-3)',
+                }}
+              >
+                Hover a bar for the breakdown. Next pending paycheck is
+                accent-outlined.
+              </div>
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                gap: 18,
+                alignItems: 'center',
+                flexWrap: 'wrap',
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    font: '600 10px var(--ui)',
+                    letterSpacing: '.05em',
+                    textTransform: 'uppercase',
+                    color: 'var(--ink-3)',
+                  }}
+                >
+                  Buffer
+                </div>
+                <div
+                  style={{
+                    font: '600 16px/1 var(--display)',
+                    color: `oklch(0.7 0.2 ${HUE.bofa})`,
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {fmtMoney(totals.currentBuffer, { cents: true })}
+                </div>
+                <div
+                  style={{
+                    font: '500 11px var(--ui)',
+                    color: 'var(--ink-4)',
+                    marginTop: 2,
+                  }}
+                >
+                  Projected {fmtMoney(totals.totalBuffer)}
+                </div>
+              </div>
               <div
                 style={{
                   display: 'flex',
@@ -599,15 +630,9 @@ export function PaychecksTable({
                   </span>
                 ))}
               </div>
-            }
-          >
-            Allocation per paycheck
-          </SectionLabel>
-          <StackedBars
-            data={allocData}
-            height={210}
-            formatTop={(v) => '$' + (v / 1000).toFixed(1) + 'k'}
-          />
+            </div>
+          </div>
+          <AllocationChart bars={allocBars} max={allocMax} height={260} />
         </div>
       </Reveal>
 
@@ -977,6 +1002,237 @@ function NotesPopover({
         />
       </PopoverContent>
     </Popover>
+  )
+}
+
+type AllocSegment = { key: string; value: number; hue: number }
+type AllocBar = {
+  label: string
+  employer: 'USC' | 'NTT'
+  received: boolean
+  isNext: boolean
+  segments: AllocSegment[]
+}
+
+function AllocationChart({
+  bars,
+  max,
+  height = 240,
+}: {
+  bars: AllocBar[]
+  max: number
+  height?: number
+}) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
+  const totals = bars.map((b) => b.segments.reduce((s, x) => s + x.value, 0))
+  return (
+    <div
+      style={{
+        position: 'relative',
+        width: '100%',
+        height,
+        display: 'flex',
+        alignItems: 'flex-end',
+        gap: 6,
+      }}
+      onMouseLeave={() => setHoverIdx(null)}
+    >
+      {bars.map((b, i) => {
+        const total = totals[i]
+        const heightPct = (total / max) * 100
+        const isHover = hoverIdx === i
+        return (
+          <div
+            key={i}
+            onMouseEnter={() => setHoverIdx(i)}
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              height: '100%',
+              gap: 6,
+              minWidth: 0,
+              cursor: 'pointer',
+            }}
+          >
+            <div
+              style={{
+                font: '600 10px var(--ui)',
+                color:
+                  isHover || b.isNext ? 'var(--ink-1)' : 'var(--ink-3)',
+                fontVariantNumeric: 'tabular-nums',
+                transition: 'color 150ms ease',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              ${(total / 1000).toFixed(1)}k
+            </div>
+            <div
+              style={{
+                flex: 1,
+                width: '100%',
+                display: 'flex',
+                alignItems: 'flex-end',
+                justifyContent: 'center',
+                position: 'relative',
+              }}
+            >
+              <div
+                style={{
+                  width: '100%',
+                  maxWidth: 34,
+                  height: `${heightPct}%`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  borderRadius: '8px 8px 4px 4px',
+                  overflow: 'hidden',
+                  outline: b.isNext
+                    ? '2px solid var(--accent)'
+                    : 'none',
+                  outlineOffset: 2,
+                  boxShadow: isHover
+                    ? '0 8px 24px -8px color-mix(in oklch, var(--accent) 45%, transparent)'
+                    : 'none',
+                  filter: b.received ? 'none' : 'saturate(0.65)',
+                  opacity: hoverIdx == null || isHover ? 1 : 0.55,
+                  transition:
+                    'opacity 150ms ease, box-shadow 150ms ease, transform 150ms ease',
+                  transform: isHover ? 'translateY(-2px)' : 'none',
+                }}
+              >
+                {b.segments.map((s, si) =>
+                  s.value > 0 ? (
+                    <div
+                      key={si}
+                      style={{
+                        height: `${(s.value / (total || 1)) * 100}%`,
+                        background: `oklch(0.7 0.2 ${s.hue})`,
+                      }}
+                    />
+                  ) : null,
+                )}
+              </div>
+              {isHover && (
+                <AllocTooltip bar={b} total={total} />
+              )}
+            </div>
+            <div
+              style={{
+                font: '500 10.5px var(--ui)',
+                color: b.isNext ? 'var(--accent)' : 'var(--ink-3)',
+                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              {b.received ? (
+                <Check className="size-3" style={{ color: 'var(--pos-ink)' }} />
+              ) : null}
+              {b.label}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function AllocTooltip({ bar, total }: { bar: AllocBar; total: number }) {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        bottom: 'calc(100% + 12px)',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        background: 'var(--surface-2)',
+        border: '1px solid var(--hair)',
+        borderRadius: 10,
+        padding: '10px 12px',
+        font: '500 12px var(--ui)',
+        color: 'var(--ink-1)',
+        minWidth: 180,
+        boxShadow: '0 12px 32px -10px color-mix(in oklch, black 50%, transparent)',
+        pointerEvents: 'none',
+        zIndex: 10,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          marginBottom: 8,
+          paddingBottom: 6,
+          borderBottom: '1px solid var(--hair)',
+        }}
+      >
+        <span style={{ font: '600 12.5px var(--ui)' }}>
+          {bar.label} · {bar.employer}
+        </span>
+        <span
+          style={{
+            font: '600 10px var(--ui)',
+            letterSpacing: '.04em',
+            textTransform: 'uppercase',
+            color: bar.received ? 'var(--pos-ink)' : 'var(--ink-3)',
+          }}
+        >
+          {bar.received ? 'Received' : bar.isNext ? 'Next' : 'Pending'}
+        </span>
+      </div>
+      {bar.segments
+        .filter((s) => s.value > 0)
+        .map((s) => (
+          <div
+            key={s.key}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 16,
+              padding: '2px 0',
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            <span
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 2,
+                  background: `oklch(0.7 0.2 ${s.hue})`,
+                }}
+              />
+              {s.key}
+            </span>
+            <span style={{ color: 'var(--ink-2)' }}>
+              {fmtMoney(s.value, { cents: false })}
+            </span>
+          </div>
+        ))}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          marginTop: 8,
+          paddingTop: 6,
+          borderTop: '1px solid var(--hair)',
+          font: '600 12px var(--ui)',
+        }}
+      >
+        <span style={{ color: 'var(--ink-3)' }}>Total</span>
+        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+          {fmtMoney(total, { cents: false })}
+        </span>
+      </div>
+    </div>
   )
 }
 
