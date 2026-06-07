@@ -180,6 +180,7 @@ export type Database = {
           created_at: string
           employer: string
           extra_deposit: number
+          flow_overrides: Json
           hours_worked: number | null
           id: string
           notes: string | null
@@ -200,6 +201,7 @@ export type Database = {
           created_at?: string
           employer: string
           extra_deposit?: number
+          flow_overrides?: Json
           hours_worked?: number | null
           id?: string
           notes?: string | null
@@ -220,6 +222,7 @@ export type Database = {
           created_at?: string
           employer?: string
           extra_deposit?: number
+          flow_overrides?: Json
           hours_worked?: number | null
           id?: string
           notes?: string | null
