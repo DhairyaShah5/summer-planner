@@ -26,7 +26,6 @@ import {
   ProgressBar,
   Reveal,
   SectionLabel,
-  Sparkline,
   fmtDate,
   fmtMoney,
 } from '@/components/redesign'
@@ -96,14 +95,15 @@ const HUE = {
 } as const
 
 // Explicit per-bucket hex colors used in the AllocationChart bars + Buffer
-// card. Punchy Tailwind-500 family on dark surface so each bucket pops as
-// a clearly distinct color instead of the previous pastel uniformity.
+// card. Each bucket gets a color matched to the metaphor: gold = vault,
+// red = rent (money out), emerald = Robinhood growth, sky = CO daily
+// budget, fuchsia = BofA overflow.
 const BUCKET_COLOR = {
-  vault: '#8b5cf6', // violet-500 (matches --accent family)
-  rent: '#f97316', // orange-500
+  vault: '#fbbf24', // amber/gold-400
+  rent: '#ef4444', // red-500
   rh: '#10b981', // emerald-500
   co: '#0ea5e9', // sky-500
-  bofa: '#ec4899', // pink-500
+  bofa: '#d946ef', // fuchsia-500
 } as const
 
 function colorForHue(hue: number): string {
@@ -279,15 +279,15 @@ export function PaychecksTable({
     ...allocBars.map((b) => b.segments.reduce((s, x) => s + x.value, 0)),
   )
 
-  // Cumulative buffer per paycheck for the Buffer card sparkline. Buffer is
-  // the sub-$100 remainder after every allocation; this series walks the
-  // received-paycheck buffer add-ons forward so the sparkline tells the
-  // story of how the buffer was actually accumulated.
+  // Cumulative buffer per paycheck for the Buffer card sparkline. Walks
+  // through every paycheck, adding c.buffer so the series shows the full
+  // expected accumulation. The card's split-line render uses receivedCount
+  // to draw the past as solid and the future as dashed.
   const bufferSeries: number[] = (() => {
     let running = 0
     const out: number[] = [0]
     for (const c of computed) {
-      if (c.received) running += c.buffer
+      running += c.buffer
       out.push(running)
     }
     return out
@@ -797,12 +797,11 @@ export function PaychecksTable({
               received paycheck. Quietly accumulates in Chase.
             </div>
 
-            <Sparkline
-              points={bufferSeries}
+            <BufferSparkline
+              series={bufferSeries}
+              receivedCount={receivedCount}
               color={BUCKET_COLOR.bofa}
-              height={48}
-              fill
-              stretch
+              height={56}
             />
 
             <div
@@ -1115,6 +1114,104 @@ type AllocBar = {
   received: boolean
   isNext: boolean
   segments: AllocSegment[]
+}
+
+function BufferSparkline({
+  series,
+  receivedCount,
+  color,
+  height = 56,
+}: {
+  series: number[]
+  receivedCount: number
+  color: string
+  height?: number
+}) {
+  if (series.length < 2) return null
+  const max = Math.max(1, ...series)
+  const min = Math.min(0, ...series)
+  const rng = max - min || 1
+  const pad = 4
+  const innerH = height - pad * 2
+  const W = 200
+  const points = series.map((v, i) => ({
+    x: (i / (series.length - 1)) * W,
+    y: pad + innerH - ((v - min) / rng) * innerH,
+  }))
+  const splitIdx = Math.max(0, Math.min(series.length - 1, receivedCount))
+
+  const solid = points.slice(0, splitIdx + 1)
+  const dashed = points.slice(splitIdx)
+
+  const toPath = (pts: typeof points) =>
+    pts.length === 0
+      ? ''
+      : pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+
+  const solidPath = toPath(solid)
+  const dashedPath = toPath(dashed)
+
+  const lastSolid = solid[solid.length - 1]
+
+  // Area fill under the solid line only — gives the "received so far" a
+  // subtle weight that the dashed projection lacks.
+  const areaPath =
+    solid.length > 1
+      ? `${solidPath} L ${lastSolid.x} ${pad + innerH} L ${solid[0].x} ${pad + innerH} Z`
+      : ''
+  const gradId = 'buffer-grad'
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${height}`}
+      width="100%"
+      height={height}
+      preserveAspectRatio="none"
+      style={{ overflow: 'visible', display: 'block' }}
+    >
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.32" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {areaPath && <path d={areaPath} fill={`url(#${gradId})`} />}
+      {solidPath && (
+        <path
+          d={solidPath}
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
+      {dashedPath && dashed.length > 1 && (
+        <path
+          d={dashedPath}
+          fill="none"
+          stroke={color}
+          strokeOpacity="0.7"
+          strokeWidth="2"
+          strokeDasharray="3 4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
+      {lastSolid && (
+        <circle
+          cx={lastSolid.x}
+          cy={lastSolid.y}
+          r="3"
+          fill={color}
+          stroke="var(--surface)"
+          strokeWidth="1.5"
+        />
+      )}
+    </svg>
+  )
 }
 
 function AllocationChart({
