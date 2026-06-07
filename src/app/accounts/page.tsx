@@ -110,6 +110,7 @@ export default async function AccountsPage() {
     otHours: p.ot_hours,
     actualNetWages: p.actual_net_wages,
     perDiem: p.per_diem,
+    reimbursement: p.reimbursement,
     extraDeposit: p.extra_deposit,
     vaultOverride: p.vault_override,
     grossOverride: p.gross_override,

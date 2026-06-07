@@ -46,6 +46,7 @@ export interface PaycheckInput {
   actualNetWages: number | null
   perDiem: number
   extraDeposit: number
+  reimbursement: number
   vaultOverride: number | null
   /** Optional per-row gross override (one-off non-standard pay periods). */
   grossOverride: number | null
@@ -82,6 +83,12 @@ export function floor100(x: number): number {
 /**
  * Compute one paycheck row given the previous cumulative vault balance.
  * Threading prevCumulative through computeAll yields the full ledger.
+ *
+ * NOTE on reimbursement: `reimbursement` is a tax-free pass-through inflow
+ * to Chase Checking only (e.g. SAP Concur metro pass refund). It is
+ * INVISIBLE to every allocation here - vault, CO, buffer, RH, BofA overflow,
+ * and netPct all ignore it. Only `computeAccountStates` picks it up, as a
+ * direct add to the Chase balance.
  */
 export function computeRow(
   prevCumulative: number,
@@ -308,6 +315,11 @@ export interface AccountState {
 // balance includes those amounts until the user records moving them out.
 // The remainingExpectedBofaTransfer term ensures projected balances still
 // net out to the full-summer model regardless of how much has been swept.
+//
+// NOTE on reimbursement: each row's `reimbursement` is added to the Chase
+// (paycheck-destination) account only - to `toDate` if the row is received,
+// and always to `fullSummer`. It never touches BofA, Marcus HYSA, or any
+// credit card flow, and is excluded from every allocation in computeRow.
 export function computeAccountStates(
   accounts: AccountInput[],
   paychecks: PaycheckInput[],
@@ -359,6 +371,8 @@ export function computeAccountStates(
       // NOTE: extraDeposit is external income deposited directly into the
       // vault (Marcus HYSA) - it never passes through Chase Checking, so it
       // is excluded from this flow.
+      // Reimbursement is a tax-free pass-through that lands here and stays
+      // here - no onward flow to BofA/vault/etc.
       for (const row of computed) {
         const baseNet =
           row.received && row.actualNetWages != null
@@ -368,6 +382,9 @@ export function computeAccountStates(
           baseNet + row.perDiem - row.vault - row.rentPaid - row.robinhood
         fullSummer += autoFlow
         if (row.received) toDate += autoFlow
+        // Reimbursement: invisible to allocations, but a real Chase inflow.
+        fullSummer += row.reimbursement
+        if (row.received) toDate += row.reimbursement
       }
       // Projected: assume the user WILL transfer the rest of the expected
       // overflow to BofA by end of summer.
