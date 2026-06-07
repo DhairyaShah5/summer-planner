@@ -31,9 +31,15 @@ interface Props {
 }
 
 export function ExpenseCharts({ expenses }: Props) {
+  // Off-budget expenses are excluded from category and weekly aggregations.
+  const budgetedExpenses = useMemo(
+    () => expenses.filter((e) => e.count_in_co_budget !== false),
+    [expenses],
+  )
+
   const byCat = useMemo(() => {
     const totals = new Map<string, number>()
-    for (const e of expenses) {
+    for (const e of budgetedExpenses) {
       const key = (e.category || 'Other').trim() || 'Other'
       totals.set(key, (totals.get(key) ?? 0) + e.amount)
     }
@@ -41,13 +47,13 @@ export function ExpenseCharts({ expenses }: Props) {
       .map(([label, total]) => ({ label, total, hue: hueForCategory(label) }))
       .filter((c) => c.total > 0)
       .sort((a, b) => b.total - a.total)
-  }, [expenses])
+  }, [budgetedExpenses])
 
   const catTotal = byCat.reduce((s, c) => s + c.total, 0) || 1
 
   const bars = useMemo(() => {
     const wk = new Map<string, number>()
-    for (const e of expenses) {
+    for (const e of budgetedExpenses) {
       const k = mondayKey(e.expense_date)
       wk.set(k, (wk.get(k) ?? 0) + e.amount)
     }
@@ -58,7 +64,7 @@ export function ExpenseCharts({ expenses }: Props) {
         value: v,
         color: 'var(--accent)',
       }))
-  }, [expenses])
+  }, [budgetedExpenses])
 
   if (byCat.length === 0) return null
 

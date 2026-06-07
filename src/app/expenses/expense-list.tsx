@@ -347,6 +347,20 @@ export function ExpenseList({
                                   {e.category}
                                 </span>
                               )}
+                              {e.count_in_co_budget === false && (
+                                <span
+                                  style={{
+                                    font: '600 11px var(--ui)',
+                                    padding: '2px 8px',
+                                    borderRadius: 6,
+                                    background: 'var(--surface-2)',
+                                    color: 'var(--ink-3)',
+                                    border: '1px solid var(--hair)',
+                                  }}
+                                >
+                                  off-budget
+                                </span>
+                              )}
                               {acct && (
                                 <span
                                   style={{

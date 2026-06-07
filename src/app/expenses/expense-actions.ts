@@ -9,6 +9,7 @@ export interface AddExpenseInput {
   amount: number
   category: string
   account_id: string
+  count_in_co_budget?: boolean
 }
 
 export interface ActionResult {
@@ -38,6 +39,7 @@ export async function addExpense(input: AddExpenseInput): Promise<ActionResult> 
     amount: input.amount,
     category: input.category.trim() || null,
     account_id: input.account_id,
+    count_in_co_budget: input.count_in_co_budget ?? true,
   })
   if (insertErr) return { ok: false, error: insertErr.message }
 

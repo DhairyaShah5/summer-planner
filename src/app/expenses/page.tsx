@@ -49,6 +49,7 @@ export default async function ExpensesPage() {
     amount: e.amount,
     category: e.category ?? '',
     account_id: e.account_id ?? null,
+    count_in_co_budget: e.count_in_co_budget ?? true,
     created_at: e.created_at,
   }))
 
@@ -97,6 +98,7 @@ export default async function ExpensesPage() {
       otHours: p.ot_hours,
       actualNetWages: p.actual_net_wages,
       perDiem: p.per_diem,
+      reimbursement: p.reimbursement,
       extraDeposit: p.extra_deposit,
       vaultOverride: p.vault_override,
       grossOverride: p.gross_override,
@@ -119,7 +121,7 @@ export default async function ExpensesPage() {
       .reduce((acc, r) => acc + r.co, 0)
 
     cumSpent = expenses
-      .filter((e) => e.expense_date <= todayISO)
+      .filter((e) => e.expense_date <= todayISO && e.count_in_co_budget !== false)
       .reduce((acc, e) => acc + e.amount, 0)
   }
 
