@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, type ReactNode } from "react";
+import * as React from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useInView, motionScale, prefersReduced } from "./hooks";
 
 function animDur(base: number): number {
@@ -128,6 +129,12 @@ type DonutProps = {
   stroke?: number;
   gap?: number;
   onHover?: (d: DonutDatum | null) => void;
+  /** Optional palette override — caller controls the slice color for a
+   *  given datum. Falls back to the default oklch(0.7 0.2 hue). */
+  colorFor?: (d: DonutDatum) => string;
+  /** When provided, the Donut renders a floating tooltip inside its
+   *  center on hover, calling this with the hovered datum + its share. */
+  tooltipContent?: (d: DonutDatum, pct: number) => React.ReactNode;
 };
 
 export function Donut({
@@ -136,21 +143,30 @@ export function Donut({
   stroke = 26,
   gap = 0.012,
   onHover,
+  colorFor,
+  tooltipContent,
 }: DonutProps) {
   const [ref, seen] = useInView<HTMLDivElement>();
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const total = data.reduce((s, d) => s + d.total, 0) || 1;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   let acc = 0;
   const dur = animDur(1.1);
+  const hovered = hoverIdx != null ? data[hoverIdx] : null;
+  const hoveredPct = hovered ? hovered.total / total : 0;
   return (
-    <div ref={ref} style={{ width: size, height: size }}>
+    <div
+      ref={ref}
+      style={{ width: size, height: size, position: "relative" }}
+    >
       <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
         {data.map((d, i) => {
           const frac = d.total / total;
           const len = Math.max(0, (frac - gap) * c);
           const off = -acc * c;
           acc += frac;
+          const isHover = hoverIdx === i;
           return (
             <circle
               key={i}
@@ -158,21 +174,51 @@ export function Donut({
               cy={size / 2}
               r={r}
               fill="none"
-              stroke={`oklch(0.7 0.2 ${d.hue})`}
-              strokeWidth={stroke}
+              stroke={colorFor ? colorFor(d) : `oklch(0.7 0.2 ${d.hue})`}
+              strokeWidth={isHover ? stroke + 4 : stroke}
               strokeDasharray={`${seen ? len : 0} ${c}`}
               strokeDashoffset={off}
               strokeLinecap="butt"
-              onMouseEnter={() => onHover && onHover(d)}
-              onMouseLeave={() => onHover && onHover(null)}
+              onMouseEnter={() => {
+                setHoverIdx(i);
+                onHover && onHover(d);
+              }}
+              onMouseLeave={() => {
+                setHoverIdx(null);
+                onHover && onHover(null);
+              }}
               style={{
-                transition: `stroke-dasharray ${dur}s cubic-bezier(.22,1,.36,1) ${i * 0.06}s`,
-                cursor: onHover ? "pointer" : "default",
+                transition: `stroke-dasharray ${dur}s cubic-bezier(.22,1,.36,1) ${i * 0.06}s, stroke-width 150ms ease`,
+                cursor: onHover || tooltipContent ? "pointer" : "default",
+                opacity:
+                  hoverIdx == null || isHover ? 1 : 0.45,
               }}
             />
           );
         })}
       </svg>
+      {tooltipContent && hovered && (
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            background: "var(--surface-2)",
+            border: "1px solid var(--hair)",
+            borderRadius: 10,
+            padding: "10px 12px",
+            pointerEvents: "none",
+            boxShadow:
+              "0 12px 32px -10px color-mix(in oklch, black 50%, transparent)",
+            whiteSpace: "nowrap",
+            zIndex: 10,
+            maxWidth: size - 12,
+          }}
+        >
+          {tooltipContent(hovered, hoveredPct)}
+        </div>
+      )}
     </div>
   );
 }
@@ -184,11 +230,25 @@ type AreaSeries = {
   fill?: boolean;
 };
 
+type AreaTooltipPoint = {
+  name: string;
+  color: string;
+  value: number | null;
+};
+
 type AreaChartProps = {
   series: AreaSeries[];
   width?: number;
   height?: number;
   pad?: number;
+  /** When provided, the chart tracks mouse position over the plot area
+   *  and renders a floating tooltip + vertical guide at the nearest x
+   *  index. The renderer receives the x label and each series' value
+   *  at that index. */
+  tooltipContent?: (
+    x: string | number,
+    points: AreaTooltipPoint[],
+  ) => React.ReactNode;
 };
 
 export function AreaChart({
@@ -196,8 +256,10 @@ export function AreaChart({
   width = 600,
   height = 220,
   pad = 28,
+  tooltipContent,
 }: AreaChartProps) {
   const [ref, seen] = useInView<HTMLDivElement>();
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const all = series
     .flatMap((s) => s.points.map((p) => p.y))
     .filter((v): v is number => v != null);
@@ -209,12 +271,25 @@ export function AreaChart({
     pad + (xs.length === 1 ? innerW / 2 : (i / (xs.length - 1)) * innerW);
   const yAt = (v: number) => pad + innerH - (v / maxY) * innerH;
   const dur = animDur(1.4);
+
+  // Mouse → nearest x-index. SVG uses viewBox, so map clientX to viewBox
+  // space using getBoundingClientRect.
+  function handleMove(e: React.MouseEvent<SVGSVGElement>) {
+    if (!tooltipContent) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const vbX = ((e.clientX - rect.left) / rect.width) * width;
+    if (xs.length === 1) return setHoverIdx(0);
+    const idx = Math.round(((vbX - pad) / innerW) * (xs.length - 1));
+    setHoverIdx(Math.max(0, Math.min(xs.length - 1, idx)));
+  }
   return (
-    <div ref={ref} style={{ width: "100%" }}>
+    <div ref={ref} style={{ width: "100%", position: "relative" }}>
       <svg
         viewBox={`0 0 ${width} ${height}`}
         width="100%"
         style={{ overflow: "visible", display: "block" }}
+        onMouseMove={handleMove}
+        onMouseLeave={() => setHoverIdx(null)}
       >
         {[0.25, 0.5, 0.75, 1].map((g, i) => (
           <line
@@ -307,7 +382,83 @@ export function AreaChart({
             </g>
           );
         })}
+        {tooltipContent && hoverIdx != null && (
+          <g pointerEvents="none">
+            <line
+              x1={xAt(hoverIdx)}
+              x2={xAt(hoverIdx)}
+              y1={pad}
+              y2={pad + innerH}
+              stroke="var(--ink-3)"
+              strokeOpacity="0.4"
+              strokeDasharray="3 4"
+              strokeWidth="1"
+            />
+            {series.map((s, si) => {
+              const v = s.points[hoverIdx]?.y;
+              if (v == null) return null;
+              return (
+                <circle
+                  key={si}
+                  cx={xAt(hoverIdx)}
+                  cy={yAt(v)}
+                  r="5"
+                  fill={s.color}
+                  stroke="var(--surface)"
+                  strokeWidth="2"
+                />
+              );
+            })}
+          </g>
+        )}
       </svg>
+      {tooltipContent && hoverIdx != null && (
+        <AreaTooltip
+          left={`${(xAt(hoverIdx) / width) * 100}%`}
+          content={tooltipContent(
+            xs[hoverIdx],
+            series.map((s) => ({
+              name: s.name,
+              color: s.color,
+              value: s.points[hoverIdx]?.y ?? null,
+            })),
+          )}
+        />
+      )}
+    </div>
+  );
+}
+
+function AreaTooltip({
+  left,
+  content,
+}: {
+  left: string;
+  content: React.ReactNode;
+}) {
+  // Position the tooltip relative to the chart container; horizontally we
+  // anchor to the hovered x (transform: translateX(-50%)) so it stays
+  // centered above the point and is clamped near the edges by the parent.
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 0,
+        left,
+        transform: "translate(-50%, -100%)",
+        marginTop: -8,
+        background: "var(--surface-2)",
+        border: "1px solid var(--hair)",
+        borderRadius: 10,
+        padding: "10px 12px",
+        pointerEvents: "none",
+        boxShadow:
+          "0 12px 32px -10px color-mix(in oklch, black 50%, transparent)",
+        whiteSpace: "nowrap",
+        zIndex: 10,
+      }}
+    >
+      {content}
     </div>
   );
 }

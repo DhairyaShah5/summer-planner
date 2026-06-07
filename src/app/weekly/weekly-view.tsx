@@ -363,7 +363,84 @@ export function WeeklyView({
           >
             Spending vs Budget
           </SectionLabel>
-          <AreaChart series={series} width={720} height={250} />
+          <AreaChart
+            series={series}
+            width={720}
+            height={250}
+            tooltipContent={(x, pts) => {
+              const actual = pts.find((p) => p.name === 'Actual spent')?.value ?? 0
+              const budget = pts.find((p) => p.name === 'Spending budget')?.value ?? 0
+              const variance = budget - actual
+              return (
+                <div style={{ minWidth: 200 }}>
+                  <div
+                    style={{
+                      font: '600 12.5px var(--ui)',
+                      color: 'var(--ink-1)',
+                      marginBottom: 8,
+                    }}
+                  >
+                    Through {String(x)}
+                  </div>
+                  {pts.map((p) => (
+                    <div
+                      key={p.name}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: 16,
+                        font: '500 12px var(--ui)',
+                        color: 'var(--ink-3)',
+                        marginBottom: 2,
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 2,
+                            background: p.color,
+                          }}
+                        />
+                        {p.name}
+                      </span>
+                      <span
+                        style={{
+                          color: 'var(--ink-1)',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}
+                      >
+                        {fmtMoney(p.value ?? 0, { cents: true })}
+                      </span>
+                    </div>
+                  ))}
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      marginTop: 8,
+                      paddingTop: 6,
+                      borderTop: '1px solid var(--hair)',
+                      font: '600 12px var(--ui)',
+                      color: variance >= 0 ? 'var(--pos-ink)' : 'oklch(0.65 0.2 27)',
+                    }}
+                  >
+                    <span>{variance >= 0 ? 'Under by' : 'Over by'}</span>
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {fmtMoney(Math.abs(variance), { cents: true })}
+                    </span>
+                  </div>
+                </div>
+              )
+            }}
+          />
         </div>
       </Reveal>
 

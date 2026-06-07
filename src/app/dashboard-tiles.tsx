@@ -583,7 +583,72 @@ function VaultGrowthTile({
         sub={`Cumulative climb to ${fmtMoney(cap)}`}
       />
       {points.length > 0 ? (
-        <AreaChart series={series} width={680} height={200} />
+        <AreaChart
+          series={series}
+          width={680}
+          height={200}
+          tooltipContent={(x, pts) => {
+            const v = pts[0]?.value ?? 0
+            const pct = cap > 0 ? Math.min(100, (v / cap) * 100) : 0
+            return (
+              <div style={{ minWidth: 160 }}>
+                <div
+                  style={{
+                    font: '600 12.5px var(--ui)',
+                    color: 'var(--ink-1)',
+                    marginBottom: 6,
+                  }}
+                >
+                  Through {String(x)}
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 16,
+                    font: '500 12px var(--ui)',
+                    color: 'var(--ink-3)',
+                  }}
+                >
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 2,
+                        background: 'var(--accent)',
+                      }}
+                    />
+                    Vault
+                  </span>
+                  <span
+                    style={{
+                      color: 'var(--ink-1)',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {fmtMoney(v, { cents: true })}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    marginTop: 6,
+                    font: '500 11px var(--ui)',
+                    color: 'var(--ink-3)',
+                  }}
+                >
+                  {pct.toFixed(1)}% of {fmtMoney(cap)} cap
+                </div>
+              </div>
+            )
+          }}
+        />
       ) : (
         <EmptyHint title="No paychecks yet" body="Add paychecks to track vault growth." />
       )}
@@ -1078,7 +1143,42 @@ function AllocationBreakdownTile({ data }: { data: AllocationDatum[] }) {
             flexWrap: 'wrap',
           }}
         >
-          <Donut data={donutData} size={130} stroke={20} />
+          <Donut
+            data={donutData}
+            size={130}
+            stroke={20}
+            tooltipContent={(d, pct) => (
+              <div style={{ minWidth: 110, textAlign: 'center' }}>
+                <div
+                  style={{
+                    font: '600 12px var(--ui)',
+                    color: 'var(--ink-1)',
+                    marginBottom: 2,
+                  }}
+                >
+                  {d.label}
+                </div>
+                <div
+                  style={{
+                    font: '600 16px var(--display)',
+                    color: 'var(--ink-1)',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {fmtMoney(d.total, { cents: true })}
+                </div>
+                <div
+                  style={{
+                    font: '500 11px var(--ui)',
+                    color: 'var(--ink-3)',
+                    marginTop: 2,
+                  }}
+                >
+                  {(pct * 100).toFixed(1)}%
+                </div>
+              </div>
+            )}
+          />
           <div
             style={{
               flex: 1,
