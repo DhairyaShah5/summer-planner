@@ -244,6 +244,14 @@ export function WeeklyView({
     },
   ]
 
+  // Index of the last fully-completed (Past) week. -1 if no past weeks yet.
+  // Drives the solid-vs-dashed + filled-vs-hollow circle split in the
+  // Spending vs Budget AreaChart (same treatment as Dashboard Vault Growth).
+  const splitAt = weeks.reduce(
+    (acc, w, i) => (w.status === 'Past' ? i : acc),
+    -1,
+  )
+
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8">
       <PageHeader
@@ -367,6 +375,7 @@ export function WeeklyView({
             series={series}
             width={720}
             height={250}
+            splitAt={splitAt}
             tooltipContent={(x, pts) => {
               const actual =
                 pts.find((p) => p.name === 'Actual Spent')?.value ?? 0
