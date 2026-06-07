@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { format, endOfWeek, startOfWeek } from 'date-fns'
-import { Loader2Icon, Sparkles, Trash2 } from 'lucide-react'
+import { Loader2Icon, Receipt, Sparkles, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import type { Expense } from '@/lib/types'
@@ -18,7 +18,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Money, Reveal, fmtMoney } from '@/components/redesign'
-import { deleteExpense } from './expense-actions'
+import { deleteExpense, toggleReimbursable } from './expense-actions'
 import type { AccountOption } from './add-expense-form'
 import { ExpenseCharts } from './expense-charts'
 import { hueForCategory } from './categories'
@@ -89,6 +89,20 @@ export function ExpenseList({
   const router = useRouter()
   const [pendingDelete, setPendingDelete] = useState<Expense | null>(null)
   const [deleting, startDeleting] = useTransition()
+  const [togglingId, setTogglingId] = useState<string | null>(null)
+
+  async function handleToggleReimbursable(e: Expense) {
+    const next = e.count_in_co_budget !== false
+    setTogglingId(e.id)
+    const res = await toggleReimbursable(e.id, next)
+    setTogglingId(null)
+    if (!res.ok) {
+      toast.error(res.error ?? 'Could not update')
+      return
+    }
+    toast.success(next ? 'Marked reimbursable' : 'Marked personal')
+    router.refresh()
+  }
 
   const groups = useMemo(() => groupByWeek(expenses), [expenses])
 
@@ -385,6 +399,35 @@ export function ExpenseList({
                           >
                             {fmtMoney(e.amount, { cents: true })}
                           </span>
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="ghost"
+                            onClick={() => handleToggleReimbursable(e)}
+                            disabled={togglingId === e.id}
+                            aria-label={
+                              e.count_in_co_budget === false
+                                ? 'Unmark reimbursable'
+                                : 'Mark reimbursable'
+                            }
+                            title={
+                              e.count_in_co_budget === false
+                                ? 'Reimbursable (off CO budget). Click to put back.'
+                                : 'Mark as reimbursable (off CO budget)'
+                            }
+                            style={{
+                              color:
+                                e.count_in_co_budget === false
+                                  ? 'var(--accent)'
+                                  : 'var(--ink-4)',
+                            }}
+                          >
+                            {togglingId === e.id ? (
+                              <Loader2Icon className="size-4 animate-spin" />
+                            ) : (
+                              <Receipt className="size-4" />
+                            )}
+                          </Button>
                           <Button
                             type="button"
                             size="icon-sm"

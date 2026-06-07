@@ -8,7 +8,6 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -56,9 +55,6 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState<string>(EXPENSE_CATEGORIES[0].id)
   const [accountId, setAccountId] = useState<string>(defaultAccountId ?? '')
-  // UI state tracks "reimbursable" (checked = off-budget). It's the inverse
-  // of the DB column count_in_co_budget — flipped at the write boundary.
-  const [reimbursable, setReimbursable] = useState(false)
 
   useEffect(() => {
     descriptionRef.current?.focus()
@@ -90,7 +86,7 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
         amount: amt,
         category: category.trim(),
         account_id: accountId,
-        count_in_co_budget: !reimbursable,
+        count_in_co_budget: true,
       })
       if (!res.ok) {
         toast.error(res.error ?? 'Could not add expense')
@@ -279,36 +275,6 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
             })}
           </div>
 
-          <label
-            htmlFor="reimbursable"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '12px 14px',
-              marginBottom: 16,
-              borderRadius: 10,
-              border: '1px solid var(--hair)',
-              background: 'var(--surface-2)',
-              cursor: pending ? 'not-allowed' : 'pointer',
-            }}
-          >
-            <Checkbox
-              id="reimbursable"
-              checked={reimbursable}
-              onCheckedChange={(v) => setReimbursable(v === true)}
-              disabled={pending}
-            />
-            <span
-              style={{
-                font: '500 13px var(--ui)',
-                color: 'var(--ink-2)',
-                lineHeight: 1.35,
-              }}
-            >
-              Reimbursable
-            </span>
-          </label>
 
           <Button
             type="submit"

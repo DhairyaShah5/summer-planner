@@ -49,6 +49,30 @@ export async function addExpense(input: AddExpenseInput): Promise<ActionResult> 
   return { ok: true }
 }
 
+export async function toggleReimbursable(
+  expenseId: string,
+  reimbursable: boolean,
+): Promise<ActionResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Not signed in' }
+
+  const { error } = await supabase
+    .from('expenses')
+    .update({ count_in_co_budget: !reimbursable })
+    .eq('id', expenseId)
+    .eq('user_id', user.id)
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/expenses')
+  revalidatePath('/')
+  revalidatePath('/accounts')
+  revalidatePath('/weekly')
+  return { ok: true }
+}
+
 export async function deleteExpense(expenseId: string): Promise<ActionResult> {
   const supabase = await createClient()
 
