@@ -503,15 +503,6 @@ export function AreaChart({
         })}
         {tooltipContent && hoverIdx != null && (
           <g pointerEvents="none">
-            <line
-              x1={xAt(hoverIdx)}
-              x2={xAt(hoverIdx)}
-              y1={pad}
-              y2={pad + innerH}
-              stroke="var(--ink-3)"
-              strokeOpacity="0.22"
-              strokeWidth="1"
-            />
             {series.map((s, si) => {
               const v = s.points[hoverIdx]?.y;
               if (v == null) return null;
