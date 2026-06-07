@@ -1,6 +1,6 @@
 import { addDays, format, isAfter, isBefore, parseISO } from 'date-fns'
 import { createClient } from '@/lib/supabase/server'
-import { computeAll } from '@/lib/calc'
+import { computeAll, floor100 } from '@/lib/calc'
 import type {
   Employer,
   PaycheckInput,
@@ -41,18 +41,36 @@ function buildWeeks(start: Date, end: Date): { start: Date; end: Date }[] {
   return weeks
 }
 
+function isoDate(d: Date): string {
+  const tz = d.getTimezoneOffset() * 60000
+  return new Date(d.getTime() - tz).toISOString().slice(0, 10)
+}
+
 export default async function WeeklyPage() {
   const supabase = await createClient()
 
-  const [settingsRes, paychecksRes, expensesRes] = await Promise.all([
-    supabase.from('settings').select('*').maybeSingle(),
-    supabase.from('paychecks').select('*').order('pay_num', { ascending: true }),
-    supabase.from('expenses').select('*').order('expense_date', { ascending: true }),
-  ])
+  const [settingsRes, paychecksRes, expensesRes, transfersRes, accountsRes] =
+    await Promise.all([
+      supabase.from('settings').select('*').maybeSingle(),
+      supabase
+        .from('paychecks')
+        .select('*')
+        .order('pay_num', { ascending: true }),
+      supabase
+        .from('expenses')
+        .select('*')
+        .order('expense_date', { ascending: true }),
+      supabase
+        .from('transfers')
+        .select('transferred_at, amount, kind, from_account_id, to_account_id'),
+      supabase.from('accounts').select('id, name'),
+    ])
 
   const settingsRow = settingsRes.data
   const paycheckRows = paychecksRes.data ?? []
   const expenseRows = expensesRes.data ?? []
+  const transferRows = transfersRes.data ?? []
+  const accountRows = accountsRes.data ?? []
 
   if (!settingsRow) {
     return (
@@ -161,12 +179,68 @@ export default async function WeeklyPage() {
   )
   const summerRemaining = totalSummerCO - totalActualToDate
 
+  // --- Rollover sweep computation ---
+  // Find last Sunday: today minus (days since Monday) - 1
+  // i.e. the Sunday strictly before today's week. Equivalent: this week's
+  // Monday minus one day.
+  const dayOfWeek = today.getDay() // 0=Sun, 1=Mon, ...
+  // Days since Monday (Mon=0, Tue=1, ..., Sun=6)
+  const daysSinceMonday = (dayOfWeek + 6) % 7
+  const thisMonday = addDays(today, -daysSinceMonday)
+  const lastSunday = addDays(thisMonday, -1)
+  const lastSundayISO = isoDate(lastSunday)
+  const todayISOStr = isoDate(today)
+
+  let cumAllowedThroughLastSunday = 0
+  for (const row of computed) {
+    const payDateISO =
+      typeof row.payDate === 'string'
+        ? row.payDate
+        : isoDate(row.payDate as Date)
+    if (payDateISO <= lastSundayISO) {
+      cumAllowedThroughLastSunday += row.co
+    }
+  }
+
+  let cumSpentThroughLastSunday = 0
+  for (const exp of expenseRows) {
+    if (exp.expense_date <= lastSundayISO) {
+      cumSpentThroughLastSunday += exp.amount ?? 0
+    }
+  }
+
+  let sweptRollover = 0
+  for (const t of transferRows) {
+    if (t.kind === 'rollover_sweep' && t.transferred_at <= todayISOStr) {
+      sweptRollover += Number(t.amount)
+    }
+  }
+
+  const rolloverSurplus =
+    cumAllowedThroughLastSunday - cumSpentThroughLastSunday - sweptRollover
+  const threshold = Number(settingsRow.rollover_sweep_threshold ?? 0)
+  const cushion = Number(settingsRow.rollover_sweep_cushion ?? 0)
+  const suggestedSweep = Math.max(0, floor100(rolloverSurplus - cushion))
+  const showBanner = rolloverSurplus >= threshold && suggestedSweep > 0
+
+  const chaseAccount = accountRows.find((a) => a.name === 'Chase Checking')
+  const bofaAccount = accountRows.find((a) => a.name === 'BofA Checking')
+  const chaseAccountId = chaseAccount?.id ?? ''
+  const bofaAccountId = bofaAccount?.id ?? ''
+
   return (
     <WeeklyView
       weeks={weeks}
       summerRemaining={summerRemaining}
       totalActualToDate={totalActualToDate}
       totalSummerCO={totalSummerCO}
+      rolloverSurplus={Math.round(rolloverSurplus * 100) / 100}
+      suggestedSweep={suggestedSweep}
+      threshold={threshold}
+      cushion={cushion}
+      showBanner={showBanner && !!chaseAccountId && !!bofaAccountId}
+      chaseAccountId={chaseAccountId}
+      bofaAccountId={bofaAccountId}
     />
   )
 }
