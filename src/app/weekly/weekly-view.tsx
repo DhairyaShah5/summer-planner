@@ -227,7 +227,7 @@ export function WeeklyView({
     {
       name: 'Spending Budget',
       color: 'var(--ink-2)',
-      fill: false,
+      fill: true,
       points: weeks.map((w, i) => ({
         x: i % 2 === 0 ? w.endLabel : '',
         y: w.budget,
