@@ -26,6 +26,7 @@ import {
   ProgressBar,
   Reveal,
   SectionLabel,
+  Sparkline,
   fmtDate,
   fmtMoney,
 } from '@/components/redesign'
@@ -95,15 +96,14 @@ const HUE = {
 } as const
 
 // Explicit per-bucket hex colors used in the AllocationChart bars + Buffer
-// card. Tuned for contrast against the dark surface — these read more
-// vividly than oklch(0.7 0.2 hue) used elsewhere, which all came out the
-// same pastel saturation.
+// card. Punchy Tailwind-500 family on dark surface so each bucket pops as
+// a clearly distinct color instead of the previous pastel uniformity.
 const BUCKET_COLOR = {
-  vault: '#9d83ff', // brighter violet (matches --accent family)
-  rent: '#f0a04c', // warm amber/orange
-  rh: '#3acc7d', // emerald
-  co: '#4ec3f7', // sky cyan
-  bofa: '#ec71ad', // rose
+  vault: '#8b5cf6', // violet-500 (matches --accent family)
+  rent: '#f97316', // orange-500
+  rh: '#10b981', // emerald-500
+  co: '#0ea5e9', // sky-500
+  bofa: '#ec4899', // pink-500
 } as const
 
 function colorForHue(hue: number): string {
@@ -278,6 +278,21 @@ export function PaychecksTable({
     1,
     ...allocBars.map((b) => b.segments.reduce((s, x) => s + x.value, 0)),
   )
+
+  // Cumulative buffer per paycheck for the Buffer card sparkline. Buffer is
+  // the sub-$100 remainder after every allocation; this series walks the
+  // received-paycheck buffer add-ons forward so the sparkline tells the
+  // story of how the buffer was actually accumulated.
+  const bufferSeries: number[] = (() => {
+    let running = 0
+    const out: number[] = [0]
+    for (const c of computed) {
+      if (c.received) running += c.buffer
+      out.push(running)
+    }
+    return out
+  })()
+  const receivedCount = computed.filter((c) => c.received).length
 
   const uscNet = computed
     .filter((c) => c.employer === 'USC On-Campus')
@@ -636,74 +651,6 @@ export function PaychecksTable({
           gap: 16,
         }}
       >
-        <Reveal delay={130}>
-          <div
-            className="card fx-card"
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--hair)',
-              borderRadius: 'var(--radius)',
-              padding: 22,
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              gap: 14,
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 10,
-              }}
-            >
-              <span
-                style={{
-                  font: '600 12px var(--ui)',
-                  letterSpacing: '.04em',
-                  textTransform: 'uppercase',
-                  color: 'var(--ink-3)',
-                }}
-              >
-                Total Buffer
-              </span>
-              <span
-                style={{
-                  font: '600 10px var(--ui)',
-                  letterSpacing: '.06em',
-                  textTransform: 'uppercase',
-                  color: 'var(--ink-4)',
-                  border: '1px solid var(--hair)',
-                  borderRadius: 6,
-                  padding: '2px 7px',
-                }}
-              >
-                Current
-              </span>
-            </div>
-            <div
-              style={{
-                font: '600 32px/1 var(--display)',
-                letterSpacing: '-.02em',
-                color: BUCKET_COLOR.bofa,
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
-              {fmtMoney(totals.currentBuffer, { cents: true })}
-            </div>
-            <div
-              style={{
-                font: '500 12px var(--ui)',
-                color: 'var(--ink-3)',
-              }}
-            >
-              Projected {fmtMoney(totals.totalBuffer)}
-            </div>
-          </div>
-        </Reveal>
-
         <Reveal from="left" delay={140}>
           <div
             className="card fx-card"
@@ -778,6 +725,101 @@ export function PaychecksTable({
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </Reveal>
+
+        <Reveal delay={150}>
+          <div
+            className="card fx-card"
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--hair)',
+              borderRadius: 'var(--radius)',
+              padding: 22,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 10,
+              }}
+            >
+              <span
+                style={{
+                  font: '600 12px var(--ui)',
+                  letterSpacing: '.04em',
+                  textTransform: 'uppercase',
+                  color: 'var(--ink-3)',
+                }}
+              >
+                Total Buffer
+              </span>
+              <span
+                style={{
+                  font: '600 10px var(--ui)',
+                  letterSpacing: '.06em',
+                  textTransform: 'uppercase',
+                  color: 'var(--ink-4)',
+                  border: '1px solid var(--hair)',
+                  borderRadius: 6,
+                  padding: '2px 7px',
+                }}
+              >
+                Current
+              </span>
+            </div>
+
+            <div
+              style={{
+                font: '600 32px/1 var(--display)',
+                letterSpacing: '-.02em',
+                color: BUCKET_COLOR.bofa,
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {fmtMoney(totals.currentBuffer, { cents: true })}
+            </div>
+
+            <div
+              style={{
+                font: '500 12px/1.45 var(--ui)',
+                color: 'var(--ink-3)',
+              }}
+            >
+              Sub-$100 remainder after Vault / Rent / RH / CO / BofA on each
+              received paycheck. Quietly accumulates in Chase.
+            </div>
+
+            <Sparkline
+              points={bufferSeries}
+              color={BUCKET_COLOR.bofa}
+              height={48}
+              fill
+              stretch
+            />
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'baseline',
+                font: '500 11.5px var(--ui)',
+                color: 'var(--ink-3)',
+                fontVariantNumeric: 'tabular-nums',
+                marginTop: 'auto',
+              }}
+            >
+              <span>
+                {receivedCount} of {computed.length} paychecks received
+              </span>
+              <span>Projected {fmtMoney(totals.totalBuffer)}</span>
             </div>
           </div>
         </Reveal>
