@@ -41,6 +41,7 @@ export type PaycheckRow = {
   ot_hours: number
   actual_net_wages: number | null
   per_diem: number
+  reimbursement: number
   extra_deposit: number
   vault_override: number | null
   gross_override: number | null
@@ -53,6 +54,7 @@ type EditableField =
   | 'hours_worked'
   | 'ot_hours'
   | 'per_diem'
+  | 'reimbursement'
   | 'actual_net_wages'
   | 'extra_deposit'
   | 'vault_override'
@@ -67,6 +69,7 @@ type UpdatePayload = {
     | 'hours_worked'
     | 'ot_hours'
     | 'per_diem'
+    | 'reimbursement'
     | 'actual_net_wages'
     | 'extra_deposit'
     | 'vault_override'
@@ -105,6 +108,7 @@ function toInput(r: PaycheckRow): PaycheckInput {
     otHours: r.ot_hours,
     actualNetWages: r.actual_net_wages,
     perDiem: r.per_diem,
+    reimbursement: r.reimbursement,
     extraDeposit: r.extra_deposit,
     vaultOverride: r.vault_override,
     grossOverride: r.gross_override,
@@ -208,6 +212,10 @@ export function PaychecksTable({
           patch.per_diem = trimmed === '' ? 0 : Number(trimmed)
           break
         }
+        case 'reimbursement': {
+          patch.reimbursement = trimmed === '' ? 0 : Number(trimmed)
+          break
+        }
         case 'extra_deposit': {
           patch.extra_deposit = trimmed === '' ? 0 : Number(trimmed)
           break
@@ -287,7 +295,7 @@ export function PaychecksTable({
               style={{
                 borderCollapse: 'collapse',
                 width: '100%',
-                minWidth: 1200,
+                minWidth: 1280,
                 tableLayout: 'fixed',
               }}
             >
@@ -299,6 +307,7 @@ export function PaychecksTable({
                 <col style={{ width: 70 }} />
                 <col style={{ width: 56 }} />
                 <col style={{ width: 80 }} />
+                <col style={{ width: 86 }} />
                 <col style={{ width: 100 }} />
                 <col style={{ width: 92 }} />
                 <col style={{ width: 88 }} />
@@ -319,6 +328,7 @@ export function PaychecksTable({
                   <Th align="center">Hours</Th>
                   <Th align="center">OT</Th>
                   <Th align="center">Per Diem</Th>
+                  <Th align="left">Reimburse</Th>
                   <Th align="center">Actual Net</Th>
                   <Th align="right">Gross Pay</Th>
                   <Th align="center">Extra Dep.</Th>
@@ -445,6 +455,13 @@ export function PaychecksTable({
                         step="0.01"
                         align="center"
                         onCommit={(v) => commit(row.id, 'per_diem', v)}
+                      />
+                      <NumberCell
+                        last={isLast}
+                        value={row.reimbursement}
+                        step="0.01"
+                        align="right"
+                        onCommit={(v) => commit(row.id, 'reimbursement', v)}
                       />
                       <NumberCell
                         last={isLast}

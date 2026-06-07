@@ -62,6 +62,7 @@ export default async function PaychecksPage() {
     ot_hours: p.ot_hours,
     actual_net_wages: p.actual_net_wages,
     per_diem: p.per_diem,
+    reimbursement: p.reimbursement,
     extra_deposit: p.extra_deposit,
     vault_override: p.vault_override,
     gross_override: p.gross_override,
