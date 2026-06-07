@@ -46,6 +46,8 @@ const schema = z.object({
   usc_no_rent_vault: z.number().min(0),
   usc_rent_vault: z.number().min(0),
   ntt_vault_default: z.number().min(0),
+  rollover_sweep_threshold: z.number().min(0),
+  rollover_sweep_cushion: z.number().min(0),
 });
 
 export type SettingsFormValues = z.infer<typeof schema>;
@@ -293,6 +295,41 @@ export function SettingsForm({
                 description="Default vault deposit on each NTT paycheck."
               />
             </div>
+          </Card>
+        </Reveal>
+
+        <Reveal delay={125}>
+          <Card>
+            <SectionLabel>Rollover sweep</SectionLabel>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 12,
+              }}
+            >
+              <MoneyField
+                form={form}
+                name="rollover_sweep_threshold"
+                label="Threshold"
+              />
+              <MoneyField
+                form={form}
+                name="rollover_sweep_cushion"
+                label="Cushion"
+              />
+            </div>
+            <p
+              style={{
+                marginTop: 10,
+                font: "400 12px/1.5 var(--ui)",
+                color: "var(--ink-3)",
+              }}
+            >
+              When unspent CO from earlier weeks reaches the threshold, the
+              Weekly Tracker offers to sweep the excess (minus the cushion) to
+              BofA.
+            </p>
           </Card>
         </Reveal>
 

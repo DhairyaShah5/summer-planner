@@ -18,6 +18,8 @@ const DEFAULTS: SettingsFormValues = {
   usc_no_rent_vault: 1000,
   usc_rent_vault: 600,
   ntt_vault_default: 2100,
+  rollover_sweep_threshold: 500,
+  rollover_sweep_cushion: 250,
 };
 
 export default async function SettingsPage() {
@@ -55,6 +57,8 @@ export default async function SettingsPage() {
     usc_no_rent_vault: Number(row.usc_no_rent_vault),
     usc_rent_vault: Number(row.usc_rent_vault),
     ntt_vault_default: Number(row.ntt_vault_default),
+    rollover_sweep_threshold: Number(row.rollover_sweep_threshold),
+    rollover_sweep_cushion: Number(row.rollover_sweep_cushion),
   };
 
   return (
