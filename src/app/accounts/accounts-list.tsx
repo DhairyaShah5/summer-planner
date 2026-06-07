@@ -653,7 +653,7 @@ export function AccountsList({
             key: `pay-vault-in-${p.payNum}`,
             date: vaultOverride ?? p.payDate,
             source: 'vault_transfer',
-            description: `Vault deposit (${p.employer.replace(' On-Campus', '')} ${fmtDate(p.payDate, 'short')})`,
+            description: `${p.employer.replace(' On-Campus', '').replace('Colorado Internship', 'NTT')} vault deposit`,
             amount: inflow,
             paycheckId: p.id,
             overrideKind: 'vault',
@@ -1726,7 +1726,7 @@ export function AccountsList({
                                   }}
                                   title="Date moved off the paycheck date"
                                 >
-                                  · edited
+                                  edited
                                 </span>
                               )}
                             </div>
