@@ -5,6 +5,7 @@ import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ArrowRightIcon,
+  ArrowUpRight,
   CreditCardIcon,
   Loader2Icon,
   PencilIcon,
@@ -620,18 +621,20 @@ export function AccountsList({
 
     // Sort by date ASC, breaking ties via the source order map so arrival
     // wins, then paycheck inflows precede expenses on the same day, etc.
+    // We walk in ASC to compute running balance, then reverse for display
+    // so the newest entry shows first (matches the Expenses page convention).
     items.sort((a, b) => {
       if (a.date !== b.date) return a.date < b.date ? -1 : 1
       return sourceOrder[a.source] - sourceOrder[b.source]
     })
 
     let running = 0
-    const out: DerivedLedgerEntry[] = []
+    const ascending: DerivedLedgerEntry[] = []
     for (const it of items) {
       running += it.amount
-      out.push({ ...it, runningBalance: running })
+      ascending.push({ ...it, runningBalance: running })
     }
-    return out
+    return ascending.reverse()
     // sourceOrder is module-stable so we intentionally omit it from deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -940,10 +943,6 @@ export function AccountsList({
                   account={s}
                   vaultCap={vaultCap}
                   onOpenLedger={() => openLedger(s)}
-                  onEdit={() => {
-                    setEditing(s)
-                    setEditValue(String(s.arrival))
-                  }}
                   onPayCC={() => openPayDialog(s)}
                 />
               </Reveal>
@@ -2166,7 +2165,6 @@ type AccountCardProps = {
   account: AccountStateRow
   vaultCap: number
   onOpenLedger: () => void
-  onEdit: () => void
   onPayCC: () => void
 }
 
@@ -2174,7 +2172,6 @@ function AccountCard({
   account,
   vaultCap,
   onOpenLedger,
-  onEdit,
   onPayCC,
 }: AccountCardProps) {
   const isCredit = account.type === 'credit_card'
@@ -2325,18 +2322,22 @@ function AccountCard({
               Pay credit card
             </Button>
           )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Edit ${account.name} arrival balance`}
-            onClick={(e) => {
-              e.stopPropagation()
-              onEdit()
+          <span
+            aria-hidden="true"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 30,
+              height: 30,
+              borderRadius: 8,
+              background: 'color-mix(in oklch, var(--accent) 10%, transparent)',
+              color: 'var(--accent)',
             }}
+            title="Open ledger"
           >
-            <PencilIcon className="size-4" />
-          </Button>
+            <ArrowUpRight className="size-4" />
+          </span>
         </div>
       </div>
     </div>

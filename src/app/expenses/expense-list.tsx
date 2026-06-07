@@ -306,6 +306,7 @@ export function ExpenseList({
                         ? accountById.get(e.account_id)
                         : undefined
                       const hue = hueForCategory(e.category)
+                      const isReimbursable = e.count_in_co_budget === false
                       return (
                         <div
                           key={e.id}
@@ -315,6 +316,8 @@ export function ExpenseList({
                             gap: 14,
                             padding: '13px 4px',
                             borderTop: i ? '1px solid var(--hair)' : 'none',
+                            opacity: isReimbursable ? 0.45 : 1,
+                            transition: 'opacity .25s ease',
                           }}
                         >
                           <span
