@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { SettingsForm, type SettingsFormValues } from "./settings-form";
 import { ImportFromXlsx } from "./import-from-xlsx";
+import { PageHeader, Reveal } from "@/components/redesign";
 
 export const dynamic = "force-dynamic";
 
@@ -58,40 +58,47 @@ export default async function SettingsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      <div className="space-y-1">
-        <h1 className="bg-gradient-to-r from-slate-600 via-indigo-500 to-fuchsia-500 bg-clip-text text-3xl font-semibold tracking-tight text-transparent">
-          Settings
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Edit the assumptions powering paycheck allocation and the dashboard.
-        </p>
-      </div>
-
-      <Card className="transition-shadow hover:shadow-md">
-        <CardHeader>
-          <CardTitle className="text-xl">Plan assumptions</CardTitle>
-          <CardDescription>
-            Vault, pay, rent, and allocation rules.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <SettingsForm initialValues={values} defaults={DEFAULTS} />
-        </CardContent>
-      </Card>
-
-      <Card className="transition-shadow hover:shadow-md">
-        <CardHeader>
-          <CardTitle className="text-xl">Import from Excel</CardTitle>
-          <CardDescription>
+    <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8">
+      <PageHeader
+        title="Settings"
+        subtitle="Goal, employers, and how each paycheck cascades into buckets."
+      />
+      <SettingsForm initialValues={values} defaults={DEFAULTS} />
+      <Reveal delay={300}>
+        <div
+          className="fx-card"
+          style={{
+            marginTop: 16,
+            padding: 22,
+            background: "var(--surface)",
+            border: "1px solid var(--hair)",
+            borderRadius: "var(--radius)",
+          }}
+        >
+          <div
+            style={{
+              font: "600 12px/1 var(--ui)",
+              letterSpacing: ".05em",
+              textTransform: "uppercase",
+              color: "var(--ink-3)",
+              marginBottom: 14,
+            }}
+          >
+            Maintenance · Import from Excel
+          </div>
+          <p
+            style={{
+              font: "400 13.5px/1.5 var(--ui)",
+              color: "var(--ink-3)",
+              margin: "0 0 14px",
+            }}
+          >
             Seed from your existing Excel workbook. Overwrites current settings
             and paychecks.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+          </p>
           <ImportFromXlsx />
-        </CardContent>
-      </Card>
+        </div>
+      </Reveal>
     </div>
   );
 }
