@@ -358,7 +358,7 @@ export function ExpenseList({
                                     border: '1px solid var(--hair)',
                                   }}
                                 >
-                                  off-budget
+                                  Reimbursable
                                 </span>
                               )}
                               {acct && (

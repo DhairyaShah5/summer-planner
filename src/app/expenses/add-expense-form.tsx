@@ -56,7 +56,9 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState<string>(EXPENSE_CATEGORIES[0].id)
   const [accountId, setAccountId] = useState<string>(defaultAccountId ?? '')
-  const [countInCoBudget, setCountInCoBudget] = useState(true)
+  // UI state tracks "reimbursable" (checked = off-budget). It's the inverse
+  // of the DB column count_in_co_budget — flipped at the write boundary.
+  const [reimbursable, setReimbursable] = useState(false)
 
   useEffect(() => {
     descriptionRef.current?.focus()
@@ -88,7 +90,7 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
         amount: amt,
         category: category.trim(),
         account_id: accountId,
-        count_in_co_budget: countInCoBudget,
+        count_in_co_budget: !reimbursable,
       })
       if (!res.ok) {
         toast.error(res.error ?? 'Could not add expense')
@@ -278,7 +280,7 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
           </div>
 
           <label
-            htmlFor="count-in-co-budget"
+            htmlFor="reimbursable"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -292,9 +294,9 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
             }}
           >
             <Checkbox
-              id="count-in-co-budget"
-              checked={countInCoBudget}
-              onCheckedChange={(v) => setCountInCoBudget(v === true)}
+              id="reimbursable"
+              checked={reimbursable}
+              onCheckedChange={(v) => setReimbursable(v === true)}
               disabled={pending}
             />
             <span
@@ -304,7 +306,7 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
                 lineHeight: 1.35,
               }}
             >
-              Counts toward CO spending budget
+              Reimbursable
             </span>
           </label>
 
