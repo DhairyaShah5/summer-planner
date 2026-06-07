@@ -169,7 +169,7 @@ interface DerivedLedgerEntry {
   // For overridable paycheck-derived flows: the paycheck id and the kind so
   // the inline date editor can call setFlowOverride for the correct row.
   paycheckId?: string
-  overrideKind?: 'vault' | 'rent' | 'robinhood'
+  overrideKind?: 'vault' | 'rent' | 'robinhood' | 'robinhood_2'
   hasOverride?: boolean
   // Carries the expense category through to the row so the renderer can
   // render the small tinted category tag underneath the description.
@@ -187,6 +187,18 @@ function todayISO(): string {
   const d = new Date()
   const tz = d.getTimezoneOffset() * 60000
   return new Date(d.getTime() - tz).toISOString().slice(0, 10)
+}
+
+/** Shift an ISO yyyy-MM-dd date by N days (positive or negative). Parses as
+ *  local midnight to avoid timezone drift on the date boundary. */
+function shiftIsoDate(iso: string, days: number): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const dt = new Date(y, (m ?? 1) - 1, d ?? 1)
+  dt.setDate(dt.getDate() + days)
+  const yyyy = dt.getFullYear()
+  const mm = String(dt.getMonth() + 1).padStart(2, '0')
+  const dd = String(dt.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
 }
 
 // Hue lookup keyed by readable substrings of account names. Falls back to
@@ -562,7 +574,7 @@ export function AccountsList({
     if (isPaycheckDest) {
       for (const p of paycheckRows) {
         if (!p.received) continue
-        const label = `${p.employer.replace(' On-Campus', '')} paycheck (${fmtDate(p.payDate, 'short')})`
+        const label = `${p.employer.replace(' On-Campus', '').replace('Colorado Internship', 'NTT')} paycheck`
         const inflow = p.baseNet + p.perDiem + p.reimbursement
         if (inflow > 0) {
           items.push({
@@ -600,16 +612,32 @@ export function AccountsList({
           })
         }
         if (p.robinhood > 0) {
-          const rhOverride = p.flow_overrides.robinhood
+          // The paycheck.robinhood field stores the 2-week total (set by
+          // robinhood_weekly * 2 in calc.ts). User actually invests it as
+          // two weekly $X/2 transfers, so split into 2 ledger entries.
+          const half = p.robinhood / 2
+          const rh1Override = p.flow_overrides.robinhood
+          const rh2Override = p.flow_overrides.robinhood_2
+          const defaultDate2 = shiftIsoDate(p.payDate, 7)
           items.push({
-            key: `pay-rh-${p.payNum}`,
-            date: rhOverride ?? p.payDate,
+            key: `pay-rh1-${p.payNum}`,
+            date: rh1Override ?? p.payDate,
             source: 'robinhood_transfer',
-            description: 'Robinhood (2 weeks)',
-            amount: -p.robinhood,
+            description: 'Robinhood (week 1)',
+            amount: -half,
             paycheckId: p.id,
             overrideKind: 'robinhood',
-            hasOverride: Boolean(rhOverride),
+            hasOverride: Boolean(rh1Override),
+          })
+          items.push({
+            key: `pay-rh2-${p.payNum}`,
+            date: rh2Override ?? defaultDate2,
+            source: 'robinhood_transfer',
+            description: 'Robinhood (week 2)',
+            amount: -half,
+            paycheckId: p.id,
+            overrideKind: 'robinhood_2',
+            hasOverride: Boolean(rh2Override),
           })
         }
       }
@@ -1692,18 +1720,13 @@ export function AccountsList({
                               {row.hasOverride && (
                                 <span
                                   style={{
-                                    font: '600 10px var(--ui)',
-                                    letterSpacing: '.04em',
-                                    textTransform: 'uppercase',
-                                    padding: '1px 6px',
-                                    borderRadius: 5,
-                                    background:
-                                      'color-mix(in oklch, var(--accent) 12%, transparent)',
-                                    color: 'var(--accent-ink)',
+                                    font: '400 10.5px var(--ui)',
+                                    fontStyle: 'italic',
+                                    color: 'var(--ink-4)',
                                   }}
                                   title="Date moved off the paycheck date"
                                 >
-                                  edited
+                                  · edited
                                 </span>
                               )}
                             </div>

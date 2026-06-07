@@ -2,7 +2,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
-export type FlowKind = 'vault' | 'rent' | 'robinhood'
+export type FlowKind = 'vault' | 'rent' | 'robinhood' | 'robinhood_2'
 
 export interface SetFlowOverrideInput {
   paycheck_id: string
