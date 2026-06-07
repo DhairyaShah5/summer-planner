@@ -197,6 +197,8 @@ export type Database = {
           rent_monthly: number
           rent_months: number
           robinhood_weekly: number
+          rollover_sweep_cushion: number
+          rollover_sweep_threshold: number
           updated_at: string
           usc_gross_baseline: number
           usc_net_pct: number
@@ -214,6 +216,8 @@ export type Database = {
           rent_monthly?: number
           rent_months?: number
           robinhood_weekly?: number
+          rollover_sweep_cushion?: number
+          rollover_sweep_threshold?: number
           updated_at?: string
           usc_gross_baseline?: number
           usc_net_pct?: number
@@ -231,6 +235,8 @@ export type Database = {
           rent_monthly?: number
           rent_months?: number
           robinhood_weekly?: number
+          rollover_sweep_cushion?: number
+          rollover_sweep_threshold?: number
           updated_at?: string
           usc_gross_baseline?: number
           usc_net_pct?: number
@@ -238,6 +244,42 @@ export type Database = {
           usc_rent_vault?: number
           user_id?: string
           vault_cap?: number
+        }
+        Relationships: []
+      }
+      transfers: {
+        Row: {
+          id: string
+          user_id: string
+          transferred_at: string
+          from_account_id: string
+          to_account_id: string
+          amount: number
+          kind: 'manual' | 'rollover_sweep' | 'per_diem_to_bofa' | 'ot_to_bofa'
+          note: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          transferred_at?: string
+          from_account_id: string
+          to_account_id: string
+          amount: number
+          kind?: 'manual' | 'rollover_sweep' | 'per_diem_to_bofa' | 'ot_to_bofa'
+          note?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          transferred_at?: string
+          from_account_id?: string
+          to_account_id?: string
+          amount?: number
+          kind?: 'manual' | 'rollover_sweep' | 'per_diem_to_bofa' | 'ot_to_bofa'
+          note?: string | null
+          created_at?: string
         }
         Relationships: []
       }
