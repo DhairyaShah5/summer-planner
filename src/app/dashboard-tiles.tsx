@@ -89,7 +89,7 @@ export interface DashboardTilesProps {
   coGauge: { spent: number; allowed: number }
 }
 
-// Bucket / category hue palette — mirrors the design handoff palette so the
+// Bucket / category hue palette - mirrors the design handoff palette so the
 // donut, dots, and area fills share a single source of truth.
 const BUCKET_HUE: Record<string, number> = {
   Vault: 285,

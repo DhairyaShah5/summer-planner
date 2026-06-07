@@ -4,7 +4,7 @@
  * Allocation philosophy (post-2026-06 refactor):
  *   - All wage allocations (vault, CO Spend, OT-excess overflow) are multiples
  *     of $100.
- *   - Vault is SCHEDULED — it does not grow with overtime. The NTT vault target
+ *   - Vault is SCHEDULED - it does not grow with overtime. The NTT vault target
  *     is `settings.nttVaultDefault` regardless of how big the actual check is;
  *     the USC vault target is `settings.uscNoRentVault` (or `uscRentVault` on
  *     a rent month).
@@ -12,7 +12,7 @@
  *     and routes to BofA Checking, NOT to vault or CO.
  *   - Per Diem (non-taxable NTT reimbursement) is treated as pure savings
  *     overflow: the entire perDiem amount flows straight through Chase to
- *     BofA Checking. It does NOT boost CO Spend — CO Spend is wage-funded only.
+ *     BofA Checking. It does NOT boost CO Spend - CO Spend is wage-funded only.
  *   - The cents/sub-$100 wage remainder lands in Buffer (still in Chase).
  *
  * Status (Received vs Pending) is driven by an explicit `received` flag on
@@ -57,7 +57,7 @@ export interface PaycheckComputed extends PaycheckInput {
   gross: number
   netPct: number
   estimatedNet: number
-  /** Projected net assuming no overtime — the "scheduled" check size. */
+  /** Projected net assuming no overtime - the "scheduled" check size. */
   expectedNoOT: number
   robinhood: number
   vault: number
@@ -101,7 +101,7 @@ export function computeRow(
     received,
   } = input
 
-  // 1. Gross (actual, with OT). Per-row grossOverride wins when set —
+  // 1. Gross (actual, with OT). Per-row grossOverride wins when set -
   //    use it as both gross and expectedNoOTGross since it represents
   //    the actual full-period gross for this specific check.
   let gross: number
@@ -131,7 +131,7 @@ export function computeRow(
   // 4. Estimated Net (projection from actual gross)
   const estimatedNet = gross * netPct
 
-  // 5. Expected no-OT net — the "scheduled" check size used to detect OT excess.
+  // 5. Expected no-OT net - the "scheduled" check size used to detect OT excess.
   //    Always projects using the settings default rate (never the observed rate),
   //    so a high-tax-bracket actual paycheck doesn't pull this down.
   const expectedNoOTNetPct =
@@ -153,7 +153,7 @@ export function computeRow(
   const robinhood =
     employer === 'USC On-Campus' ? settings.robinhoodWeekly * 2 : 0
 
-  // 10. Vault target — manual override, else employer-specific schedule
+  // 10. Vault target - manual override, else employer-specific schedule
   let vaultTarget: number
   if (vaultOverride != null) {
     vaultTarget = Math.max(0, vaultOverride)
@@ -163,8 +163,8 @@ export function computeRow(
     vaultTarget = settings.nttVaultDefault
   }
 
-  // 11. Vault available — actual money left after rent + RH, floored to $100.
-  //     We use baseNet (full actual/projected) here, NOT usableNet — the scheduled
+  // 11. Vault available - actual money left after rent + RH, floored to $100.
+  //     We use baseNet (full actual/projected) here, NOT usableNet - the scheduled
   //     vault contribution is meant to come from real money in the check, not
   //     just the no-OT expected portion. (Excess money still flows to BofA below.)
   const vaultAvailable = floor100(
@@ -177,24 +177,24 @@ export function computeRow(
     settings.vaultCap - prevCumulative - extraDeposit,
   )
 
-  // 13. Vault — pick the most restrictive limit, then floor100 for override safety
+  // 13. Vault - pick the most restrictive limit, then floor100 for override safety
   const vault = floor100(Math.min(vaultTarget, vaultAvailable, vaultCapRoom))
 
-  // 14. CO Spend — what's left of usableNet after vault/rent/RH, floored
-  //     to $100. Per diem is NOT included here — it's pure savings overflow,
+  // 14. CO Spend - what's left of usableNet after vault/rent/RH, floored
+  //     to $100. Per diem is NOT included here - it's pure savings overflow,
   //     not a CO budget booster (see step 15).
   const co = floor100(
     Math.max(0, usableNet - vault - rentPaid - robinhood),
   )
 
-  // 15. BofA overflow — OT-driven excess (floored to $100) plus the full
+  // 15. BofA overflow - OT-driven excess (floored to $100) plus the full
   //     per diem amount (untouched, since per diem lands as a clean
   //     daily-rate multiple and isn't subject to the $100 wage rounding).
   //     Both pass through Chase and land in BofA the same day the paycheck
   //     hits.
   const bofaOverflow = floor100(excess) + perDiem
 
-  // 16. Buffer — sub-$100 wage remainder that didn't fit into any bucket,
+  // 16. Buffer - sub-$100 wage remainder that didn't fit into any bucket,
   //     stays in Chase. Per diem nets to zero here (added to total income
   //     above, fully removed via bofaOverflow).
   const buffer = Math.max(
@@ -202,7 +202,7 @@ export function computeRow(
     baseNet + perDiem - vault - rentPaid - robinhood - co - bofaOverflow,
   )
 
-  // 17. Status — driven by the explicit `received` flag only.
+  // 17. Status - driven by the explicit `received` flag only.
   const status: 'Received' | 'Pending' = received ? 'Received' : 'Pending'
 
   // 18. Cumulative Vault
@@ -253,7 +253,7 @@ export function computeAll(
  * extraDeposit (HYSA), and BofA overflow (BofA Checking). The vault account
  * is the inflow side of the vault/extra transfers. BofA Checking receives
  * the OT-driven overflow. Other accounts (credit cards) get no paycheck
- * flows — only expense activity.
+ * flows - only expense activity.
  *
  * For expenses: checking/hysa accounts have the amount subtracted;
  * credit cards have it added (the outstanding balance grows).
@@ -322,7 +322,7 @@ export function computeAccountStates(
       // Per diem nets to zero on Chase since the full perDiem amount is
       // already included in bofaOverflow (Plan B: per diem → BofA same day).
       // NOTE: extraDeposit is external income deposited directly into the
-      // vault (Marcus HYSA) — it never passes through Chase Checking, so it
+      // vault (Marcus HYSA) - it never passes through Chase Checking, so it
       // is excluded from this flow.
       for (const row of computed) {
         const baseNet =

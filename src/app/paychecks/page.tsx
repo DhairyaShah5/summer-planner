@@ -74,7 +74,7 @@ export default async function PaychecksPage() {
     <div className="mx-auto max-w-[1600px] px-4 py-8 sm:px-6 lg:px-8">
       <PageHeader
         title="Paycheck Plan"
-        subtitle="Edit hours, per diem, and actual net as paychecks arrive — computed columns update live."
+        subtitle="Edit hours, per diem, and actual net as paychecks arrive. Computed columns update live."
       />
       <PaychecksTable initialRows={rows} settings={settings} />
     </div>

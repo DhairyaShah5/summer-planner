@@ -128,7 +128,7 @@ export default async function ExpensesPage() {
       <Reveal>
         <PageHeader
           title="Expenses"
-          subtitle="Log spend as it happens — grouped by week."
+          subtitle="Log spend as it happens, grouped by week."
         />
       </Reveal>
       <Reveal delay={40}>

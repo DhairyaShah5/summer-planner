@@ -273,7 +273,7 @@ export function PaychecksTable({
     <div className="space-y-4">
       <Reveal>
         <div
-          className="card fx-card"
+          data-no-tilt
           style={{
             background: 'var(--surface)',
             border: '1px solid var(--hair)',
@@ -864,7 +864,7 @@ function MoneyCell({
         fontVariantNumeric: 'tabular-nums',
       }}
     >
-      {isZero && !muted ? '—' : fmtMoney(value, { cents: true })}
+      {isZero && !muted ? '' : fmtMoney(value, { cents: true })}
     </span>
   )
 }

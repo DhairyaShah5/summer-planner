@@ -13,7 +13,7 @@ import { createClient } from '@/lib/supabase/server';
 import { LoginForm } from './login-form';
 
 export const metadata = {
-  title: 'Sign in — Summer Planner',
+  title: 'Sign in · Summer Planner',
 };
 
 export default async function LoginPage() {

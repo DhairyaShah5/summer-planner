@@ -61,7 +61,13 @@ export function BackgroundFX() {
     const decorate = () => {
       document
         .querySelectorAll<HTMLElement>('[data-slot="card"], .card')
-        .forEach((c) => c.classList.add("fx-card"));
+        .forEach((c) => {
+          if (c.hasAttribute("data-no-tilt") || c.closest("[data-no-tilt]")) {
+            c.classList.remove("fx-card");
+            return;
+          }
+          c.classList.add("fx-card");
+        });
     };
     decorate();
     const mo = new MutationObserver(() => {

@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
  * (red on the left, amber in the middle, green on the right). A second
  * layer animates its width from 0 → `percent`% to reveal more of the
  * underlying gradient. This means the color at any horizontal position
- * is fixed — the fill just unveils more of it as `percent` grows.
+ * is fixed - the fill just unveils more of it as `percent` grows.
  */
 export function GradientProgress({
   percent,
