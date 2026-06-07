@@ -229,11 +229,10 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
           <div
             style={{
               display: 'flex',
-              flexWrap: 'nowrap',
-              gap: 7,
-              marginBottom: 16,
-              overflowX: 'auto',
-              scrollbarWidth: 'none',
+              flexWrap: 'wrap',
+              gap: 10,
+              rowGap: 10,
+              marginBottom: 18,
               paddingBottom: 2,
             }}
           >
@@ -248,11 +247,11 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 5,
-                    padding: '6px 10px',
+                    gap: 7,
+                    padding: '8px 14px',
                     borderRadius: 999,
                     cursor: pending ? 'not-allowed' : 'pointer',
-                    font: '600 11.5px var(--ui)',
+                    font: '600 12px var(--ui)',
                     whiteSpace: 'nowrap',
                     flex: 'none',
                     border: '1px solid',
