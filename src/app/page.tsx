@@ -11,6 +11,7 @@ import {
   type PaycheckInput,
   type Employer,
   type AccountInput,
+  type AccountEntryInput,
   type ExpenseInput,
   type CCPaymentInput,
   type TransferInput,
@@ -110,6 +111,7 @@ export default async function DashboardPage() {
     allExpensesRes,
     ccPaymentsRes,
     transfersRes,
+    accountEntriesRes,
   ] = await Promise.all([
     supabase
       .from("expenses")
@@ -137,6 +139,9 @@ export default async function DashboardPage() {
       .select(
         "id, transferred_at, from_account_id, to_account_id, amount, kind",
       ),
+    supabase
+      .from("account_entries")
+      .select("id, account_id, dated_at, amount, description"),
   ]);
 
   const recentExpenses: Expense[] = (recentExpensesRes.data ?? []).map((e) => ({
@@ -189,6 +194,16 @@ export default async function DashboardPage() {
     kind: t.kind as TransferInput['kind'],
   }));
 
+  const accountEntryInputs: AccountEntryInput[] = (
+    accountEntriesRes.data ?? []
+  ).map((e) => ({
+    id: e.id,
+    account_id: e.account_id,
+    dated_at: e.dated_at,
+    amount: Number(e.amount),
+    description: e.description,
+  }));
+
   const accountStates = computeAccountStates(
     accountInputs,
     inputs,
@@ -196,6 +211,7 @@ export default async function DashboardPage() {
     settings,
     ccPaymentInputs,
     transferInputs,
+    accountEntryInputs,
   );
 
   const accountsPreview = accountStates.slice(0, 3).map((s) => ({

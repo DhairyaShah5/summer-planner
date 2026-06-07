@@ -8,7 +8,9 @@ import {
   CreditCardIcon,
   Loader2Icon,
   PencilIcon,
+  PlusIcon,
   RepeatIcon,
+  Trash2Icon,
   TrendingUpIcon,
   TrendingDownIcon,
 } from 'lucide-react'
@@ -47,6 +49,10 @@ import {
 import { payCreditCard } from './cc-payment-actions'
 import { logTransfer } from './transfer-actions'
 import { updateNetWorthInclusion } from './net-worth-actions'
+import {
+  addAccountEntry,
+  deleteAccountEntry,
+} from './account-entry-actions'
 import { Checkbox } from '@/components/ui/checkbox'
 
 export type AccountType = 'checking' | 'credit_card' | 'hysa'
@@ -78,6 +84,72 @@ export interface TransferRow {
   amount: number
   kind: TransferKind
   note: string | null
+}
+
+/** Raw account_entries row passed down for the ledger modal. */
+export interface LedgerEntryRow {
+  id: string
+  account_id: string
+  dated_at: string
+  amount: number
+  description: string
+  note: string | null
+  created_at: string
+}
+
+/** Expense row enriched with description/category for ledger rendering. */
+export interface LedgerExpenseRow {
+  id: string
+  expense_date: string
+  amount: number
+  account_id: string | null
+  description: string
+  category: string
+}
+
+/** Slimmed CC payment row used to derive ledger entries on both sides. */
+export interface LedgerCCPaymentRow {
+  id: string
+  paid_at: string
+  from_account_id: string
+  to_account_id: string
+  amount: number
+}
+
+/** Per-paycheck summary needed to derive ledger entries client-side without
+ *  recomputing the allocation formulas. */
+export interface PaycheckRow {
+  payNum: number
+  payDate: string
+  employer: string
+  baseNet: number
+  perDiem: number
+  reimbursement: number
+  vault: number
+  extraDeposit: number
+  rentPaid: number
+  robinhood: number
+  bofaOverflow: number
+  received: boolean
+}
+
+/** Source kind for a derived ledger entry. Drives pill color + delete control. */
+export type LedgerSource =
+  | 'arrival'
+  | 'paycheck'
+  | 'expense'
+  | 'cc_payment'
+  | 'transfer'
+  | 'manual'
+
+interface DerivedLedgerEntry {
+  key: string
+  date: string
+  source: LedgerSource
+  description: string
+  amount: number
+  manualId?: string
+  runningBalance: number
 }
 
 const moneyFmt = new Intl.NumberFormat('en-US', {
@@ -145,9 +217,21 @@ interface Props {
   states: AccountStateRow[]
   vaultCap: number
   transfers: TransferRow[]
+  entries: LedgerEntryRow[]
+  expenses: LedgerExpenseRow[]
+  ccPayments: LedgerCCPaymentRow[]
+  paycheckRows: PaycheckRow[]
 }
 
-export function AccountsList({ states, vaultCap, transfers }: Props) {
+export function AccountsList({
+  states,
+  vaultCap,
+  transfers,
+  entries,
+  expenses,
+  ccPayments,
+  paycheckRows,
+}: Props) {
   const router = useRouter()
   const [editing, setEditing] = useState<AccountStateRow | null>(null)
   const [editValue, setEditValue] = useState('')
@@ -177,6 +261,20 @@ export function AccountsList({ states, vaultCap, transfers }: Props) {
   )
   const [netWorthSaving, startNetWorthTransition] = useTransition()
 
+  // Per-account ledger modal state. `ledgerAccount` doubles as both the
+  // "is open?" flag (truthy = open) and the data source for derivation.
+  const [ledgerAccount, setLedgerAccount] = useState<AccountStateRow | null>(
+    null,
+  )
+  const [ledgerFormOpen, setLedgerFormOpen] = useState(false)
+  const [ledgerDate, setLedgerDate] = useState<string>(todayISO())
+  const [ledgerDirection, setLedgerDirection] = useState<'in' | 'out'>('in')
+  const [ledgerAmount, setLedgerAmount] = useState<string>('')
+  const [ledgerDescription, setLedgerDescription] = useState<string>('')
+  const [ledgerNote, setLedgerNote] = useState<string>('')
+  const [ledgerSaving, startLedgerTransition] = useTransition()
+  const [ledgerDeletingId, setLedgerDeletingId] = useState<string | null>(null)
+
   function openNetWorthDialog() {
     const draft: Record<string, boolean> = {}
     for (const s of states) draft[s.id] = s.include_in_net_worth
@@ -186,6 +284,73 @@ export function AccountsList({ states, vaultCap, transfers }: Props) {
 
   function toggleNetWorthDraft(id: string) {
     setNetWorthDraft((prev) => ({ ...prev, [id]: !(prev[id] ?? true) }))
+  }
+
+  function openLedger(account: AccountStateRow) {
+    setLedgerAccount(account)
+    setLedgerFormOpen(false)
+    resetLedgerForm()
+  }
+
+  function closeLedger() {
+    setLedgerAccount(null)
+    setLedgerFormOpen(false)
+  }
+
+  function resetLedgerForm() {
+    setLedgerDate(todayISO())
+    setLedgerDirection('in')
+    setLedgerAmount('')
+    setLedgerDescription('')
+    setLedgerNote('')
+  }
+
+  function handleLedgerSubmit() {
+    if (!ledgerAccount) return
+    const raw = parseFloat(ledgerAmount)
+    if (!Number.isFinite(raw) || raw <= 0) {
+      toast.error('Enter a valid amount')
+      return
+    }
+    const trimmedDesc = ledgerDescription.trim()
+    if (!trimmedDesc) {
+      toast.error('Description required')
+      return
+    }
+    const signed = ledgerDirection === 'in' ? raw : -raw
+    const acctId = ledgerAccount.id
+    startLedgerTransition(async () => {
+      const res = await addAccountEntry({
+        account_id: acctId,
+        dated_at: ledgerDate,
+        amount: signed,
+        description: trimmedDesc,
+        note: ledgerNote,
+      })
+      if (!res.ok) {
+        toast.error(res.error ?? 'Could not save entry')
+        return
+      }
+      toast.success('Ledger entry added')
+      setLedgerFormOpen(false)
+      resetLedgerForm()
+      router.refresh()
+    })
+  }
+
+  function handleLedgerDelete(id: string) {
+    if (!window.confirm('Delete this ledger entry?')) return
+    setLedgerDeletingId(id)
+    deleteAccountEntry(id)
+      .then((res) => {
+        if (!res.ok) {
+          toast.error(res.error ?? 'Could not delete entry')
+          return
+        }
+        toast.success('Entry deleted')
+        router.refresh()
+      })
+      .finally(() => setLedgerDeletingId(null))
   }
 
   function saveNetWorthSelections() {
@@ -249,6 +414,209 @@ export function AccountsList({ states, vaultCap, transfers }: Props) {
   }, [states])
 
   const recentTransfers = useMemo(() => transfers.slice(0, 10), [transfers])
+
+  // Stable source-ordering for the secondary sort below: arrival always wins
+  // on its date so the ledger reads top-down as "you started with X, then..."
+  const sourceOrder: Record<LedgerSource, number> = {
+    arrival: 0,
+    paycheck: 1,
+    transfer: 2,
+    cc_payment: 3,
+    expense: 4,
+    manual: 5,
+  }
+
+  // Derive the full chronological ledger for the currently-open account.
+  // Pulls inflows/outflows from every source: arrival, paychecks (split by
+  // sub-flow), expenses, cc_payments, transfers, manual account_entries.
+  // Running balance is computed by walking the sorted list once.
+  const ledgerEntries = useMemo<DerivedLedgerEntry[]>(() => {
+    if (!ledgerAccount) return []
+    const acctId = ledgerAccount.id
+    const acctType = ledgerAccount.type
+    const isPaycheckDest = ledgerAccount.is_paycheck_destination
+    const isVault = ledgerAccount.is_vault
+
+    const items: Omit<DerivedLedgerEntry, 'runningBalance'>[] = []
+
+    // 1. Arrival entry - sentinel start-of-summer balance.
+    items.push({
+      key: `arrival-${acctId}`,
+      date: '2026-05-26',
+      source: 'arrival',
+      description: 'Arrival balance',
+      amount: ledgerAccount.arrival,
+    })
+
+    // 2. Paycheck-driven flows. Only relevant for Chase (paycheck dest) and
+    //    the Marcus HYSA vault account. Pulled from pre-computed paycheckRows
+    //    so we never re-run allocation math here.
+    if (isPaycheckDest) {
+      for (const p of paycheckRows) {
+        if (!p.received) continue
+        const label = `${p.employer.replace(' On-Campus', '')} paycheck (${fmtDate(p.payDate, 'short')})`
+        const inflow = p.baseNet + p.perDiem + p.reimbursement
+        if (inflow > 0) {
+          items.push({
+            key: `pay-in-${p.payNum}`,
+            date: p.payDate,
+            source: 'paycheck',
+            description: label,
+            amount: inflow,
+          })
+        }
+        if (p.vault > 0) {
+          items.push({
+            key: `pay-vault-${p.payNum}`,
+            date: p.payDate,
+            source: 'paycheck',
+            description: 'Vault transfer to HYSA',
+            amount: -p.vault,
+          })
+        }
+        if (p.rentPaid > 0) {
+          items.push({
+            key: `pay-rent-${p.payNum}`,
+            date: p.payDate,
+            source: 'paycheck',
+            description: 'Rent paid',
+            amount: -p.rentPaid,
+          })
+        }
+        if (p.robinhood > 0) {
+          items.push({
+            key: `pay-rh-${p.payNum}`,
+            date: p.payDate,
+            source: 'paycheck',
+            description: 'Robinhood (2 weeks)',
+            amount: -p.robinhood,
+          })
+        }
+      }
+    } else if (isVault) {
+      for (const p of paycheckRows) {
+        if (!p.received) continue
+        const inflow = p.vault + p.extraDeposit
+        if (inflow > 0) {
+          items.push({
+            key: `pay-vault-in-${p.payNum}`,
+            date: p.payDate,
+            source: 'paycheck',
+            description: `Vault deposit (${p.employer.replace(' On-Campus', '')} ${fmtDate(p.payDate, 'short')})`,
+            amount: inflow,
+          })
+        }
+      }
+    }
+    // BofA Checking + credit cards: nothing auto-derived from paychecks.
+
+    // 3. Expenses landing on this account.
+    for (const e of expenses) {
+      if (e.account_id !== acctId) continue
+      const desc = e.category
+        ? `${e.description || 'Expense'} · ${e.category}`
+        : e.description || 'Expense'
+      // Credit-card expenses grow outstanding balance; everywhere else they
+      // drain cash. Matches the sign convention used in computeAccountStates.
+      const amount = acctType === 'credit_card' ? +e.amount : -e.amount
+      items.push({
+        key: `exp-${e.id}`,
+        date: e.expense_date,
+        source: 'expense',
+        description: desc,
+        amount,
+      })
+    }
+
+    // 4. CC payments touching this account (from-side drains cash, to-side
+    //    is the CC and outstanding shrinks - both deltas are negative).
+    for (const pay of ccPayments) {
+      if (pay.from_account_id === acctId) {
+        const toName = accountNameById.get(pay.to_account_id) ?? 'credit card'
+        items.push({
+          key: `cc-from-${pay.id}`,
+          date: pay.paid_at,
+          source: 'cc_payment',
+          description: `Payment to ${toName}`,
+          amount: -pay.amount,
+        })
+      }
+      if (pay.to_account_id === acctId) {
+        const fromName =
+          accountNameById.get(pay.from_account_id) ?? 'checking'
+        items.push({
+          key: `cc-to-${pay.id}`,
+          date: pay.paid_at,
+          source: 'cc_payment',
+          description: `Payment from ${fromName}`,
+          amount: -pay.amount,
+        })
+      }
+    }
+
+    // 5. Transfers in/out.
+    for (const t of transfers) {
+      if (t.from_account_id === acctId) {
+        const toName = accountNameById.get(t.to_account_id) ?? 'account'
+        const suffix = t.kind !== 'manual' ? ` (${transferKindLabel(t.kind)})` : ''
+        items.push({
+          key: `xfer-from-${t.id}`,
+          date: t.transferred_at,
+          source: 'transfer',
+          description: `Transfer to ${toName}${suffix}`,
+          amount: -t.amount,
+        })
+      }
+      if (t.to_account_id === acctId) {
+        const fromName = accountNameById.get(t.from_account_id) ?? 'account'
+        items.push({
+          key: `xfer-to-${t.id}`,
+          date: t.transferred_at,
+          source: 'transfer',
+          description: `Transfer from ${fromName}`,
+          amount: +t.amount,
+        })
+      }
+    }
+
+    // 6. Manual free-form ledger entries.
+    for (const entry of entries) {
+      if (entry.account_id !== acctId) continue
+      items.push({
+        key: `manual-${entry.id}`,
+        date: entry.dated_at,
+        source: 'manual',
+        description: entry.description,
+        amount: entry.amount,
+        manualId: entry.id,
+      })
+    }
+
+    // Sort by date ASC, breaking ties via the source order map so arrival
+    // wins, then paycheck inflows precede expenses on the same day, etc.
+    items.sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1
+      return sourceOrder[a.source] - sourceOrder[b.source]
+    })
+
+    let running = 0
+    const out: DerivedLedgerEntry[] = []
+    for (const it of items) {
+      running += it.amount
+      out.push({ ...it, runningBalance: running })
+    }
+    return out
+    // sourceOrder is module-stable so we intentionally omit it from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    ledgerAccount,
+    paycheckRows,
+    expenses,
+    ccPayments,
+    transfers,
+    entries,
+    accountNameById,
+  ])
 
   function openTransferDialog() {
     setTransferFromId(defaultTransferFromId)
@@ -545,6 +913,7 @@ export function AccountsList({ states, vaultCap, transfers }: Props) {
                 <AccountCard
                   account={s}
                   vaultCap={vaultCap}
+                  onOpenLedger={() => openLedger(s)}
                   onEdit={() => {
                     setEditing(s)
                     setEditValue(String(s.arrival))
@@ -1041,7 +1410,521 @@ export function AccountsList({ states, vaultCap, transfers }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Per-account ledger dialog */}
+      <Dialog
+        open={ledgerAccount !== null}
+        onOpenChange={(open) => {
+          if (!open && !ledgerSaving) closeLedger()
+        }}
+      >
+        <DialogContent
+          className="sm:max-w-[720px]"
+          style={{ width: '100%', maxWidth: 'min(720px, calc(100% - 2rem))' }}
+        >
+          <DialogHeader>
+            <DialogTitle
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+              }}
+            >
+              {ledgerAccount?.name ?? 'Ledger'}
+              {ledgerAccount && (
+                <span
+                  style={{
+                    font: '600 11px var(--ui)',
+                    padding: '2px 8px',
+                    borderRadius: 6,
+                    background: `color-mix(in oklch, oklch(0.62 0.16 ${hueForAccount(ledgerAccount.name, ledgerAccount.type, ledgerAccount.is_vault)}) 16%, transparent)`,
+                    color: `oklch(0.62 0.16 ${hueForAccount(ledgerAccount.name, ledgerAccount.type, ledgerAccount.is_vault)})`,
+                  }}
+                >
+                  {typeLabel(ledgerAccount.type)}
+                </span>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              Chronological ledger derived from paychecks, expenses, transfers,
+              CC payments, and any manual entries you add.
+            </DialogDescription>
+          </DialogHeader>
+
+          {ledgerAccount && (
+            <>
+              {/* Summary row: arrival / now / projected */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                  gap: 12,
+                  padding: '12px 14px',
+                  borderRadius: 12,
+                  border: '1px solid var(--hair)',
+                  background: 'var(--surface-2, var(--surface))',
+                }}
+              >
+                <LedgerStat label="Arrival" value={ledgerAccount.arrival} />
+                <LedgerStat
+                  label="Right now"
+                  value={ledgerAccount.current}
+                  emphasis
+                />
+                <LedgerStat
+                  label="Projected"
+                  value={ledgerAccount.projected}
+                />
+              </div>
+
+              {/* Ledger table - scrolls inside */}
+              <div
+                style={{
+                  maxHeight: 360,
+                  overflowY: 'auto',
+                  border: '1px solid var(--hair)',
+                  borderRadius: 12,
+                }}
+              >
+                <table
+                  style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  <thead
+                    style={{
+                      position: 'sticky',
+                      top: 0,
+                      background: 'var(--surface)',
+                      zIndex: 1,
+                    }}
+                  >
+                    <tr>
+                      <LedgerTh>Date</LedgerTh>
+                      <LedgerTh>Source</LedgerTh>
+                      <LedgerTh>Description</LedgerTh>
+                      <LedgerTh align="right">Amount</LedgerTh>
+                      <LedgerTh align="right">Running</LedgerTh>
+                      <LedgerTh align="right" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ledgerEntries.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          style={{
+                            padding: '20px 14px',
+                            textAlign: 'center',
+                            color: 'var(--ink-3)',
+                            font: '500 13px var(--ui)',
+                          }}
+                        >
+                          No activity yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      ledgerEntries.map((row) => (
+                        <tr
+                          key={row.key}
+                          style={{
+                            borderTop: '1px solid var(--hair)',
+                          }}
+                        >
+                          <LedgerTd>
+                            <span
+                              style={{
+                                font: '500 12px var(--ui)',
+                                color: 'var(--ink-3)',
+                              }}
+                            >
+                              {fmtDate(row.date, 'short')}
+                            </span>
+                          </LedgerTd>
+                          <LedgerTd>
+                            <LedgerSourcePill source={row.source} />
+                          </LedgerTd>
+                          <LedgerTd>
+                            <span
+                              style={{
+                                font: '500 13px var(--ui)',
+                                color: 'var(--ink-1)',
+                              }}
+                            >
+                              {row.description}
+                            </span>
+                          </LedgerTd>
+                          <LedgerTd align="right">
+                            <span
+                              style={{
+                                font: '600 13px var(--display)',
+                                color:
+                                  row.amount >= 0
+                                    ? 'var(--pos-ink)'
+                                    : 'var(--accent-ink)',
+                              }}
+                            >
+                              {row.amount >= 0 ? '+' : '−'}
+                              {fmtMoney(Math.abs(row.amount), { cents: true })}
+                            </span>
+                          </LedgerTd>
+                          <LedgerTd align="right">
+                            <span
+                              style={{
+                                font: '600 13px var(--display)',
+                                color: 'var(--ink-2)',
+                              }}
+                            >
+                              {fmtMoney(row.runningBalance, { cents: true })}
+                            </span>
+                          </LedgerTd>
+                          <LedgerTd align="right">
+                            {row.source === 'manual' && row.manualId ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label="Delete entry"
+                                disabled={ledgerDeletingId === row.manualId}
+                                onClick={() =>
+                                  row.manualId &&
+                                  handleLedgerDelete(row.manualId)
+                                }
+                              >
+                                {ledgerDeletingId === row.manualId ? (
+                                  <Loader2Icon className="size-4 animate-spin" />
+                                ) : (
+                                  <Trash2Icon className="size-4" />
+                                )}
+                              </Button>
+                            ) : null}
+                          </LedgerTd>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Add-entry form, expanded inline */}
+              {ledgerFormOpen ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12,
+                    padding: 14,
+                    borderRadius: 12,
+                    border: '1px solid var(--hair)',
+                    background: 'var(--surface)',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: 12,
+                    }}
+                  >
+                    <div className="space-y-2">
+                      <Label htmlFor="ledger-date">Date</Label>
+                      <Input
+                        id="ledger-date"
+                        type="date"
+                        value={ledgerDate}
+                        onChange={(e) => setLedgerDate(e.target.value)}
+                        disabled={ledgerSaving}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Direction</Label>
+                      <div
+                        role="radiogroup"
+                        aria-label="Direction"
+                        style={{
+                          display: 'inline-flex',
+                          borderRadius: 8,
+                          border: '1px solid var(--hair)',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {(['in', 'out'] as const).map((dir) => {
+                          const active = ledgerDirection === dir
+                          return (
+                            <button
+                              key={dir}
+                              type="button"
+                              role="radio"
+                              aria-checked={active}
+                              onClick={() => setLedgerDirection(dir)}
+                              disabled={ledgerSaving}
+                              style={{
+                                all: 'unset',
+                                cursor: ledgerSaving ? 'default' : 'pointer',
+                                padding: '6px 14px',
+                                font: '600 12.5px var(--ui)',
+                                color: active
+                                  ? dir === 'in'
+                                    ? 'var(--pos-ink)'
+                                    : 'var(--accent-ink)'
+                                  : 'var(--ink-3)',
+                                background: active
+                                  ? dir === 'in'
+                                    ? 'color-mix(in oklch, var(--pos) 12%, transparent)'
+                                    : 'color-mix(in oklch, var(--accent) 12%, transparent)'
+                                  : 'transparent',
+                              }}
+                            >
+                              {dir === 'in' ? 'Money in' : 'Money out'}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ledger-amount">Amount</Label>
+                    <div style={{ position: 'relative' }}>
+                      <span
+                        style={{
+                          position: 'absolute',
+                          left: 12,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          color: 'var(--ink-3)',
+                          font: '500 14px var(--ui)',
+                          pointerEvents: 'none',
+                        }}
+                      >
+                        $
+                      </span>
+                      <Input
+                        id="ledger-amount"
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0"
+                        value={ledgerAmount}
+                        onChange={(e) => setLedgerAmount(e.target.value)}
+                        placeholder="0.00"
+                        disabled={ledgerSaving}
+                        style={{ paddingLeft: 26 }}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ledger-description">Description</Label>
+                    <Input
+                      id="ledger-description"
+                      type="text"
+                      value={ledgerDescription}
+                      onChange={(e) => setLedgerDescription(e.target.value)}
+                      placeholder="What was this entry for?"
+                      disabled={ledgerSaving}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ledger-note">Note (optional)</Label>
+                    <Input
+                      id="ledger-note"
+                      type="text"
+                      value={ledgerNote}
+                      onChange={(e) => setLedgerNote(e.target.value)}
+                      placeholder="Anything to remember about this entry?"
+                      disabled={ledgerSaving}
+                    />
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 8,
+                      justifyContent: 'flex-end',
+                    }}
+                  >
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setLedgerFormOpen(false)
+                        resetLedgerForm()
+                      }}
+                      disabled={ledgerSaving}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleLedgerSubmit}
+                      disabled={ledgerSaving}
+                    >
+                      {ledgerSaving ? (
+                        <>
+                          <Loader2Icon className="size-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        'Save entry'
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setLedgerFormOpen(true)}
+                  >
+                    <PlusIcon className="size-4" />
+                    Add entry
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
+  )
+}
+
+function LedgerStat({
+  label,
+  value,
+  emphasis,
+}: {
+  label: string
+  value: number
+  emphasis?: boolean
+}) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div
+        style={{
+          font: '600 10.5px var(--ui)',
+          letterSpacing: '.05em',
+          textTransform: 'uppercase',
+          color: 'var(--ink-3)',
+          marginBottom: 4,
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          font: `600 ${emphasis ? 20 : 16}px var(--display)`,
+          color: emphasis ? 'var(--ink-1)' : 'var(--ink-2)',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {fmtMoney(value, { cents: true })}
+      </div>
+    </div>
+  )
+}
+
+function LedgerTh({
+  children,
+  align,
+}: {
+  children?: React.ReactNode
+  align?: 'right'
+}) {
+  return (
+    <th
+      style={{
+        padding: '10px 14px',
+        textAlign: align ?? 'left',
+        font: '600 11px var(--ui)',
+        letterSpacing: '.05em',
+        textTransform: 'uppercase',
+        color: 'var(--ink-3)',
+        borderBottom: '1px solid var(--hair)',
+      }}
+    >
+      {children}
+    </th>
+  )
+}
+
+function LedgerTd({
+  children,
+  align,
+}: {
+  children?: React.ReactNode
+  align?: 'right'
+}) {
+  return (
+    <td
+      style={{
+        padding: '10px 14px',
+        textAlign: align ?? 'left',
+        verticalAlign: 'middle',
+      }}
+    >
+      {children}
+    </td>
+  )
+}
+
+function LedgerSourcePill({ source }: { source: LedgerSource }) {
+  // Per-source soft tints + readable label. Manual entries get a neutral
+  // "Manual" label so users can distinguish their hand-added rows.
+  const styleMap: Record<
+    LedgerSource,
+    { bg: string; fg: string; label: string }
+  > = {
+    arrival: {
+      bg: 'color-mix(in oklch, var(--gold) 18%, transparent)',
+      fg: 'var(--gold-ink, oklch(0.55 0.13 80))',
+      label: 'Arrival',
+    },
+    paycheck: {
+      bg: 'color-mix(in oklch, var(--pos) 14%, transparent)',
+      fg: 'var(--pos-ink)',
+      label: 'Paycheck',
+    },
+    expense: {
+      bg: 'color-mix(in oklch, var(--accent) 14%, transparent)',
+      fg: 'var(--accent-ink)',
+      label: 'Expense',
+    },
+    cc_payment: {
+      bg: 'color-mix(in oklch, var(--mint) 18%, transparent)',
+      fg: 'var(--mint-ink)',
+      label: 'CC payment',
+    },
+    transfer: {
+      bg: 'color-mix(in oklch, var(--ink-3) 14%, transparent)',
+      fg: 'var(--ink-2)',
+      label: 'Transfer',
+    },
+    manual: {
+      bg: 'color-mix(in oklch, var(--ink-2) 12%, transparent)',
+      fg: 'var(--ink-2)',
+      label: 'Manual',
+    },
+  }
+  const s = styleMap[source]
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        font: '600 11px var(--ui)',
+        padding: '2px 8px',
+        borderRadius: 6,
+        background: s.bg,
+        color: s.fg,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {s.label}
+    </span>
   )
 }
 
@@ -1220,11 +2103,18 @@ function CompositionCard({ items, total }: CompositionCardProps) {
 type AccountCardProps = {
   account: AccountStateRow
   vaultCap: number
+  onOpenLedger: () => void
   onEdit: () => void
   onPayCC: () => void
 }
 
-function AccountCard({ account, vaultCap, onEdit, onPayCC }: AccountCardProps) {
+function AccountCard({
+  account,
+  vaultCap,
+  onOpenLedger,
+  onEdit,
+  onPayCC,
+}: AccountCardProps) {
   const isCredit = account.type === 'credit_card'
   const isVault = account.is_vault
   const delta = account.projected - account.current
@@ -1241,11 +2131,22 @@ function AccountCard({ account, vaultCap, onEdit, onPayCC }: AccountCardProps) {
   return (
     <div
       className="card fx-card"
+      role="button"
+      tabIndex={0}
+      onClick={onOpenLedger}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onOpenLedger()
+        }
+      }}
+      aria-label={`Open ledger for ${account.name}`}
       style={{
         padding: '18px 24px',
         borderRadius: 'var(--radius)',
         background: 'var(--surface)',
         border: '1px solid var(--hair)',
+        cursor: 'pointer',
       }}
     >
       <div
@@ -1353,7 +2254,10 @@ function AccountCard({ account, vaultCap, onEdit, onPayCC }: AccountCardProps) {
               type="button"
               variant="outline"
               size="sm"
-              onClick={onPayCC}
+              onClick={(e) => {
+                e.stopPropagation()
+                onPayCC()
+              }}
             >
               <CreditCardIcon className="size-4" />
               Pay credit card
@@ -1364,7 +2268,10 @@ function AccountCard({ account, vaultCap, onEdit, onPayCC }: AccountCardProps) {
             variant="ghost"
             size="icon-sm"
             aria-label={`Edit ${account.name} arrival balance`}
-            onClick={onEdit}
+            onClick={(e) => {
+              e.stopPropagation()
+              onEdit()
+            }}
           >
             <PencilIcon className="size-4" />
           </Button>

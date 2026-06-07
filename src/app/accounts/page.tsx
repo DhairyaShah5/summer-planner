@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import {
   computeAccountStates,
+  computeAll,
+  type AccountEntryInput,
   type AccountInput,
   type CCPaymentInput,
   type ExpenseInput,
@@ -14,6 +16,7 @@ import { PageHeader } from '@/components/redesign'
 import {
   AccountsList,
   type AccountStateRow,
+  type LedgerEntryRow,
   type TransferRow,
 } from './accounts-list'
 
@@ -34,6 +37,7 @@ export default async function AccountsPage() {
     expensesRes,
     ccPaymentsRes,
     transfersRes,
+    accountEntriesRes,
   ] = await Promise.all([
     supabase
       .from('accounts')
@@ -43,7 +47,7 @@ export default async function AccountsPage() {
     supabase.from('paychecks').select('*').order('pay_num', { ascending: true }),
     supabase
       .from('expenses')
-      .select('id, expense_date, amount, account_id'),
+      .select('id, expense_date, amount, account_id, description, category'),
     supabase
       .from('cc_payments')
       .select('*')
@@ -54,6 +58,12 @@ export default async function AccountsPage() {
         'id, transferred_at, from_account_id, to_account_id, amount, kind, note',
       )
       .order('transferred_at', { ascending: false }),
+    supabase
+      .from('account_entries')
+      .select(
+        'id, account_id, dated_at, amount, description, note, created_at',
+      )
+      .order('dated_at', { ascending: true }),
   ])
 
   if (accountsRes.error) throw accountsRes.error
@@ -62,6 +72,7 @@ export default async function AccountsPage() {
   if (expensesRes.error) throw expensesRes.error
   if (ccPaymentsRes.error) throw ccPaymentsRes.error
   if (transfersRes.error) throw transfersRes.error
+  if (accountEntriesRes.error) throw accountEntriesRes.error
 
   const accounts: AccountInput[] = (accountsRes.data ?? []).map((a) => ({
     id: a.id,
@@ -118,7 +129,8 @@ export default async function AccountsPage() {
     received: p.received,
   }))
 
-  const expenses: ExpenseInput[] = (expensesRes.data ?? []).map((e) => ({
+  const expenseRowsRaw = expensesRes.data ?? []
+  const expenses: ExpenseInput[] = expenseRowsRaw.map((e) => ({
     id: e.id,
     expense_date: e.expense_date,
     amount: Number(e.amount),
@@ -153,6 +165,25 @@ export default async function AccountsPage() {
     note: t.note,
   }))
 
+  const accountEntryRowsRaw = accountEntriesRes.data ?? []
+  const accountEntries: AccountEntryInput[] = accountEntryRowsRaw.map((e) => ({
+    id: e.id,
+    account_id: e.account_id,
+    dated_at: e.dated_at,
+    amount: Number(e.amount),
+    description: e.description,
+  }))
+
+  const entries: LedgerEntryRow[] = accountEntryRowsRaw.map((e) => ({
+    id: e.id,
+    account_id: e.account_id,
+    dated_at: e.dated_at,
+    amount: Number(e.amount),
+    description: e.description,
+    note: e.note,
+    created_at: e.created_at,
+  }))
+
   const states = computeAccountStates(
     accounts,
     paychecks,
@@ -160,7 +191,45 @@ export default async function AccountsPage() {
     settings,
     ccPayments,
     transfers,
+    accountEntries,
   )
+
+  // Compute paycheck rows once so the ledger modal can derive per-paycheck
+  // inflows/outflows without redoing the allocation math client-side.
+  const paycheckRows = computeAll(paychecks, settings).map((r) => ({
+    payNum: r.payNum,
+    payDate: String(r.payDate),
+    employer: r.employer,
+    baseNet:
+      r.received && r.actualNetWages != null
+        ? r.actualNetWages
+        : r.estimatedNet,
+    perDiem: r.perDiem,
+    reimbursement: r.reimbursement,
+    vault: r.vault,
+    extraDeposit: r.extraDeposit,
+    rentPaid: r.rentPaid,
+    robinhood: r.robinhood,
+    bofaOverflow: r.bofaOverflow,
+    received: r.received,
+  }))
+
+  const ledgerExpenseRows = expenseRowsRaw.map((e) => ({
+    id: e.id,
+    expense_date: e.expense_date,
+    amount: Number(e.amount),
+    account_id: e.account_id ?? null,
+    description: e.description ?? '',
+    category: e.category ?? '',
+  }))
+
+  const ledgerCCPaymentRows = ccPayments.map((p) => ({
+    id: p.id,
+    paid_at: p.paid_at,
+    from_account_id: p.from_account_id,
+    to_account_id: p.to_account_id,
+    amount: p.amount,
+  }))
 
   const includeMap = new Map<string, boolean>(
     (accountsRes.data ?? []).map((a) => [a.id, a.include_in_net_worth ?? true]),
@@ -189,6 +258,10 @@ export default async function AccountsPage() {
         states={stateRows}
         vaultCap={settings.vaultCap}
         transfers={transferRows}
+        entries={entries}
+        expenses={ledgerExpenseRows}
+        ccPayments={ledgerCCPaymentRows}
+        paycheckRows={paycheckRows}
       />
     </div>
   )
