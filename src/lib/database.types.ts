@@ -94,6 +94,7 @@ export type Database = {
           account_id: string | null
           amount: number
           category: string | null
+          count_in_co_budget: boolean
           created_at: string
           description: string
           expense_date: string
@@ -104,6 +105,7 @@ export type Database = {
           account_id?: string | null
           amount: number
           category?: string | null
+          count_in_co_budget?: boolean
           created_at?: string
           description: string
           expense_date: string
@@ -114,6 +116,7 @@ export type Database = {
           account_id?: string | null
           amount?: number
           category?: string | null
+          count_in_co_budget?: boolean
           created_at?: string
           description?: string
           expense_date?: string
@@ -144,6 +147,7 @@ export type Database = {
           pay_num: number
           per_diem: number
           received: boolean
+          reimbursement: number
           rent_paid: number
           updated_at: string
           user_id: string
@@ -163,6 +167,7 @@ export type Database = {
           pay_num: number
           per_diem?: number
           received?: boolean
+          reimbursement?: number
           rent_paid?: number
           updated_at?: string
           user_id: string
@@ -182,6 +187,7 @@ export type Database = {
           pay_num?: number
           per_diem?: number
           received?: boolean
+          reimbursement?: number
           rent_paid?: number
           updated_at?: string
           user_id?: string
