@@ -158,7 +158,7 @@ export function Donut({
               cy={size / 2}
               r={r}
               fill="none"
-              stroke={`oklch(0.68 0.14 ${d.hue})`}
+              stroke={`oklch(0.7 0.2 ${d.hue})`}
               strokeWidth={stroke}
               strokeDasharray={`${seen ? len : 0} ${c}`}
               strokeDashoffset={off}

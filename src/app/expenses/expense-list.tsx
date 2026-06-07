@@ -21,22 +21,7 @@ import { Money, Reveal, fmtMoney } from '@/components/redesign'
 import { deleteExpense } from './expense-actions'
 import type { AccountOption } from './add-expense-form'
 import { ExpenseCharts } from './expense-charts'
-
-const CATEGORY_HUES: { id: string; hue: number }[] = [
-  { id: 'Food', hue: 45 },
-  { id: 'Transit', hue: 235 },
-  { id: 'Entertainment', hue: 295 },
-  { id: 'Groceries', hue: 150 },
-  { id: 'Other', hue: 90 },
-]
-
-function hueFor(category: string): number {
-  const trimmed = (category || '').trim()
-  const match = CATEGORY_HUES.find(
-    (c) => c.id.toLowerCase() === trimmed.toLowerCase(),
-  )
-  return match?.hue ?? 90
-}
+import { hueForCategory } from './categories'
 
 function parseLocalDate(iso: string): Date {
   const [y, m, d] = iso.split('-').map(Number)
@@ -115,8 +100,16 @@ export function ExpenseList({
 
   const remaining = cumMaxAllowed - cumSpent
   const isUnder = remaining >= 0
-  const borderTone = isUnder ? 'var(--pos)' : 'oklch(0.62 0.23 27)'
-  const accentInk = isUnder ? 'var(--pos-ink)' : 'oklch(0.5 0.2 27)'
+  const accentInk = isUnder ? 'var(--pos-ink)' : 'oklch(0.65 0.2 27)'
+  // Fill grows left -> right as money is spent. Clamped 0-100 so even an
+  // over-budget month maxes the bar instead of overflowing the card.
+  const fillPct =
+    cumMaxAllowed > 0
+      ? Math.min(100, Math.max(0, (cumSpent / cumMaxAllowed) * 100))
+      : 0
+  const fillColor = isUnder
+    ? 'color-mix(in oklch, var(--pos) 22%, transparent)'
+    : 'color-mix(in oklch, oklch(0.62 0.23 27) 26%, transparent)'
 
   function handleDelete() {
     if (!pendingDelete) return
@@ -140,13 +133,27 @@ export function ExpenseList({
           className="mb-4"
           style={{
             padding: '16px 20px',
-            borderLeft: `4px solid ${borderTone}`,
+            position: 'relative',
+            overflow: 'hidden',
             display: 'flex',
             alignItems: 'baseline',
             gap: 12,
             flexWrap: 'wrap',
           }}
         >
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: `${fillPct}%`,
+              background: fillColor,
+              transition:
+                'width 1100ms cubic-bezier(.22,1,.36,1), background 300ms ease',
+              pointerEvents: 'none',
+              zIndex: 0,
+            }}
+          />
           <CardContent
             style={{
               padding: 0,
@@ -155,6 +162,8 @@ export function ExpenseList({
               alignItems: 'baseline',
               gap: 12,
               flexWrap: 'wrap',
+              position: 'relative',
+              zIndex: 1,
             }}
           >
             <span
@@ -282,7 +291,7 @@ export function ExpenseList({
                       const acct = e.account_id
                         ? accountById.get(e.account_id)
                         : undefined
-                      const hue = hueFor(e.category)
+                      const hue = hueForCategory(e.category)
                       return (
                         <div
                           key={e.id}
@@ -331,8 +340,8 @@ export function ExpenseList({
                                     font: '600 11px var(--ui)',
                                     padding: '2px 8px',
                                     borderRadius: 6,
-                                    background: `color-mix(in oklch, oklch(0.68 0.14 ${hue}) 16%, transparent)`,
-                                    color: `oklch(0.62 0.14 ${hue})`,
+                                    background: `color-mix(in oklch, oklch(0.68 0.2 ${hue}) 22%, transparent)`,
+                                    color: `oklch(0.78 0.2 ${hue})`,
                                   }}
                                 >
                                   {e.category}

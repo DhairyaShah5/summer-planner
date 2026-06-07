@@ -10,16 +10,7 @@ import {
   SectionLabel,
 } from '@/components/redesign'
 import { Card, CardContent } from '@/components/ui/card'
-
-// Mirror of the chip palette in add-expense-form. Keeping it local avoids a
-// circular dep with the form component.
-const CATEGORY_HUES: { id: string; hue: number }[] = [
-  { id: 'Food', hue: 45 },
-  { id: 'Transit', hue: 235 },
-  { id: 'Entertainment', hue: 295 },
-  { id: 'Groceries', hue: 150 },
-  { id: 'Other', hue: 90 },
-]
+import { hueForCategory } from './categories'
 
 function mondayKey(iso: string) {
   const [y, m, d] = iso.split('-').map(Number)
@@ -47,12 +38,7 @@ export function ExpenseCharts({ expenses }: Props) {
       totals.set(key, (totals.get(key) ?? 0) + e.amount)
     }
     return Array.from(totals.entries())
-      .map(([label, total]) => {
-        const known = CATEGORY_HUES.find(
-          (c) => c.id.toLowerCase() === label.toLowerCase(),
-        )
-        return { label, total, hue: known?.hue ?? 90 }
-      })
+      .map(([label, total]) => ({ label, total, hue: hueForCategory(label) }))
       .filter((c) => c.total > 0)
       .sort((a, b) => b.total - a.total)
   }, [expenses])

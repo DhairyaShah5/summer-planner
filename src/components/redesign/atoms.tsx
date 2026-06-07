@@ -57,7 +57,7 @@ export function CatDot({ hue, size = 10 }: CatDotProps) {
         width: size,
         height: size,
         borderRadius: 3,
-        background: `oklch(0.68 0.14 ${hue})`,
+        background: `oklch(0.7 0.2 ${hue})`,
         flex: "none",
         display: "inline-block",
       }}

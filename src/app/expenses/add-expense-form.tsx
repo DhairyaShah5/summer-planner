@@ -17,16 +17,7 @@ import {
 } from '@/components/ui/select'
 import { CatDot } from '@/components/redesign'
 import { addExpense } from './expense-actions'
-
-// Production categories with assigned hues so the chips and tags get tinted
-// consistently with the dashboard / paycheck palette.
-const CATEGORIES: { id: string; hue: number }[] = [
-  { id: 'Food', hue: 45 },
-  { id: 'Transit', hue: 235 },
-  { id: 'Entertainment', hue: 295 },
-  { id: 'Groceries', hue: 150 },
-  { id: 'Other', hue: 90 },
-]
+import { EXPENSE_CATEGORIES } from './categories'
 
 export type AccountOptionType = 'checking' | 'credit_card' | 'hysa'
 
@@ -62,7 +53,7 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
   const [date, setDate] = useState(todayISO())
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
-  const [category, setCategory] = useState('Food')
+  const [category, setCategory] = useState<string>(EXPENSE_CATEGORIES[0].id)
   const [accountId, setAccountId] = useState<string>(defaultAccountId ?? '')
 
   useEffect(() => {
@@ -100,8 +91,7 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
         toast.error(res.error ?? 'Could not add expense')
         return
       }
-      const cat = CATEGORIES.find((c) => c.id === category)
-      toast.success(`Added $${amt.toFixed(2)} · ${cat?.id ?? category}`)
+      toast.success(`Added $${amt.toFixed(2)} · ${category}`)
       setDescription('')
       setAmount('')
       descriptionRef.current?.focus()
@@ -194,10 +184,15 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
                 disabled={pending}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Pick a category" />
+                  <SelectValue placeholder="Pick a category">
+                    {(value) => {
+                      const c = EXPENSE_CATEGORIES.find((x) => x.id === value)
+                      return c ? c.id : 'Pick a category'
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {CATEGORIES.map((c) => (
+                  {EXPENSE_CATEGORIES.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.id}
                     </SelectItem>
@@ -213,7 +208,12 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
                 disabled={pending || accounts.length === 0}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Pick an account" />
+                  <SelectValue placeholder="Pick an account">
+                    {(value) => {
+                      const a = accounts.find((x) => x.id === value)
+                      return a ? a.name : 'Pick an account'
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {accounts.map((a) => (
@@ -237,7 +237,7 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
               paddingBottom: 2,
             }}
           >
-            {CATEGORIES.map((c) => {
+            {EXPENSE_CATEGORIES.map((c) => {
               const active = category === c.id
               return (
                 <button
@@ -257,13 +257,13 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
                     flex: 'none',
                     border: '1px solid',
                     borderColor: active
-                      ? `oklch(0.6 0.14 ${c.hue})`
+                      ? `oklch(0.62 0.2 ${c.hue})`
                       : 'var(--hair)',
                     background: active
-                      ? `color-mix(in oklch, oklch(0.68 0.14 ${c.hue}) 16%, transparent)`
+                      ? `color-mix(in oklch, oklch(0.68 0.2 ${c.hue}) 20%, transparent)`
                       : 'var(--surface)',
                     color: active
-                      ? `oklch(0.62 0.14 ${c.hue})`
+                      ? `oklch(0.72 0.2 ${c.hue})`
                       : 'var(--ink-2)',
                     transition: 'all .15s',
                   }}
