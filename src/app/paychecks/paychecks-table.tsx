@@ -94,16 +94,16 @@ const HUE = {
   bofa: 330,
 } as const
 
-// Explicit per-bucket hex colors used in the AllocationChart bars + Buffer
-// card. Each bucket gets a color matched to the metaphor: gold = vault,
-// red = rent (money out), emerald = Robinhood growth, sky = CO daily
-// budget, fuchsia = BofA overflow.
+// Per-bucket bar colors matched to the same HUE values used in the
+// Paychecks table's money cells (`oklch(0.55 0.14 hue)`) but bumped in
+// lightness + chroma so they read clearly on dark fills. Same hue family
+// → visual consistency between the table column and the chart segment.
 const BUCKET_COLOR = {
-  vault: '#fbbf24', // amber/gold-400
-  rent: '#ef4444', // red-500
-  rh: '#10b981', // emerald-500
-  co: '#0ea5e9', // sky-500
-  bofa: '#d946ef', // fuchsia-500
+  vault: 'oklch(0.7 0.18 285)', // violet (matches Vault column text)
+  rent: 'oklch(0.7 0.18 35)', // warm red-orange (matches Rent column)
+  rh: 'oklch(0.7 0.18 150)', // emerald (matches RH column)
+  co: 'oklch(0.7 0.18 220)', // sky blue (matches CO Spend column)
+  bofa: 'oklch(0.7 0.18 330)', // pink-magenta (matches BofA column)
 } as const
 
 function colorForHue(hue: number): string {
@@ -1153,11 +1153,14 @@ function BufferSparkline({
 
   const lastSolid = solid[solid.length - 1]
 
-  // Area fill under the solid line only — gives the "received so far" a
-  // subtle weight that the dashed projection lacks.
+  // Area fill under the entire curve (solid + dashed) so the buffer card
+  // gets the same light wash as the dashboard's Vault Growth area. The
+  // gradient uses the buffer line color, matching the sparkline.
+  const allPoints = points
+  const fullLinePath = toPath(allPoints)
   const areaPath =
-    solid.length > 1
-      ? `${solidPath} L ${lastSolid.x} ${pad + innerH} L ${solid[0].x} ${pad + innerH} Z`
+    allPoints.length > 1
+      ? `${fullLinePath} L ${allPoints[allPoints.length - 1].x} ${pad + innerH} L ${allPoints[0].x} ${pad + innerH} Z`
       : ''
   const gradId = 'buffer-grad'
 
@@ -1171,7 +1174,7 @@ function BufferSparkline({
     >
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.32" />
+          <stop offset="0%" stopColor={color} stopOpacity="0.45" />
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
