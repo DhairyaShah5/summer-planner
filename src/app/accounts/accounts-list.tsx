@@ -55,7 +55,14 @@ import {
   deleteAccountEntry,
   updateAccountEntry,
 } from './account-entry-actions'
+import { setFlowOverride, type FlowKind } from './flow-override-actions'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { hueForCategory } from '@/app/expenses/categories'
 
 export type AccountType = 'checking' | 'credit_card' | 'hysa'
 
@@ -121,6 +128,7 @@ export interface LedgerCCPaymentRow {
 /** Per-paycheck summary needed to derive ledger entries client-side without
  *  recomputing the allocation formulas. */
 export interface PaycheckRow {
+  id: string
   payNum: number
   payDate: string
   employer: string
@@ -133,12 +141,18 @@ export interface PaycheckRow {
   robinhood: number
   bofaOverflow: number
   received: boolean
+  flow_overrides: Record<string, string>
 }
 
-/** Source kind for a derived ledger entry. Drives pill color + delete control. */
+/** Source kind for a derived ledger entry. Drives pill color + delete control.
+ *  The three split-out flow sources let users color-code and override the
+ *  effective date of vault/rent/robinhood outflows independently. */
 export type LedgerSource =
   | 'arrival'
   | 'paycheck'
+  | 'vault_transfer'
+  | 'rent_payment'
+  | 'robinhood_transfer'
   | 'expense'
   | 'cc_payment'
   | 'transfer'
@@ -152,6 +166,14 @@ interface DerivedLedgerEntry {
   amount: number
   manualId?: string
   runningBalance: number
+  // For overridable paycheck-derived flows: the paycheck id and the kind so
+  // the inline date editor can call setFlowOverride for the correct row.
+  paycheckId?: string
+  overrideKind?: 'vault' | 'rent' | 'robinhood'
+  hasOverride?: boolean
+  // Carries the expense category through to the row so the renderer can
+  // render the small tinted category tag underneath the description.
+  category?: string
 }
 
 const moneyFmt = new Intl.NumberFormat('en-US', {
@@ -279,6 +301,58 @@ export function AccountsList({
   // When non-null, the form is editing an existing manual entry. When null,
   // the form is creating a fresh one.
   const [ledgerEditingId, setLedgerEditingId] = useState<string | null>(null)
+  // Inline flow-override popover state keyed by row.key so multiple popovers
+  // (vault/rent/robinhood) on different rows don't fight over a shared input.
+  const [overridePopoverKey, setOverridePopoverKey] = useState<string | null>(
+    null,
+  )
+  const [overrideDateDraft, setOverrideDateDraft] = useState<string>('')
+  const [overrideSavingKey, setOverrideSavingKey] = useState<string | null>(
+    null,
+  )
+
+  function handleSaveFlowOverride(
+    rowKey: string,
+    paycheckId: string,
+    kind: FlowKind,
+    newDate: string,
+  ) {
+    if (!newDate) {
+      toast.error('Pick a date')
+      return
+    }
+    setOverrideSavingKey(rowKey)
+    setFlowOverride({ paycheck_id: paycheckId, kind, dated_at: newDate })
+      .then((res) => {
+        if (!res.ok) {
+          toast.error(res.error ?? 'Could not save override')
+          return
+        }
+        toast.success('Date updated')
+        setOverridePopoverKey(null)
+        router.refresh()
+      })
+      .finally(() => setOverrideSavingKey(null))
+  }
+
+  function handleResetFlowOverride(
+    rowKey: string,
+    paycheckId: string,
+    kind: FlowKind,
+  ) {
+    setOverrideSavingKey(rowKey)
+    setFlowOverride({ paycheck_id: paycheckId, kind, dated_at: null })
+      .then((res) => {
+        if (!res.ok) {
+          toast.error(res.error ?? 'Could not reset override')
+          return
+        }
+        toast.success('Reset to paycheck date')
+        setOverridePopoverKey(null)
+        router.refresh()
+      })
+      .finally(() => setOverrideSavingKey(null))
+  }
 
   function openNetWorthDialog() {
     const draft: Record<string, boolean> = {}
@@ -444,13 +518,20 @@ export function AccountsList({
 
   // Stable source-ordering for the secondary sort below: arrival always wins
   // on its date so the ledger reads top-down as "you started with X, then..."
+  // The three split-out flow sources slot in between the paycheck inflow and
+  // the generic transfer/CC payment/expense rows so a single date reads
+  // intuitively top-down: arrival -> paycheck -> vault -> rent -> robinhood
+  // -> any other transfers/payments/expenses on that date.
   const sourceOrder: Record<LedgerSource, number> = {
     arrival: 0,
     paycheck: 1,
-    transfer: 2,
-    cc_payment: 3,
-    expense: 4,
-    manual: 5,
+    vault_transfer: 2,
+    rent_payment: 3,
+    robinhood_transfer: 4,
+    transfer: 5,
+    cc_payment: 6,
+    expense: 7,
+    manual: 8,
   }
 
   // Derive the full chronological ledger for the currently-open account.
@@ -493,30 +574,42 @@ export function AccountsList({
           })
         }
         if (p.vault > 0) {
+          const vaultOverride = p.flow_overrides.vault
           items.push({
             key: `pay-vault-${p.payNum}`,
-            date: p.payDate,
-            source: 'paycheck',
+            date: vaultOverride ?? p.payDate,
+            source: 'vault_transfer',
             description: 'Vault transfer to HYSA',
             amount: -p.vault,
+            paycheckId: p.id,
+            overrideKind: 'vault',
+            hasOverride: Boolean(vaultOverride),
           })
         }
         if (p.rentPaid > 0) {
+          const rentOverride = p.flow_overrides.rent
           items.push({
             key: `pay-rent-${p.payNum}`,
-            date: p.payDate,
-            source: 'paycheck',
+            date: rentOverride ?? p.payDate,
+            source: 'rent_payment',
             description: 'Rent paid',
             amount: -p.rentPaid,
+            paycheckId: p.id,
+            overrideKind: 'rent',
+            hasOverride: Boolean(rentOverride),
           })
         }
         if (p.robinhood > 0) {
+          const rhOverride = p.flow_overrides.robinhood
           items.push({
             key: `pay-rh-${p.payNum}`,
-            date: p.payDate,
-            source: 'paycheck',
+            date: rhOverride ?? p.payDate,
+            source: 'robinhood_transfer',
             description: 'Robinhood (2 weeks)',
             amount: -p.robinhood,
+            paycheckId: p.id,
+            overrideKind: 'robinhood',
+            hasOverride: Boolean(rhOverride),
           })
         }
       }
@@ -525,12 +618,18 @@ export function AccountsList({
         if (!p.received) continue
         const inflow = p.vault + p.extraDeposit
         if (inflow > 0) {
+          // Vault inflows on the HYSA mirror the Chase-side outflow date so
+          // the override applied on the Chase side propagates here too.
+          const vaultOverride = p.flow_overrides.vault
           items.push({
             key: `pay-vault-in-${p.payNum}`,
-            date: p.payDate,
-            source: 'paycheck',
+            date: vaultOverride ?? p.payDate,
+            source: 'vault_transfer',
             description: `Vault deposit (${p.employer.replace(' On-Campus', '')} ${fmtDate(p.payDate, 'short')})`,
             amount: inflow,
+            paycheckId: p.id,
+            overrideKind: 'vault',
+            hasOverride: Boolean(vaultOverride),
           })
         }
       }
@@ -540,9 +639,6 @@ export function AccountsList({
     // 3. Expenses landing on this account.
     for (const e of expenses) {
       if (e.account_id !== acctId) continue
-      const desc = e.category
-        ? `${e.description || 'Expense'} · ${e.category}`
-        : e.description || 'Expense'
       // Credit-card expenses grow outstanding balance; everywhere else they
       // drain cash. Matches the sign convention used in computeAccountStates.
       const amount = acctType === 'credit_card' ? +e.amount : -e.amount
@@ -550,8 +646,9 @@ export function AccountsList({
         key: `exp-${e.id}`,
         date: e.expense_date,
         source: 'expense',
-        description: desc,
+        description: e.description || 'Expense',
         amount,
+        category: e.category,
       })
     }
 
@@ -1478,12 +1575,18 @@ export function AccountsList({
 
           {ledgerAccount && (
             <>
-              {/* Summary row: arrival / now / projected */}
+              {/* Summary row: arrival / now / projected. Credit cards drop the
+                  PROJECTED column because the projection isn't actionable for
+                  a balance the user pays down on their own cadence. The two
+                  remaining cells get more breathing room. */}
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-                  gap: 12,
+                  gridTemplateColumns:
+                    ledgerAccount.type === 'credit_card'
+                      ? 'repeat(2, minmax(180px, 1fr))'
+                      : 'repeat(3, minmax(0, 1fr))',
+                  gap: ledgerAccount.type === 'credit_card' ? 18 : 12,
                   padding: '12px 14px',
                   borderRadius: 12,
                   border: '1px solid var(--hair)',
@@ -1496,10 +1599,12 @@ export function AccountsList({
                   value={ledgerAccount.current}
                   emphasis
                 />
-                <LedgerStat
-                  label="Projected"
-                  value={ledgerAccount.projected}
-                />
+                {ledgerAccount.type !== 'credit_card' && (
+                  <LedgerStat
+                    label="Projected"
+                    value={ledgerAccount.projected}
+                  />
+                )}
               </div>
 
               {/* Ledger table - scrolls inside */}
@@ -1551,7 +1656,16 @@ export function AccountsList({
                         </td>
                       </tr>
                     ) : (
-                      ledgerEntries.map((row) => (
+                      ledgerEntries.map((row) => {
+                        const isOverridable =
+                          (row.source === 'vault_transfer' ||
+                            row.source === 'rent_payment' ||
+                            row.source === 'robinhood_transfer') &&
+                          row.paycheckId &&
+                          row.overrideKind
+                        const overrideSavingThis =
+                          overrideSavingKey === row.key
+                        return (
                         <tr
                           key={row.key}
                           style={{
@@ -1559,27 +1673,88 @@ export function AccountsList({
                           }}
                         >
                           <LedgerTd>
-                            <span
+                            <div
                               style={{
-                                font: '500 12px var(--ui)',
-                                color: 'var(--ink-3)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                flexWrap: 'wrap',
                               }}
                             >
-                              {fmtDate(row.date, 'short')}
-                            </span>
+                              <span
+                                style={{
+                                  font: '500 12px var(--ui)',
+                                  color: 'var(--ink-3)',
+                                }}
+                              >
+                                {fmtDate(row.date, 'short')}
+                              </span>
+                              {row.hasOverride && (
+                                <span
+                                  style={{
+                                    font: '600 10px var(--ui)',
+                                    letterSpacing: '.04em',
+                                    textTransform: 'uppercase',
+                                    padding: '1px 6px',
+                                    borderRadius: 5,
+                                    background:
+                                      'color-mix(in oklch, var(--accent) 12%, transparent)',
+                                    color: 'var(--accent-ink)',
+                                  }}
+                                  title="Date moved off the paycheck date"
+                                >
+                                  edited
+                                </span>
+                              )}
+                            </div>
                           </LedgerTd>
                           <LedgerTd>
                             <LedgerSourcePill source={row.source} />
                           </LedgerTd>
                           <LedgerTd>
-                            <span
-                              style={{
-                                font: '500 13px var(--ui)',
-                                color: 'var(--ink-1)',
-                              }}
-                            >
-                              {row.description}
-                            </span>
+                            {row.source === 'expense' ? (
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 4,
+                                  alignItems: 'flex-start',
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    font: '500 13px var(--ui)',
+                                    color: 'var(--ink-1)',
+                                  }}
+                                >
+                                  {row.description}
+                                </span>
+                                {row.category && (
+                                  <span
+                                    style={{
+                                      display: 'inline-block',
+                                      font: '600 10.5px var(--ui)',
+                                      letterSpacing: '.02em',
+                                      padding: '2px 7px',
+                                      borderRadius: 5,
+                                      background: `oklch(0.7 0.2 ${hueForCategory(row.category)} / 0.18)`,
+                                      color: `oklch(0.78 0.2 ${hueForCategory(row.category)})`,
+                                    }}
+                                  >
+                                    {row.category}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span
+                                style={{
+                                  font: '500 13px var(--ui)',
+                                  color: 'var(--ink-1)',
+                                }}
+                              >
+                                {row.description}
+                              </span>
+                            )}
                           </LedgerTd>
                           <LedgerTd align="right">
                             <span
@@ -1606,7 +1781,120 @@ export function AccountsList({
                             </span>
                           </LedgerTd>
                           <LedgerTd align="right">
-                            {row.source === 'manual' && row.manualId ? (
+                            {isOverridable && row.paycheckId && row.overrideKind ? (
+                              <Popover
+                                open={overridePopoverKey === row.key}
+                                onOpenChange={(open) => {
+                                  if (open) {
+                                    setOverridePopoverKey(row.key)
+                                    setOverrideDateDraft(row.date)
+                                  } else if (!overrideSavingThis) {
+                                    setOverridePopoverKey(null)
+                                  }
+                                }}
+                              >
+                                <PopoverTrigger
+                                  render={
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon-sm"
+                                      aria-label="Edit date"
+                                      disabled={overrideSavingThis}
+                                    />
+                                  }
+                                >
+                                  {overrideSavingThis ? (
+                                    <Loader2Icon className="size-4 animate-spin" />
+                                  ) : (
+                                    <PencilIcon className="size-4" />
+                                  )}
+                                </PopoverTrigger>
+                                <PopoverContent
+                                  align="end"
+                                  className="w-64"
+                                >
+                                  <div
+                                    style={{
+                                      font: '600 11px var(--ui)',
+                                      letterSpacing: '.05em',
+                                      textTransform: 'uppercase',
+                                      color: 'var(--ink-3)',
+                                    }}
+                                  >
+                                    Move this entry
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label
+                                      htmlFor={`override-date-${row.key}`}
+                                    >
+                                      Effective date
+                                    </Label>
+                                    <Input
+                                      id={`override-date-${row.key}`}
+                                      type="date"
+                                      value={overrideDateDraft}
+                                      onChange={(e) =>
+                                        setOverrideDateDraft(e.target.value)
+                                      }
+                                      disabled={overrideSavingThis}
+                                    />
+                                  </div>
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      gap: 6,
+                                      justifyContent: 'space-between',
+                                      marginTop: 4,
+                                    }}
+                                  >
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() =>
+                                        row.paycheckId &&
+                                        row.overrideKind &&
+                                        handleResetFlowOverride(
+                                          row.key,
+                                          row.paycheckId,
+                                          row.overrideKind,
+                                        )
+                                      }
+                                      disabled={
+                                        overrideSavingThis || !row.hasOverride
+                                      }
+                                    >
+                                      Reset
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      onClick={() =>
+                                        row.paycheckId &&
+                                        row.overrideKind &&
+                                        handleSaveFlowOverride(
+                                          row.key,
+                                          row.paycheckId,
+                                          row.overrideKind,
+                                          overrideDateDraft,
+                                        )
+                                      }
+                                      disabled={overrideSavingThis}
+                                    >
+                                      {overrideSavingThis ? (
+                                        <>
+                                          <Loader2Icon className="size-4 animate-spin" />
+                                          Saving...
+                                        </>
+                                      ) : (
+                                        'Save'
+                                      )}
+                                    </Button>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            ) : row.source === 'manual' && row.manualId ? (
                               <div
                                 style={{
                                   display: 'inline-flex',
@@ -1651,7 +1939,8 @@ export function AccountsList({
                             ) : null}
                           </LedgerTd>
                         </tr>
-                      ))
+                        )
+                      })
                     )}
                   </tbody>
                 </table>
@@ -1935,7 +2224,10 @@ function LedgerTd({
 
 function LedgerSourcePill({ source }: { source: LedgerSource }) {
   // Per-source soft tints + readable label. Manual entries get a neutral
-  // "Manual" label so users can distinguish their hand-added rows.
+  // "Manual" label so users can distinguish their hand-added rows. The
+  // vault/rent/robinhood splits each pick up the same hue used elsewhere
+  // in the app (Vault = accent violet, Rent = gold, Robinhood = mint) so
+  // the ledger reads consistently with the dashboard donut + tags.
   const styleMap: Record<
     LedgerSource,
     { bg: string; fg: string; label: string }
@@ -1949,6 +2241,21 @@ function LedgerSourcePill({ source }: { source: LedgerSource }) {
       bg: 'color-mix(in oklch, var(--pos) 14%, transparent)',
       fg: 'var(--pos-ink)',
       label: 'Paycheck',
+    },
+    vault_transfer: {
+      bg: 'color-mix(in oklch, oklch(0.62 0.16 285) 16%, transparent)',
+      fg: 'oklch(0.62 0.16 285)',
+      label: 'Vault',
+    },
+    rent_payment: {
+      bg: 'color-mix(in oklch, oklch(0.62 0.16 35) 16%, transparent)',
+      fg: 'oklch(0.62 0.16 35)',
+      label: 'Rent',
+    },
+    robinhood_transfer: {
+      bg: 'color-mix(in oklch, oklch(0.62 0.16 150) 16%, transparent)',
+      fg: 'oklch(0.62 0.16 150)',
+      label: 'Robinhood',
     },
     expense: {
       bg: 'color-mix(in oklch, var(--accent) 14%, transparent)',

@@ -194,25 +194,45 @@ export default async function AccountsPage() {
     accountEntries,
   )
 
+  // Build a side map of paycheck id + per-paycheck flow_overrides so the
+  // ledger can look up overrides keyed by payNum (the computeAll-aligned key).
+  const paycheckMetaByPayNum = new Map<
+    number,
+    { id: string; flow_overrides: Record<string, string> }
+  >()
+  for (const p of paychecksRes.data ?? []) {
+    const overrides =
+      (p.flow_overrides as Record<string, string> | null) ?? {}
+    paycheckMetaByPayNum.set(p.pay_num, {
+      id: p.id,
+      flow_overrides: overrides,
+    })
+  }
+
   // Compute paycheck rows once so the ledger modal can derive per-paycheck
   // inflows/outflows without redoing the allocation math client-side.
-  const paycheckRows = computeAll(paychecks, settings).map((r) => ({
-    payNum: r.payNum,
-    payDate: String(r.payDate),
-    employer: r.employer,
-    baseNet:
-      r.received && r.actualNetWages != null
-        ? r.actualNetWages
-        : r.estimatedNet,
-    perDiem: r.perDiem,
-    reimbursement: r.reimbursement,
-    vault: r.vault,
-    extraDeposit: r.extraDeposit,
-    rentPaid: r.rentPaid,
-    robinhood: r.robinhood,
-    bofaOverflow: r.bofaOverflow,
-    received: r.received,
-  }))
+  const paycheckRows = computeAll(paychecks, settings).map((r) => {
+    const meta = paycheckMetaByPayNum.get(r.payNum)
+    return {
+      id: meta?.id ?? '',
+      payNum: r.payNum,
+      payDate: String(r.payDate),
+      employer: r.employer,
+      baseNet:
+        r.received && r.actualNetWages != null
+          ? r.actualNetWages
+          : r.estimatedNet,
+      perDiem: r.perDiem,
+      reimbursement: r.reimbursement,
+      vault: r.vault,
+      extraDeposit: r.extraDeposit,
+      rentPaid: r.rentPaid,
+      robinhood: r.robinhood,
+      bofaOverflow: r.bofaOverflow,
+      received: r.received,
+      flow_overrides: meta?.flow_overrides ?? {},
+    }
+  })
 
   const ledgerExpenseRows = expenseRowsRaw.map((e) => ({
     id: e.id,
