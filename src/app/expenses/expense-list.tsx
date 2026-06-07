@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { format, endOfWeek, startOfWeek } from 'date-fns'
-import { Loader2Icon, Receipt, Sparkles, Trash2 } from 'lucide-react'
+import { Loader2Icon, Pencil, Receipt, Sparkles, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import type { Expense } from '@/lib/types'
@@ -18,10 +18,24 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Money, Reveal, fmtMoney } from '@/components/redesign'
-import { deleteExpense, toggleReimbursable } from './expense-actions'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  deleteExpense,
+  toggleReimbursable,
+  updateExpense,
+} from './expense-actions'
 import type { AccountOption } from './add-expense-form'
 import { ExpenseCharts } from './expense-charts'
-import { hueForCategory } from './categories'
+import { EXPENSE_CATEGORIES, hueForCategory } from './categories'
 
 function parseLocalDate(iso: string): Date {
   const [y, m, d] = iso.split('-').map(Number)
@@ -90,6 +104,63 @@ export function ExpenseList({
   const [pendingDelete, setPendingDelete] = useState<Expense | null>(null)
   const [deleting, startDeleting] = useTransition()
   const [togglingId, setTogglingId] = useState<string | null>(null)
+
+  // Edit dialog state. `editing` doubles as the open flag (truthy = open)
+  // and the source of pre-fill values for the form.
+  const [editing, setEditing] = useState<Expense | null>(null)
+  const [editDate, setEditDate] = useState('')
+  const [editDescription, setEditDescription] = useState('')
+  const [editAmount, setEditAmount] = useState('')
+  const [editCategory, setEditCategory] = useState('')
+  const [editAccountId, setEditAccountId] = useState('')
+  const [editReimbursable, setEditReimbursable] = useState(false)
+  const [editPending, startEditTransition] = useTransition()
+
+  function openEdit(e: Expense) {
+    setEditing(e)
+    setEditDate(e.expense_date)
+    setEditDescription(e.description)
+    setEditAmount(String(e.amount))
+    setEditCategory(e.category || EXPENSE_CATEGORIES[0].id)
+    setEditAccountId(e.account_id ?? '')
+    setEditReimbursable(e.count_in_co_budget === false)
+  }
+
+  function handleSaveEdit() {
+    if (!editing) return
+    const amt = parseFloat(editAmount)
+    if (!Number.isFinite(amt) || amt <= 0) {
+      toast.error('Enter a valid amount')
+      return
+    }
+    if (!editDescription.trim()) {
+      toast.error('Description required')
+      return
+    }
+    if (!editAccountId) {
+      toast.error('Pick an account')
+      return
+    }
+    const id = editing.id
+    startEditTransition(async () => {
+      const res = await updateExpense({
+        id,
+        expense_date: editDate,
+        description: editDescription,
+        amount: amt,
+        category: editCategory,
+        account_id: editAccountId,
+        count_in_co_budget: !editReimbursable,
+      })
+      if (!res.ok) {
+        toast.error(res.error ?? 'Could not update')
+        return
+      }
+      toast.success('Expense updated')
+      setEditing(null)
+      router.refresh()
+    })
+  }
 
   async function handleToggleReimbursable(e: Expense) {
     const next = e.count_in_co_budget !== false
@@ -435,6 +506,17 @@ export function ExpenseList({
                             type="button"
                             size="icon-sm"
                             variant="ghost"
+                            onClick={() => openEdit(e)}
+                            aria-label="Edit expense"
+                            title="Edit expense"
+                            style={{ color: 'var(--ink-3)' }}
+                          >
+                            <Pencil className="size-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="ghost"
                             onClick={() => setPendingDelete(e)}
                             aria-label="Delete expense"
                             className="transition-colors hover:text-destructive"
@@ -487,6 +569,183 @@ export function ExpenseList({
                 </>
               ) : (
                 'Delete'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit expense dialog */}
+      <Dialog
+        open={editing !== null}
+        onOpenChange={(open) => {
+          if (!open && !editPending) setEditing(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit expense</DialogTitle>
+          </DialogHeader>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <Input
+                id="edit-description"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                disabled={editPending}
+                autoComplete="off"
+              />
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 12,
+              }}
+            >
+              <div className="space-y-2">
+                <Label htmlFor="edit-date">Date</Label>
+                <Input
+                  id="edit-date"
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  disabled={editPending}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-amount">Amount</Label>
+                <div style={{ position: 'relative' }}>
+                  <span
+                    style={{
+                      position: 'absolute',
+                      left: 12,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: 'var(--ink-3)',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    $
+                  </span>
+                  <Input
+                    id="edit-amount"
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    value={editAmount}
+                    onChange={(e) => setEditAmount(e.target.value)}
+                    disabled={editPending}
+                    style={{ paddingLeft: 24 }}
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 12,
+              }}
+            >
+              <div className="space-y-2">
+                <Label htmlFor="edit-category">Category</Label>
+                <Select
+                  value={editCategory}
+                  onValueChange={(v) => setEditCategory(String(v))}
+                  disabled={editPending}
+                >
+                  <SelectTrigger id="edit-category" className="w-full">
+                    <SelectValue placeholder="Pick a category">
+                      {(value) => {
+                        const c = EXPENSE_CATEGORIES.find(
+                          (x) => x.id === value,
+                        )
+                        return c ? c.id : 'Pick a category'
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EXPENSE_CATEGORIES.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-account">Account</Label>
+                <Select
+                  value={editAccountId}
+                  onValueChange={(v) => setEditAccountId(String(v))}
+                  disabled={editPending || accounts.length === 0}
+                >
+                  <SelectTrigger id="edit-account" className="w-full">
+                    <SelectValue placeholder="Pick an account">
+                      {(value) => {
+                        const a = accounts.find((x) => x.id === value)
+                        return a ? a.name : 'Pick an account'
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accounts.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <label
+              htmlFor="edit-reimbursable"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 12px',
+                borderRadius: 10,
+                border: '1px solid var(--hair)',
+                background: 'var(--surface-2)',
+                cursor: editPending ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <Checkbox
+                id="edit-reimbursable"
+                checked={editReimbursable}
+                onCheckedChange={(v) => setEditReimbursable(v === true)}
+                disabled={editPending}
+              />
+              <span
+                style={{
+                  font: '500 13px var(--ui)',
+                  color: 'var(--ink-2)',
+                }}
+              >
+                Reimbursable (off CO budget)
+              </span>
+            </label>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditing(null)}
+              disabled={editPending}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={editPending}>
+              {editPending ? (
+                <>
+                  <Loader2Icon className="size-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save changes'
               )}
             </Button>
           </DialogFooter>
