@@ -2,23 +2,17 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
 import {
-  ActivityIcon,
-  ArrowDownRightIcon,
-  ArrowUpRightIcon,
   CreditCardIcon,
   Loader2Icon,
   PencilIcon,
-  PlaneIcon,
-  SparklesIcon,
+  TrendingUpIcon,
+  TrendingDownIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { createClient } from '@/lib/supabase/client'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -36,9 +30,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { AnimatedNumber } from '@/components/animated-number'
-import { GradientProgress } from '@/components/gradient-progress'
-import { cn } from '@/lib/utils'
+import {
+  Money,
+  Reveal,
+  SectionLabel,
+  Donut,
+  CatDot,
+  ProgressBar,
+  fmtMoney,
+} from '@/components/redesign'
 import { payCreditCard } from './cc-payment-actions'
 
 export type AccountType = 'checking' | 'credit_card' | 'hysa'
@@ -55,24 +55,35 @@ export interface AccountStateRow {
   display_order: number
 }
 
-const money = new Intl.NumberFormat('en-US', {
+const moneyFmt = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 })
 
-const moneyWhole = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
-})
-
 function todayISO(): string {
   const d = new Date()
   const tz = d.getTimezoneOffset() * 60000
   return new Date(d.getTime() - tz).toISOString().slice(0, 10)
+}
+
+// Hue lookup keyed by readable substrings of account names. Falls back to
+// neutral blue if no match (kept in sync with the design handoff palette).
+function hueForAccount(name: string, type: AccountType, isVault: boolean): number {
+  const n = name.toLowerCase()
+  if (type === 'credit_card') return 25
+  if (isVault || type === 'hysa' || n.includes('marcus') || n.includes('hysa')) return 285
+  if (n.includes('bofa') || n.includes('bank of america')) return 200
+  if (n.includes('chase')) return 235
+  return 235
+}
+
+function hueForTag(tag: string): number {
+  if (tag === 'Vault' || tag === 'HYSA') return 285
+  if (tag === 'Credit Card') return 25
+  if (tag === 'Paycheck') return 150
+  return 235
 }
 
 function typeLabel(t: AccountType): string {
@@ -83,17 +94,6 @@ function typeLabel(t: AccountType): string {
       return 'Credit Card'
     case 'hysa':
       return 'HYSA'
-  }
-}
-
-function typeBadgeClass(t: AccountType): string {
-  switch (t) {
-    case 'checking':
-      return 'bg-blue-500/15 text-blue-700 hover:bg-blue-500/20 dark:text-blue-300'
-    case 'credit_card':
-      return 'bg-rose-500/15 text-rose-700 hover:bg-rose-500/20 dark:text-rose-300'
-    case 'hysa':
-      return 'bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300'
   }
 }
 
@@ -130,7 +130,6 @@ export function AccountsList({ states, vaultCap }: Props) {
   function openPayDialog(cc: AccountStateRow) {
     setPaying(cc)
     setPayFromId(defaultFromAccount?.id ?? '')
-    // Default amount: the CC's current outstanding (rounded to 2 decimals)
     setPayAmount(cc.current > 0 ? cc.current.toFixed(2) : '0.00')
     setPayDate(todayISO())
   }
@@ -163,13 +162,13 @@ export function AccountsList({ states, vaultCap }: Props) {
         toast.error(res.error ?? 'Could not record payment')
         return
       }
-      toast.success(`Paid ${money.format(amount)} to ${ccName}`)
+      toast.success(`Paid ${moneyFmt.format(amount)} to ${ccName}`)
       setPaying(null)
       router.refresh()
     })
   }
 
-  const summerCash = useMemo(() => {
+  const summary = useMemo(() => {
     let arrivalCash = 0
     let arrivalDebt = 0
     let projectedCash = 0
@@ -198,6 +197,17 @@ export function AccountsList({ states, vaultCap }: Props) {
     }
   }, [states])
 
+  const composition = useMemo(() => {
+    const assets = states.filter((s) => s.type !== 'credit_card')
+    const items = assets.map((a) => ({
+      label: a.name,
+      hue: hueForAccount(a.name, a.type, a.is_vault),
+      total: Math.max(0, a.current),
+    }))
+    const total = items.reduce((s, c) => s + c.total, 0)
+    return { items, total }
+  }, [states])
+
   async function handleSave() {
     if (!editing) return
     const parsed = parseFloat(editValue)
@@ -223,361 +233,117 @@ export function AccountsList({ states, vaultCap }: Props) {
     }
   }
 
-  const gained = summerCash.delta >= 0
+  const gained = summary.delta >= 0
 
   return (
-    <div className="space-y-6">
-      {/* Three hero stat cards: Past / Present / Future */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {/* At Arrival */}
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-        >
-          <Card className="h-full bg-muted/40 ring-1 ring-foreground/10 transition-shadow hover:shadow-md">
-            <CardContent className="space-y-1.5">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <PlaneIcon className="size-4" />
-                <p className="text-xs uppercase tracking-wide">At Arrival</p>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Came to Colorado with
-              </p>
-              <div className="text-2xl font-semibold tabular-nums sm:text-3xl">
-                <AnimatedNumber
-                  value={summerCash.arrivalNet}
-                  format={money.format}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Right Now */}
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.05 }}
-        >
-          <Card className="h-full bg-gradient-to-br from-primary/15 via-primary/5 to-transparent ring-1 ring-primary/30 transition-shadow hover:shadow-lg">
-            <CardContent className="space-y-1.5">
-              <div className="flex items-center gap-2 text-primary">
-                <ActivityIcon className="size-4" />
-                <p className="text-xs uppercase tracking-wide">Right Now</p>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Live net worth today
-              </p>
-              <div
-                className={cn(
-                  'text-3xl font-semibold tabular-nums sm:text-4xl',
-                  summerCash.currentNet >= 0
-                    ? 'text-primary'
-                    : 'text-rose-600 dark:text-rose-400',
-                )}
-              >
-                <AnimatedNumber
-                  value={summerCash.currentNet}
-                  format={money.format}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Leaving With (Projected) */}
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-        >
-          <Card
-            className={cn(
-              'h-full ring-1 transition-shadow hover:shadow-md',
-              gained
-                ? 'bg-emerald-500/10 ring-emerald-500/30'
-                : 'bg-amber-500/10 ring-amber-500/30',
-            )}
-          >
-            <CardContent className="space-y-1.5">
-              <div
-                className={cn(
-                  'flex items-center gap-2',
-                  gained
-                    ? 'text-emerald-700 dark:text-emerald-300'
-                    : 'text-amber-700 dark:text-amber-300',
-                )}
-              >
-                <SparklesIcon className="size-4" />
-                <p className="text-xs uppercase tracking-wide">
-                  Leaving With (Projected)
-                </p>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Net worth at summer&apos;s end
-              </p>
-              <div className="text-2xl font-semibold tabular-nums sm:text-3xl">
-                <AnimatedNumber
-                  value={summerCash.projectedNet}
-                  format={money.format}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* 3 net cards: arrival / now / projected */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          gap: 14,
+        }}
+      >
+        <Reveal>
+          <NetCard
+            label="At arrival"
+            sub="Came to Colorado with"
+            value={summary.arrivalNet}
+          />
+        </Reveal>
+        <Reveal delay={50}>
+          <NetCard
+            label="Right now"
+            sub="Live net worth today"
+            value={summary.currentNet}
+            big
+          />
+        </Reveal>
+        <Reveal delay={100}>
+          <NetCard
+            label="Leaving with (projected)"
+            sub="Net worth at summer's end"
+            value={summary.projectedNet}
+            accent
+          />
+        </Reveal>
       </div>
 
-      {/* Delta line */}
-      <motion.div
-        initial={{ opacity: 0, y: -4 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.15 }}
-        className="flex items-center justify-center gap-2"
-      >
-        <span
-          className={cn(
-            'inline-flex',
-            gained
-              ? 'text-emerald-600 dark:text-emerald-400'
-              : 'text-rose-600 dark:text-rose-400',
-          )}
-        >
-          {gained ? (
-            <ArrowUpRightIcon className="size-4" />
-          ) : (
-            <ArrowDownRightIcon className="size-4" />
-          )}
-        </span>
-        <p
-          className={cn(
-            'text-sm font-medium tabular-nums',
-            gained
-              ? 'text-emerald-700 dark:text-emerald-300'
-              : 'text-rose-700 dark:text-rose-300',
-          )}
-        >
-          Net change over the summer:{' '}
-          <span className="font-semibold">
-            {gained ? '+' : '−'}
-            {money.format(Math.abs(summerCash.delta))}
+      {/* Centered net change line */}
+      <Reveal delay={150}>
+        <div style={{ textAlign: 'center' }}>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 7,
+              font: '600 14px var(--ui)',
+              color: gained ? 'var(--pos-ink)' : 'var(--accent-ink)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {gained ? (
+              <TrendingUpIcon size={16} />
+            ) : (
+              <TrendingDownIcon size={16} />
+            )}
+            Net change over the summer: {gained ? '+' : '−'}
+            {fmtMoney(Math.abs(summary.delta), { cents: true })}
           </span>
-        </p>
-      </motion.div>
-
-      {/* Per Account section */}
-      <div className="space-y-3">
-        <div className="space-y-0.5">
-          <h2 className="text-base font-semibold">Per Account</h2>
-          <p className="text-xs text-muted-foreground">
-            Each account&apos;s journey from arrival through today to the
-            projected end of summer.
-          </p>
         </div>
+      </Reveal>
 
+      {/* Composition chart */}
+      {composition.items.length > 0 && composition.total > 0 && (
+        <Reveal delay={200}>
+          <CompositionCard
+            items={composition.items}
+            total={composition.total}
+          />
+        </Reveal>
+      )}
+
+      {/* Per account journey */}
+      <div>
+        <SectionLabel>
+          Per account · journey from arrival to projected end
+        </SectionLabel>
         {states.length === 0 ? (
-          <Card>
-            <CardContent>
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                No accounts yet. Seed them via the database.
-              </p>
-            </CardContent>
-          </Card>
+          <div
+            className="card fx-card"
+            style={{
+              padding: 24,
+              borderRadius: 'var(--radius)',
+              background: 'var(--surface)',
+              border: '1px solid var(--hair)',
+              textAlign: 'center',
+              color: 'var(--ink-3)',
+              font: '500 13.5px var(--ui)',
+            }}
+          >
+            No accounts yet. Seed them via the database.
+          </div>
         ) : (
-          <ul className="space-y-3">
-            {states.map((s, i) => {
-              const isCC = s.type === 'credit_card'
-              const isVault = s.is_vault
-              const vaultPct =
-                isVault && vaultCap > 0
-                  ? Math.min(100, (s.current / vaultCap) * 100)
-                  : 0
-              const deltaFromNow = s.projected - s.current
-              const deltaGained = deltaFromNow >= 0
-              // For credit cards, "good" means debt went DOWN — so the
-              // arrow + color reflect cash-side intuition (lower CC = good).
-              const deltaIsGoodForUser = isCC
-                ? deltaFromNow <= 0
-                : deltaFromNow >= 0
-              return (
-                <motion.li
-                  key={s.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 + i * 0.06, duration: 0.4 }}
-                >
-                  <Card className="transition-shadow hover:shadow-md">
-                    <CardContent className="space-y-4">
-                      {/* Header row */}
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="truncate text-sm font-medium">
-                              {s.name}
-                            </span>
-                            <Badge
-                              className={cn(
-                                'font-normal',
-                                typeBadgeClass(s.type),
-                              )}
-                            >
-                              {typeLabel(s.type)}
-                            </Badge>
-                            {s.is_paycheck_destination && (
-                              <Badge
-                                variant="outline"
-                                className="font-normal"
-                              >
-                                Paycheck
-                              </Badge>
-                            )}
-                            {s.is_vault && (
-                              <Badge
-                                variant="outline"
-                                className="font-normal"
-                              >
-                                Vault
-                              </Badge>
-                            )}
-                          </div>
-                          {isCC && (
-                            <p className="text-xs text-muted-foreground">
-                              Values shown are outstanding balance
-                            </p>
-                          )}
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`Edit ${s.name} arrival balance`}
-                          onClick={() => {
-                            setEditing(s)
-                            setEditValue(String(s.arrival))
-                          }}
-                          className="transition-colors"
-                        >
-                          <PencilIcon className="size-4" />
-                        </Button>
-                      </div>
-
-                      {/* 3-stage horizontal strip */}
-                      <div className="grid grid-cols-3 gap-3 border-t pt-3">
-                        {/* At Arrival */}
-                        <div className="space-y-1">
-                          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                            At Arrival
-                          </p>
-                          <div
-                            className={cn(
-                              'text-base font-medium tabular-nums sm:text-lg',
-                              isCC && 'text-destructive',
-                            )}
-                          >
-                            <AnimatedNumber
-                              value={s.arrival}
-                              format={money.format}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Right Now (focal) */}
-                        <div className="space-y-1">
-                          <p className="text-[11px] uppercase tracking-wide text-primary">
-                            Right Now
-                          </p>
-                          <div
-                            className={cn(
-                              'text-2xl font-semibold tabular-nums sm:text-3xl',
-                              isCC ? 'text-destructive' : 'text-primary',
-                            )}
-                          >
-                            <AnimatedNumber
-                              value={s.current}
-                              format={money.format}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Projected End */}
-                        <div className="space-y-1">
-                          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                            Projected End
-                          </p>
-                          <div
-                            className={cn(
-                              'text-base font-medium tabular-nums sm:text-lg',
-                              isCC && 'text-destructive',
-                            )}
-                          >
-                            <AnimatedNumber
-                              value={s.projected}
-                              format={money.format}
-                            />
-                          </div>
-                          <div className="flex items-center gap-1 text-[11px] tabular-nums">
-                            <span
-                              className={cn(
-                                'inline-flex items-center',
-                                deltaIsGoodForUser
-                                  ? 'text-emerald-600 dark:text-emerald-400'
-                                  : 'text-rose-600 dark:text-rose-400',
-                              )}
-                            >
-                              {deltaGained ? (
-                                <ArrowUpRightIcon className="size-3" />
-                              ) : (
-                                <ArrowDownRightIcon className="size-3" />
-                              )}
-                              {deltaGained ? '+' : '−'}
-                              {money.format(Math.abs(deltaFromNow))}
-                            </span>
-                            <span className="text-muted-foreground">
-                              from now
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {isCC && (
-                        <div className="border-t pt-3">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openPayDialog(s)}
-                            className="w-full sm:w-auto"
-                          >
-                            <CreditCardIcon className="size-4" />
-                            Pay credit card
-                          </Button>
-                        </div>
-                      )}
-
-                      {isVault && vaultCap > 0 && (
-                        <div className="space-y-1.5 border-t pt-3">
-                          <div className="flex items-center justify-between text-xs text-muted-foreground tabular-nums">
-                            <span>Goal</span>
-                            <span>
-                              {money.format(s.current)} of{' '}
-                              {moneyWhole.format(vaultCap)}
-                            </span>
-                          </div>
-                          <GradientProgress percent={vaultPct} height="h-2" />
-                          <p className="text-[11px] text-muted-foreground tabular-nums">
-                            {vaultPct.toFixed(1)}% funded
-                          </p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </motion.li>
-              )
-            })}
-          </ul>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {states.map((s, i) => (
+              <Reveal key={s.id} delay={i * 60}>
+                <AccountCard
+                  account={s}
+                  vaultCap={vaultCap}
+                  onEdit={() => {
+                    setEditing(s)
+                    setEditValue(String(s.arrival))
+                  }}
+                  onPayCC={() => openPayDialog(s)}
+                />
+              </Reveal>
+            ))}
+          </div>
         )}
       </div>
 
+      {/* Edit arrival dialog */}
       <Dialog
         open={editing !== null}
         onOpenChange={(open) => {
@@ -634,6 +400,7 @@ export function AccountsList({ states, vaultCap }: Props) {
         </DialogContent>
       </Dialog>
 
+      {/* Pay credit card dialog */}
       <Dialog
         open={paying !== null}
         onOpenChange={(open) => {
@@ -714,12 +481,376 @@ export function AccountsList({ states, vaultCap }: Props) {
                   Paying...
                 </>
               ) : (
-                `Pay ${money.format(parseFloat(payAmount) || 0)}`
+                `Pay ${moneyFmt.format(parseFloat(payAmount) || 0)}`
               )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+type NetCardProps = {
+  label: string
+  sub: string
+  value: number
+  big?: boolean
+  accent?: boolean
+}
+
+function NetCard({ label, sub, value, big, accent }: NetCardProps) {
+  return (
+    <div
+      className="card fx-card"
+      style={{
+        padding: 20,
+        height: '100%',
+        borderRadius: 'var(--radius)',
+        border: accent
+          ? '1px solid color-mix(in oklch, var(--pos) 40%, var(--hair))'
+          : '1px solid var(--hair)',
+        background: accent
+          ? 'color-mix(in oklch, var(--pos) 7%, var(--surface))'
+          : 'var(--surface)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+        minWidth: 0,
+      }}
+    >
+      <div
+        style={{
+          font: '600 11px var(--ui)',
+          letterSpacing: '.06em',
+          textTransform: 'uppercase',
+          color: 'var(--ink-3)',
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          font: '500 12.5px var(--ui)',
+          color: 'var(--ink-3)',
+          marginBottom: 8,
+        }}
+      >
+        {sub}
+      </div>
+      <div
+        style={{
+          font: `600 ${big ? 34 : 30}px/1 var(--display)`,
+          letterSpacing: '-.02em',
+          color: accent ? 'var(--pos-ink)' : 'var(--ink-1)',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        <Money value={value} cents dur={1300} />
+      </div>
+    </div>
+  )
+}
+
+type CompositionCardProps = {
+  items: { label: string; hue: number; total: number }[]
+  total: number
+}
+
+function CompositionCard({ items, total }: CompositionCardProps) {
+  return (
+    <div
+      className="card fx-card"
+      style={{
+        padding: 22,
+        borderRadius: 'var(--radius)',
+        background: 'var(--surface)',
+        border: '1px solid var(--hair)',
+      }}
+    >
+      <SectionLabel
+        right={
+          <span style={{ font: '500 12px var(--ui)', color: 'var(--ink-3)' }}>
+            {fmtMoney(total)} in assets
+          </span>
+        }
+      >
+        Composition right now
+      </SectionLabel>
+      <div
+        style={{
+          display: 'flex',
+          gap: 28,
+          alignItems: 'center',
+          flexWrap: 'wrap',
+        }}
+      >
+        <Donut data={items} size={170} stroke={26} />
+        <div
+          style={{
+            flex: 1,
+            minWidth: 220,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          {items.map((c) => (
+            <div
+              key={c.label}
+              style={{ display: 'flex', alignItems: 'center', gap: 11 }}
+            >
+              <CatDot hue={c.hue} />
+              <span
+                style={{
+                  flex: 1,
+                  font: '600 13.5px var(--ui)',
+                  color: 'var(--ink-1)',
+                }}
+              >
+                {c.label}
+              </span>
+              <span
+                style={{
+                  font: '600 13.5px var(--display)',
+                  color: 'var(--ink-2)',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {fmtMoney(c.total, { cents: true })}
+              </span>
+              <span
+                style={{
+                  width: 42,
+                  textAlign: 'right',
+                  font: '500 12.5px var(--ui)',
+                  color: 'var(--ink-3)',
+                }}
+              >
+                {Math.round((c.total / total) * 100)}%
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+type AccountCardProps = {
+  account: AccountStateRow
+  vaultCap: number
+  onEdit: () => void
+  onPayCC: () => void
+}
+
+function AccountCard({ account, vaultCap, onEdit, onPayCC }: AccountCardProps) {
+  const isCredit = account.type === 'credit_card'
+  const isVault = account.is_vault
+  const delta = account.projected - account.current
+  const goalActive = isVault && vaultCap > 0
+  const goalPct = goalActive
+    ? Math.max(0, Math.min(1, account.current / vaultCap))
+    : 0
+
+  const tags: string[] = []
+  tags.push(typeLabel(account.type))
+  if (account.is_paycheck_destination) tags.push('Paycheck')
+  if (isVault && account.type !== 'hysa') tags.push('Vault')
+
+  return (
+    <div
+      className="card fx-card"
+      style={{
+        padding: '18px 24px',
+        borderRadius: 'var(--radius)',
+        background: 'var(--surface)',
+        border: '1px solid var(--hair)',
+      }}
+    >
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: isCredit
+            ? 'minmax(220px,1.6fr) 1fr 1fr auto'
+            : 'minmax(220px,1.5fr) 1fr 1fr 1fr auto',
+          gap: 18,
+          alignItems: 'center',
+        }}
+      >
+        {/* Identity + optional goal bar */}
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              flexWrap: 'wrap',
+            }}
+          >
+            <span
+              style={{
+                font: '600 16px var(--ui)',
+                color: 'var(--ink-1)',
+              }}
+            >
+              {account.name}
+            </span>
+            {tags.map((t) => {
+              const hue = hueForTag(t)
+              return (
+                <span
+                  key={t}
+                  style={{
+                    font: '600 11px var(--ui)',
+                    padding: '2px 8px',
+                    borderRadius: 6,
+                    background: `color-mix(in oklch, oklch(0.62 0.16 ${hue}) 16%, transparent)`,
+                    color: `oklch(0.62 0.16 ${hue})`,
+                  }}
+                >
+                  {t}
+                </span>
+              )
+            })}
+          </div>
+          {isCredit && (
+            <div
+              style={{
+                font: '500 12px var(--ui)',
+                color: 'var(--ink-4)',
+                marginTop: 6,
+              }}
+            >
+              Outstanding balance
+            </div>
+          )}
+          {goalActive && (
+            <div style={{ marginTop: 13 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  font: '500 11.5px var(--ui)',
+                  color: 'var(--ink-3)',
+                  marginBottom: 6,
+                }}
+              >
+                <span style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>
+                  {(goalPct * 100).toFixed(1)}% funded
+                </span>
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {fmtMoney(account.current, { cents: true })} /{' '}
+                  {fmtMoney(vaultCap)}
+                </span>
+              </div>
+              <ProgressBar pct={goalPct} />
+            </div>
+          )}
+        </div>
+
+        <Stage label="At arrival" value={account.arrival} />
+        <Stage
+          label="Right now"
+          value={account.current}
+          big
+          credit={isCredit}
+        />
+        {!isCredit && (
+          <Stage label="Projected end" value={account.projected} delta={delta} />
+        )}
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            justifySelf: 'end',
+          }}
+        >
+          {isCredit && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onPayCC}
+            >
+              <CreditCardIcon className="size-4" />
+              Pay credit card
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Edit ${account.name} arrival balance`}
+            onClick={onEdit}
+          >
+            <PencilIcon className="size-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+type StageProps = {
+  label: string
+  value: number
+  big?: boolean
+  delta?: number
+  credit?: boolean
+}
+
+function Stage({ label, value, big, delta, credit }: StageProps) {
+  const gained = (delta ?? 0) > 0
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div
+        style={{
+          font: '600 10.5px var(--ui)',
+          letterSpacing: '.05em',
+          textTransform: 'uppercase',
+          color: 'var(--ink-3)',
+          marginBottom: 5,
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          font: `600 ${big ? 24 : 16}px var(--display)`,
+          letterSpacing: big ? '-.02em' : 0,
+          color: credit
+            ? 'var(--accent-ink)'
+            : big
+              ? 'var(--ink-1)'
+              : 'var(--ink-2)',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        <Money value={value} cents dur={big ? 1200 : 900} />
+      </div>
+      {delta != null && (
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 3,
+            marginTop: 5,
+            font: '600 11.5px var(--ui)',
+            color: gained ? 'var(--pos-ink)' : 'var(--ink-4)',
+          }}
+        >
+          {gained ? (
+            <TrendingUpIcon size={12} />
+          ) : (
+            <TrendingDownIcon size={12} />
+          )}
+          {delta > 0 ? '+' : ''}
+          {fmtMoney(delta)} from now
+        </div>
+      )}
     </div>
   )
 }

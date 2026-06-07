@@ -9,6 +9,7 @@ import {
   type Employer,
   type Settings,
 } from '@/lib/calc'
+import { PageHeader } from '@/components/redesign'
 import { AccountsList, type AccountStateRow } from './accounts-list'
 
 export const dynamic = 'force-dynamic'
@@ -134,16 +135,11 @@ export default async function AccountsPage() {
   }))
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8 space-y-4">
-      <div className="space-y-1">
-        <h1 className="bg-gradient-to-r from-emerald-500 via-indigo-500 to-fuchsia-500 bg-clip-text text-3xl font-semibold tracking-tight text-transparent">
-          Accounts
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Live balances derived from paychecks + expenses. Arrival balances
-          anchor the math.
-        </p>
-      </div>
+    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+      <PageHeader
+        title="Accounts"
+        subtitle="Live balances derived from paychecks + expenses. Arrival balances anchor the math."
+      />
       <AccountsList states={stateRows} vaultCap={settings.vaultCap} />
     </div>
   )
