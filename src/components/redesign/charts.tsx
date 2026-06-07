@@ -424,7 +424,7 @@ export function AreaChart({
                       <stop
                         offset="0%"
                         stopColor={s.color}
-                        stopOpacity="0.28"
+                        stopOpacity="0.45"
                       />
                       <stop offset="100%" stopColor={s.color} stopOpacity="0" />
                     </linearGradient>
@@ -509,8 +509,7 @@ export function AreaChart({
               y1={pad}
               y2={pad + innerH}
               stroke="var(--ink-3)"
-              strokeOpacity="0.4"
-              strokeDasharray="3 4"
+              strokeOpacity="0.22"
               strokeWidth="1"
             />
             {series.map((s, si) => {
