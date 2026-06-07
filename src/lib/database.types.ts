@@ -20,6 +20,7 @@ export type Database = {
           created_at: string
           display_order: number
           id: string
+          include_in_net_worth: boolean
           is_paycheck_destination: boolean
           is_vault: boolean
           name: string
@@ -32,6 +33,7 @@ export type Database = {
           created_at?: string
           display_order?: number
           id?: string
+          include_in_net_worth?: boolean
           is_paycheck_destination?: boolean
           is_vault?: boolean
           name: string
@@ -44,6 +46,7 @@ export type Database = {
           created_at?: string
           display_order?: number
           id?: string
+          include_in_net_worth?: boolean
           is_paycheck_destination?: boolean
           is_vault?: boolean
           name?: string

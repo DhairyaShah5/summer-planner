@@ -1,5 +1,6 @@
 'use client'
 
+import * as React from 'react'
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -45,6 +46,8 @@ import {
 } from '@/components/redesign'
 import { payCreditCard } from './cc-payment-actions'
 import { logTransfer } from './transfer-actions'
+import { updateNetWorthInclusion } from './net-worth-actions'
+import { Checkbox } from '@/components/ui/checkbox'
 
 export type AccountType = 'checking' | 'credit_card' | 'hysa'
 
@@ -64,6 +67,7 @@ export interface AccountStateRow {
   is_paycheck_destination: boolean
   is_vault: boolean
   display_order: number
+  include_in_net_worth: boolean
 }
 
 export interface TransferRow {
@@ -164,6 +168,45 @@ export function AccountsList({ states, vaultCap, transfers }: Props) {
   const [transferDate, setTransferDate] = useState<string>(todayISO())
   const [transferNote, setTransferNote] = useState<string>('')
   const [transferPending, startTransferTransition] = useTransition()
+
+  // Net-worth customization dialog state. Draft holds the in-flight toggles
+  // so the user can flip several before committing on Save.
+  const [netWorthOpen, setNetWorthOpen] = useState(false)
+  const [netWorthDraft, setNetWorthDraft] = useState<Record<string, boolean>>(
+    {},
+  )
+  const [netWorthSaving, startNetWorthTransition] = useTransition()
+
+  function openNetWorthDialog() {
+    const draft: Record<string, boolean> = {}
+    for (const s of states) draft[s.id] = s.include_in_net_worth
+    setNetWorthDraft(draft)
+    setNetWorthOpen(true)
+  }
+
+  function toggleNetWorthDraft(id: string) {
+    setNetWorthDraft((prev) => ({ ...prev, [id]: !(prev[id] ?? true) }))
+  }
+
+  function saveNetWorthSelections() {
+    const selections = states
+      .filter((s) => (netWorthDraft[s.id] ?? true) !== s.include_in_net_worth)
+      .map((s) => ({ id: s.id, include: netWorthDraft[s.id] ?? true }))
+    if (selections.length === 0) {
+      setNetWorthOpen(false)
+      return
+    }
+    startNetWorthTransition(async () => {
+      const res = await updateNetWorthInclusion(selections)
+      if (!res.ok) {
+        toast.error(res.error ?? 'Could not save')
+        return
+      }
+      toast.success('Net worth selection updated')
+      setNetWorthOpen(false)
+      router.refresh()
+    })
+  }
 
   const checkingAccounts = useMemo(
     () => states.filter((s) => s.type === 'checking'),
@@ -300,7 +343,12 @@ export function AccountsList({ states, vaultCap, transfers }: Props) {
     let projectedDebt = 0
     let currentCash = 0
     let currentDebt = 0
+    let excludedCount = 0
     for (const s of states) {
+      if (!s.include_in_net_worth) {
+        excludedCount++
+        continue
+      }
       if (s.type === 'credit_card') {
         arrivalDebt += s.arrival
         projectedDebt += s.projected
@@ -319,6 +367,7 @@ export function AccountsList({ states, vaultCap, transfers }: Props) {
       projectedNet,
       currentNet,
       delta: projectedNet - arrivalNet,
+      excludedCount,
     }
   }, [states])
 
@@ -381,7 +430,8 @@ export function AccountsList({ states, vaultCap, transfers }: Props) {
         </Button>
       </div>
 
-      {/* 3 net cards: arrival / now / projected */}
+      {/* 3 net cards: arrival / now / projected. Each opens the
+          net-worth customization dialog when clicked. */}
       <div
         style={{
           display: 'grid',
@@ -390,29 +440,49 @@ export function AccountsList({ states, vaultCap, transfers }: Props) {
         }}
       >
         <Reveal>
-          <NetCard
-            label="At arrival"
-            sub="Came to Colorado with"
-            value={summary.arrivalNet}
-          />
+          <NetWorthCardButton onClick={openNetWorthDialog}>
+            <NetCard
+              label="At arrival"
+              sub="Came to Colorado with"
+              value={summary.arrivalNet}
+            />
+          </NetWorthCardButton>
         </Reveal>
         <Reveal delay={50}>
-          <NetCard
-            label="Right now"
-            sub="Live net worth today"
-            value={summary.currentNet}
-            big
-          />
+          <NetWorthCardButton onClick={openNetWorthDialog}>
+            <NetCard
+              label="Right now"
+              sub="Live net worth today"
+              value={summary.currentNet}
+              big
+            />
+          </NetWorthCardButton>
         </Reveal>
         <Reveal delay={100}>
-          <NetCard
-            label="Leaving with (projected)"
-            sub="Net worth at summer's end"
-            value={summary.projectedNet}
-            accent
-          />
+          <NetWorthCardButton onClick={openNetWorthDialog}>
+            <NetCard
+              label="Leaving with (projected)"
+              sub="Net worth at summer's end"
+              value={summary.projectedNet}
+              accent
+            />
+          </NetWorthCardButton>
         </Reveal>
       </div>
+      {summary.excludedCount > 0 && (
+        <p
+          style={{
+            margin: '-10px 0 0',
+            textAlign: 'center',
+            font: '500 12px var(--ui)',
+            color: 'var(--ink-3)',
+          }}
+        >
+          {summary.excludedCount} account
+          {summary.excludedCount === 1 ? '' : 's'} excluded from net worth.
+          Click any card to adjust.
+        </p>
+      )}
 
       {/* Centered net change line */}
       <Reveal delay={150}>
@@ -872,7 +942,132 @@ export function AccountsList({ states, vaultCap, transfers }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Net worth customization dialog */}
+      <Dialog
+        open={netWorthOpen}
+        onOpenChange={(open) => {
+          if (!open && !netWorthSaving) setNetWorthOpen(false)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Customize net worth</DialogTitle>
+            <DialogDescription>
+              Pick the accounts that count toward your net worth. Toggles
+              persist across devices.
+            </DialogDescription>
+          </DialogHeader>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {states.map((s) => {
+              const checked = netWorthDraft[s.id] ?? true
+              const isCC = s.type === 'credit_card'
+              return (
+                <label
+                  key={s.id}
+                  htmlFor={`nw-${s.id}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '12px 14px',
+                    borderRadius: 12,
+                    border: '1px solid var(--hair)',
+                    background: checked
+                      ? 'color-mix(in oklch, var(--accent) 7%, transparent)'
+                      : 'transparent',
+                    cursor: 'pointer',
+                    transition: 'background .15s, border-color .15s',
+                  }}
+                >
+                  <Checkbox
+                    id={`nw-${s.id}`}
+                    checked={checked}
+                    onCheckedChange={() => toggleNetWorthDraft(s.id)}
+                    disabled={netWorthSaving}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        font: '600 14px var(--ui)',
+                        color: 'var(--ink-1)',
+                      }}
+                    >
+                      {s.name}
+                    </div>
+                    <div
+                      style={{
+                        font: '500 11.5px var(--ui)',
+                        color: 'var(--ink-3)',
+                        marginTop: 2,
+                      }}
+                    >
+                      {typeLabel(s.type)} · current{' '}
+                      {fmtMoney(s.current, { cents: true })}
+                    </div>
+                  </div>
+                  <span
+                    style={{
+                      font: '600 13px var(--display)',
+                      color: isCC ? 'var(--accent-ink)' : 'var(--ink-2)',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {isCC && s.current > 0 ? '-' : ''}
+                    {fmtMoney(s.current, { cents: true })}
+                  </span>
+                </label>
+              )
+            })}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setNetWorthOpen(false)}
+              disabled={netWorthSaving}
+            >
+              Cancel
+            </Button>
+            <Button onClick={saveNetWorthSelections} disabled={netWorthSaving}>
+              {netWorthSaving ? (
+                <>
+                  <Loader2Icon className="size-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save selection'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+  )
+}
+
+function NetWorthCardButton({
+  children,
+  onClick,
+}: {
+  children: React.ReactNode
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Customize net worth"
+      style={{
+        all: 'unset',
+        display: 'block',
+        height: '100%',
+        width: '100%',
+        cursor: 'pointer',
+        borderRadius: 'var(--radius)',
+      }}
+    >
+      {children}
+    </button>
   )
 }
 

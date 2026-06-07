@@ -161,6 +161,10 @@ export default async function AccountsPage() {
     transfers,
   )
 
+  const includeMap = new Map<string, boolean>(
+    (accountsRes.data ?? []).map((a) => [a.id, a.include_in_net_worth ?? true]),
+  )
+
   const stateRows: AccountStateRow[] = states.map((s) => ({
     id: s.account.id,
     name: s.account.name,
@@ -171,6 +175,7 @@ export default async function AccountsPage() {
     is_paycheck_destination: s.account.is_paycheck_destination,
     is_vault: s.account.is_vault,
     display_order: s.account.display_order,
+    include_in_net_worth: includeMap.get(s.account.id) ?? true,
   }))
 
   return (
