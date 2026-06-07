@@ -13,6 +13,7 @@ import {
   type AccountInput,
   type ExpenseInput,
   type CCPaymentInput,
+  type TransferInput,
 } from "@/lib/calc";
 import type { Expense } from "@/lib/types";
 import type { AllocationDatum } from "@/components/allocation-breakdown";
@@ -107,6 +108,7 @@ export default async function DashboardPage() {
     accountsRes,
     allExpensesRes,
     ccPaymentsRes,
+    transfersRes,
   ] = await Promise.all([
     supabase
       .from("expenses")
@@ -129,6 +131,11 @@ export default async function DashboardPage() {
     supabase
       .from("cc_payments")
       .select("id, paid_at, from_account_id, to_account_id, amount"),
+    supabase
+      .from("transfers")
+      .select(
+        "id, transferred_at, from_account_id, to_account_id, amount, kind",
+      ),
   ]);
 
   const recentExpenses: Expense[] = (recentExpensesRes.data ?? []).map((e) => ({
@@ -171,12 +178,22 @@ export default async function DashboardPage() {
     }),
   );
 
+  const transferInputs: TransferInput[] = (transfersRes.data ?? []).map((t) => ({
+    id: t.id,
+    transferred_at: t.transferred_at,
+    from_account_id: t.from_account_id,
+    to_account_id: t.to_account_id,
+    amount: Number(t.amount),
+    kind: t.kind as TransferInput['kind'],
+  }));
+
   const accountStates = computeAccountStates(
     accountInputs,
     inputs,
     expenseInputs,
     settings,
     ccPaymentInputs,
+    transferInputs,
   );
 
   const accountsPreview = accountStates.slice(0, 3).map((s) => ({
