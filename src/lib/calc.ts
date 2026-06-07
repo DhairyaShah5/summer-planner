@@ -302,6 +302,14 @@ export interface TransferInput {
   kind: 'manual' | 'rollover_sweep' | 'per_diem_to_bofa' | 'ot_to_bofa'
 }
 
+export interface AccountEntryInput {
+  id: string
+  account_id: string
+  dated_at: string
+  amount: number
+  description: string
+}
+
 export interface AccountState {
   account: AccountInput
   arrival: number
@@ -327,6 +335,7 @@ export function computeAccountStates(
   settings: Settings,
   ccPayments: CCPaymentInput[] = [],
   transfers: TransferInput[] = [],
+  accountEntries: AccountEntryInput[] = [],
 ): AccountState[] {
   const computed = computeAll(paychecks, settings)
   const todayISO = new Date().toISOString().slice(0, 10)
@@ -442,6 +451,16 @@ export function computeAccountStates(
       if (delta === 0) continue
       fullSummer += delta
       if (pay.paid_at <= todayISO) toDate += delta
+    }
+
+    // --- Free-form account entry flows ---
+    // Signed amounts: positive = balance up, negative = balance down. This
+    // works uniformly for checking/HYSA (positive = inflow) and credit cards
+    // (positive = outstanding goes up). No type-based negation.
+    for (const entry of accountEntries) {
+      if (entry.account_id !== account.id) continue
+      fullSummer += entry.amount
+      if (entry.dated_at <= todayISO) toDate += entry.amount
     }
 
     return {
