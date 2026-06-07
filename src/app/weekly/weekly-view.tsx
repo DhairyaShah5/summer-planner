@@ -368,8 +368,10 @@ export function WeeklyView({
             width={720}
             height={250}
             tooltipContent={(x, pts) => {
-              const actual = pts.find((p) => p.name === 'Actual spent')?.value ?? 0
-              const budget = pts.find((p) => p.name === 'Spending budget')?.value ?? 0
+              const actual =
+                pts.find((p) => p.name === 'Actual Spent')?.value ?? 0
+              const budget =
+                pts.find((p) => p.name === 'Spending Budget')?.value ?? 0
               const variance = budget - actual
               return (
                 <div style={{ minWidth: 200 }}>

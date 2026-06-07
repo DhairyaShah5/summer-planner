@@ -2439,7 +2439,42 @@ function CompositionCard({ items, total }: CompositionCardProps) {
           flexWrap: 'wrap',
         }}
       >
-        <Donut data={items} size={170} stroke={26} />
+        <Donut
+          data={items}
+          size={170}
+          stroke={26}
+          tooltipContent={(d, pct) => (
+            <div style={{ minWidth: 110, textAlign: 'center' }}>
+              <div
+                style={{
+                  font: '600 12px var(--ui)',
+                  color: 'var(--ink-1)',
+                  marginBottom: 2,
+                }}
+              >
+                {d.label}
+              </div>
+              <div
+                style={{
+                  font: '600 16px var(--display)',
+                  color: 'var(--ink-1)',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {fmtMoney(d.total, { cents: true })}
+              </div>
+              <div
+                style={{
+                  font: '500 11px var(--ui)',
+                  color: 'var(--ink-3)',
+                  marginTop: 2,
+                }}
+              >
+                {(pct * 100).toFixed(1)}%
+              </div>
+            </div>
+          )}
+        />
         <div
           style={{
             flex: 1,

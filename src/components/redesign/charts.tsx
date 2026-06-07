@@ -463,25 +463,25 @@ export function AreaChart({
         )}
       </svg>
       {tooltipContent && hoverIdx != null && (() => {
-        // Anchor the tooltip near the hovered x but flip its horizontal
-        // alignment near the edges so it always stays inside the chart
-        // container — no more half-off-screen tooltips on the first/last
-        // few points.
+        // Position tooltip INSIDE the chart's plot area near the top and
+        // flip its horizontal alignment near edges. Top uses a percentage
+        // of the SVG height so it scales with responsive width changes.
         const xPct = (xAt(hoverIdx) / width) * 100;
+        const topPct = (pad / height) * 100 + 1;
         let translateX = "-50%";
         let alignLeft = `${xPct}%`;
-        if (xPct < 16) {
+        if (xPct < 18) {
           translateX = "0";
-          alignLeft = "8px";
-        } else if (xPct > 84) {
+          alignLeft = `${(pad / width) * 100}%`;
+        } else if (xPct > 82) {
           translateX = "-100%";
-          alignLeft = `calc(100% - 8px)`;
+          alignLeft = `${((width - pad) / width) * 100}%`;
         }
         return (
           <div
             style={{
               position: "absolute",
-              top: 8,
+              top: `${topPct}%`,
               left: alignLeft,
               transform: `translateX(${translateX})`,
               background: "var(--surface-2)",
