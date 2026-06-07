@@ -2,13 +2,11 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
-import { Loader2Icon, PlusIcon } from 'lucide-react'
+import { Loader2Icon, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Select,
@@ -17,10 +15,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { cn } from '@/lib/utils'
+import { CatDot } from '@/components/redesign'
 import { addExpense } from './expense-actions'
 
-const CATEGORIES = ['Food', 'Transit', 'Entertainment', 'Groceries', 'Other']
+// Production categories with assigned hues so the chips and tags get tinted
+// consistently with the dashboard / paycheck palette.
+const CATEGORIES: { id: string; hue: number }[] = [
+  { id: 'Food', hue: 45 },
+  { id: 'Transit', hue: 235 },
+  { id: 'Entertainment', hue: 295 },
+  { id: 'Groceries', hue: 150 },
+  { id: 'Other', hue: 90 },
+]
 
 export type AccountOptionType = 'checking' | 'credit_card' | 'hysa'
 
@@ -34,6 +40,13 @@ function todayISO() {
   const d = new Date()
   const tz = d.getTimezoneOffset() * 60000
   return new Date(d.getTime() - tz).toISOString().slice(0, 10)
+}
+
+const fieldLabel: React.CSSProperties = {
+  font: '600 11.5px var(--ui)',
+  letterSpacing: '.03em',
+  textTransform: 'uppercase',
+  color: 'var(--ink-3)',
 }
 
 interface Props {
@@ -51,11 +64,12 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('Food')
   const [accountId, setAccountId] = useState<string>(defaultAccountId ?? '')
-  const [descFocused, setDescFocused] = useState(false)
 
   useEffect(() => {
     descriptionRef.current?.focus()
   }, [])
+
+  const valid = parseFloat(amount) > 0 && description.trim().length > 0
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -86,138 +100,186 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
         toast.error(res.error ?? 'Could not add expense')
         return
       }
+      const cat = CATEGORIES.find((c) => c.id === category)
+      toast.success(`Added $${amt.toFixed(2)} · ${cat?.id ?? category}`)
       setDescription('')
       setAmount('')
       descriptionRef.current?.focus()
-      toast.success('Saved')
       router.refresh()
     })
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-    >
     <Card
-      className={cn(
-        'sticky top-2 z-20 shadow-sm transition-all duration-300 hover:shadow-md',
-        descFocused &&
-          'ring-2 ring-indigo-500/40 shadow-lg shadow-indigo-500/10',
-      )}
+      className="mb-4"
+      style={{
+        padding: 22,
+        borderColor: 'color-mix(in oklch, var(--accent) 32%, var(--hair))',
+      }}
     >
-      <CardContent className="py-2">
-        <form onSubmit={onSubmit} className="flex flex-col gap-3">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="description">Description</Label>
+      <CardContent style={{ padding: 0 }}>
+        <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 160px',
+              gap: 14,
+              marginBottom: 14,
+            }}
+          >
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={fieldLabel}>Description</span>
               <Input
-                id="description"
                 ref={descriptionRef}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                onFocus={() => setDescFocused(true)}
-                onBlur={() => setDescFocused(false)}
                 placeholder="Coffee, gas, etc."
                 autoComplete="off"
                 disabled={pending}
-                className={cn(
-                  'transition-all duration-300',
-                  descFocused && 'ring-1 ring-indigo-400/60',
-                )}
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="amount">Amount</Label>
-              <Input
-                id="amount"
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                min="0"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.00"
-                disabled={pending}
-              />
-            </div>
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={fieldLabel}>Amount</span>
+              <div style={{ position: 'relative' }}>
+                <span
+                  style={{
+                    position: 'absolute',
+                    left: 13,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: 'var(--ink-3)',
+                    font: '600 15px var(--display)',
+                    pointerEvents: 'none',
+                    zIndex: 1,
+                  }}
+                >
+                  $
+                </span>
+                <Input
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  value={amount}
+                  onChange={(e) =>
+                    setAmount(e.target.value.replace(/[^0-9.]/g, ''))
+                  }
+                  disabled={pending}
+                  style={{ paddingLeft: 25 }}
+                />
+              </div>
+            </label>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[140px_1fr]">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="date">Date</Label>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '160px 1fr 1fr',
+              gap: 14,
+              marginBottom: 14,
+            }}
+          >
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={fieldLabel}>Date</span>
               <Input
-                id="date"
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 disabled={pending}
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="category">Category</Label>
-              <Input
-                id="category"
-                list="expense-categories"
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={fieldLabel}>Category</span>
+              <Select
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                placeholder="Pick or type"
-                autoComplete="off"
+                onValueChange={(v) => setCategory(String(v))}
                 disabled={pending}
-              />
-              <datalist id="expense-categories">
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
-            </div>
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Pick a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={fieldLabel}>Account</span>
+              <Select
+                value={accountId}
+                onValueChange={(v) => setAccountId(String(v))}
+                disabled={pending || accounts.length === 0}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Pick an account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="account">Account</Label>
-            <Select
-              value={accountId}
-              onValueChange={(v) => setAccountId(String(v))}
-              disabled={pending || accounts.length === 0}
-            >
-              <SelectTrigger id="account" className="w-full">
-                <SelectValue placeholder="Pick an account">
-                  {(value) => {
-                    const acct = accounts.find((a) => a.id === value)
-                    return acct ? acct.name : 'Pick an account'
-                  }}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {accounts.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {CATEGORIES.map((c) => (
-              <motion.div key={c} whileTap={{ scale: 0.94 }}>
-                <Button
+
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'nowrap',
+              gap: 7,
+              marginBottom: 16,
+              overflowX: 'auto',
+              scrollbarWidth: 'none',
+              paddingBottom: 2,
+            }}
+          >
+            {CATEGORIES.map((c) => {
+              const active = category === c.id
+              return (
+                <button
                   type="button"
-                  size="xs"
-                  variant={category === c ? 'default' : 'outline'}
-                  onClick={() => setCategory(c)}
+                  key={c.id}
+                  onClick={() => setCategory(c.id)}
                   disabled={pending}
-                  className="transition-colors"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    padding: '6px 10px',
+                    borderRadius: 999,
+                    cursor: pending ? 'not-allowed' : 'pointer',
+                    font: '600 11.5px var(--ui)',
+                    whiteSpace: 'nowrap',
+                    flex: 'none',
+                    border: '1px solid',
+                    borderColor: active
+                      ? `oklch(0.6 0.14 ${c.hue})`
+                      : 'var(--hair)',
+                    background: active
+                      ? `color-mix(in oklch, oklch(0.68 0.14 ${c.hue}) 16%, transparent)`
+                      : 'var(--surface)',
+                    color: active
+                      ? `oklch(0.62 0.14 ${c.hue})`
+                      : 'var(--ink-2)',
+                    transition: 'all .15s',
+                  }}
                 >
-                  {c}
-                </Button>
-              </motion.div>
-            ))}
+                  <CatDot hue={c.hue} size={8} />
+                  {c.id}
+                </button>
+              )
+            })}
           </div>
-          <motion.div whileTap={{ scale: 0.98 }} className="w-full">
+
           <Button
             type="submit"
             size="lg"
-            disabled={pending}
-            className="w-full transition-transform"
+            disabled={pending || !valid}
+            className="w-full"
           >
             {pending ? (
               <>
@@ -226,15 +288,13 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
               </>
             ) : (
               <>
-                <PlusIcon className="size-4" />
+                <Plus className="size-4" />
                 Add expense
               </>
             )}
           </Button>
-          </motion.div>
         </form>
       </CardContent>
     </Card>
-    </motion.div>
   )
 }

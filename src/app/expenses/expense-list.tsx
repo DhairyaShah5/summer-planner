@@ -3,12 +3,10 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { format, endOfWeek, startOfWeek } from 'date-fns'
-import { motion } from 'framer-motion'
-import { Sparkles, Loader2Icon, Trash2Icon } from 'lucide-react'
+import { Loader2Icon, Sparkles, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import type { Expense } from '@/lib/types'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -19,15 +17,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Money, Reveal, fmtMoney } from '@/components/redesign'
 import { deleteExpense } from './expense-actions'
 import type { AccountOption } from './add-expense-form'
+import { ExpenseCharts } from './expense-charts'
 
-const money = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
+const CATEGORY_HUES: { id: string; hue: number }[] = [
+  { id: 'Food', hue: 45 },
+  { id: 'Transit', hue: 235 },
+  { id: 'Entertainment', hue: 295 },
+  { id: 'Groceries', hue: 150 },
+  { id: 'Other', hue: 90 },
+]
+
+function hueFor(category: string): number {
+  const trimmed = (category || '').trim()
+  const match = CATEGORY_HUES.find(
+    (c) => c.id.toLowerCase() === trimmed.toLowerCase(),
+  )
+  return match?.hue ?? 90
+}
 
 function parseLocalDate(iso: string): Date {
   const [y, m, d] = iso.split('-').map(Number)
@@ -37,15 +46,12 @@ function parseLocalDate(iso: string): Date {
 /** Compress a long account name into a chip-friendly short label. */
 function shortAccountLabel(name: string, type: AccountOption['type']): string {
   if (type === 'credit_card') {
-    // "Chase Credit Card" → "Chase CC"; otherwise append "CC".
     const stripped = name.replace(/credit card/i, '').trim()
     return `${stripped || name} CC`.replace(/\s+/g, ' ')
   }
   if (type === 'hysa') {
-    // Keep HYSA names mostly intact, just trim.
     return name
   }
-  // checking — drop trailing "Checking"
   return name.replace(/checking/i, '').trim() || name
 }
 
@@ -85,9 +91,7 @@ function groupByWeek(expenses: Expense[]): WeekGroup[] {
 interface Props {
   expenses: Expense[]
   accounts: AccountOption[]
-  /** Cumulative CO from every paycheck whose pay_date <= this Sunday. */
   cumMaxAllowed: number
-  /** Cumulative expense total through today. */
   cumSpent: number
 }
 
@@ -109,9 +113,10 @@ export function ExpenseList({
     return m
   }, [accounts])
 
-  // Carry-over framing: unspent CO from earlier weeks rolls forward, so the
-  // headline measures cumulative cushion across the summer to date.
   const remaining = cumMaxAllowed - cumSpent
+  const isUnder = remaining >= 0
+  const borderTone = isUnder ? 'var(--pos)' : 'oklch(0.62 0.23 27)'
+  const accentInk = isUnder ? 'var(--pos-ink)' : 'oklch(0.5 0.2 27)'
 
   function handleDelete() {
     if (!pendingDelete) return
@@ -129,140 +134,254 @@ export function ExpenseList({
   }
 
   return (
-    <div className="space-y-4">
-      <Card
-        size="sm"
-        className={`border-l-4 transition-shadow hover:shadow-md ${
-          remaining >= 0 ? 'border-l-emerald-500' : 'border-l-rose-500'
-        }`}
-      >
-        <CardContent className="space-y-1">
-          <div className="flex items-baseline gap-2">
+    <div>
+      <Reveal delay={60}>
+        <Card
+          className="mb-4"
+          style={{
+            padding: '16px 20px',
+            borderLeft: `4px solid ${borderTone}`,
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
+          <CardContent
+            style={{
+              padding: 0,
+              width: '100%',
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: 12,
+              flexWrap: 'wrap',
+            }}
+          >
             <span
-              className={`text-2xl font-semibold tabular-nums ${
-                remaining >= 0
-                  ? 'text-emerald-600 dark:text-emerald-400'
-                  : 'text-rose-600 dark:text-rose-400'
-              }`}
+              style={{
+                font: '600 26px/1 var(--display)',
+                letterSpacing: '-.02em',
+                color: accentInk,
+              }}
             >
-              {money.format(Math.abs(remaining))}
+              <Money value={Math.abs(remaining)} cents dur={900} />
             </span>
-            <span className="text-sm text-muted-foreground">
-              {remaining >= 0
-                ? 'left to spend overall'
-                : 'over budget overall'}
-            </span>
-          </div>
-          <p className="text-xs text-muted-foreground tabular-nums">
-            Spent {money.format(cumSpent)} &middot; Maximum allowed{' '}
-            {money.format(cumMaxAllowed)}
-          </p>
-        </CardContent>
-      </Card>
-
-      {groups.length === 0 ? (
-        <Card>
-          <CardContent>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.4 }}
-              className="flex flex-col items-center justify-center gap-3 py-10 text-center"
+            <span
+              style={{
+                font: '500 14px var(--ui)',
+                color: 'var(--ink-2)',
+              }}
             >
-              <motion.div
-                animate={{ rotate: [0, -8, 8, 0] }}
-                transition={{ duration: 1.6, repeat: Infinity, repeatDelay: 2 }}
-                className="rounded-full bg-gradient-to-br from-amber-400/20 to-fuchsia-500/20 p-3"
-              >
-                <Sparkles className="size-6 text-amber-500" />
-              </motion.div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium">No expenses yet</p>
-                <p className="text-xs text-muted-foreground">
-                  Add your first one with the form above.
-                </p>
-              </div>
-            </motion.div>
+              {isUnder ? 'left to spend overall' : 'over budget overall'}
+            </span>
+            <span
+              style={{
+                marginLeft: 'auto',
+                font: '500 12.5px var(--ui)',
+                color: 'var(--ink-3)',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              Spent {fmtMoney(cumSpent, { cents: true })} · Maximum allowed{' '}
+              {fmtMoney(cumMaxAllowed, { cents: true })}
+            </span>
           </CardContent>
         </Card>
-      ) : (
-        groups.map((g, gi) => (
-          <motion.div
-            key={g.key}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: gi * 0.06, duration: 0.4 }}
-            className="space-y-2"
-          >
-            <div className="flex items-baseline justify-between px-1">
-              <h2 className="text-sm font-medium text-muted-foreground">
-                Week of {format(g.start, 'MMM d')} – {format(g.end, 'MMM d')}
-              </h2>
-              <span className="text-sm font-semibold tabular-nums">
-                {money.format(g.total)}
-              </span>
-            </div>
-            <Card className="transition-shadow hover:shadow-md">
-              <CardContent className="!p-0">
-                <ul className="divide-y">
-                  {g.expenses.map((e, i) => {
-                    const acct = e.account_id
-                      ? accountById.get(e.account_id)
-                      : undefined
-                    return (
-                      <motion.li
-                        key={e.id}
-                        initial={{ opacity: 0, x: -6 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{
-                          delay: gi * 0.06 + i * 0.02,
-                          duration: 0.3,
-                        }}
-                        className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/40"
-                      >
-                        <div className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                          {format(parseLocalDate(e.expense_date), 'EEE MMM d')}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">
-                            {e.description}
-                          </p>
-                          <div className="mt-0.5 flex flex-wrap gap-1">
-                            {e.category && (
-                              <Badge variant="outline">{e.category}</Badge>
-                            )}
-                            {acct && (
-                              <Badge
-                                variant="secondary"
-                                className="font-normal"
-                              >
-                                {shortAccountLabel(acct.name, acct.type)}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                        <span className="text-sm font-semibold tabular-nums">
-                          {money.format(e.amount)}
-                        </span>
-                        <Button
-                          type="button"
-                          size="icon-sm"
-                          variant="ghost"
-                          onClick={() => setPendingDelete(e)}
-                          aria-label="Delete expense"
-                          className="transition-colors hover:text-destructive"
-                        >
-                          <Trash2Icon className="size-4" />
-                        </Button>
-                      </motion.li>
-                    )
-                  })}
-                </ul>
+      </Reveal>
+
+      <Reveal delay={80}>
+        <ExpenseCharts expenses={expenses} />
+      </Reveal>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {groups.length === 0 ? (
+          <Reveal delay={100}>
+            <Card>
+              <CardContent
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 12,
+                  padding: '40px 16px',
+                  textAlign: 'center',
+                }}
+              >
+                <span
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    display: 'grid',
+                    placeItems: 'center',
+                    background:
+                      'color-mix(in oklch, var(--accent) 16%, transparent)',
+                    color: 'var(--accent)',
+                  }}
+                >
+                  <Sparkles className="size-5" />
+                </span>
+                <div>
+                  <p
+                    style={{
+                      font: '600 14px var(--ui)',
+                      color: 'var(--ink-1)',
+                      margin: 0,
+                    }}
+                  >
+                    No expenses yet
+                  </p>
+                  <p
+                    style={{
+                      font: '400 12.5px var(--ui)',
+                      color: 'var(--ink-3)',
+                      margin: '4px 0 0',
+                    }}
+                  >
+                    Add your first one with the form above.
+                  </p>
+                </div>
               </CardContent>
             </Card>
-          </motion.div>
-        ))
-      )}
+          </Reveal>
+        ) : (
+          groups.map((g, gi) => (
+            <Reveal key={g.key} delay={100 + gi * 40}>
+              <div>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 10,
+                    padding: '0 2px',
+                  }}
+                >
+                  <span
+                    style={{
+                      font: '600 14px var(--ui)',
+                      color: 'var(--ink-1)',
+                    }}
+                  >
+                    Week of {format(g.start, 'MMM d')} – {format(g.end, 'MMM d')}
+                  </span>
+                  <span
+                    style={{
+                      font: '600 14px var(--display)',
+                      color: 'var(--ink-2)',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {fmtMoney(g.total, { cents: true })}
+                  </span>
+                </div>
+                <Card style={{ padding: '4px 16px' }}>
+                  <CardContent style={{ padding: 0 }}>
+                    {g.expenses.map((e, i) => {
+                      const acct = e.account_id
+                        ? accountById.get(e.account_id)
+                        : undefined
+                      const hue = hueFor(e.category)
+                      return (
+                        <div
+                          key={e.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 14,
+                            padding: '13px 4px',
+                            borderTop: i ? '1px solid var(--hair)' : 'none',
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: 64,
+                              flex: 'none',
+                              font: '500 11.5px var(--ui)',
+                              color: 'var(--ink-3)',
+                              lineHeight: 1.3,
+                            }}
+                          >
+                            {format(parseLocalDate(e.expense_date), 'EEE MMM d')}
+                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div
+                              style={{
+                                font: '600 14.5px var(--ui)',
+                                color: 'var(--ink-1)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {e.description}
+                            </div>
+                            <div
+                              style={{
+                                display: 'flex',
+                                gap: 7,
+                                marginTop: 5,
+                                flexWrap: 'wrap',
+                              }}
+                            >
+                              {e.category && (
+                                <span
+                                  style={{
+                                    font: '600 11px var(--ui)',
+                                    padding: '2px 8px',
+                                    borderRadius: 6,
+                                    background: `color-mix(in oklch, oklch(0.68 0.14 ${hue}) 16%, transparent)`,
+                                    color: `oklch(0.62 0.14 ${hue})`,
+                                  }}
+                                >
+                                  {e.category}
+                                </span>
+                              )}
+                              {acct && (
+                                <span
+                                  style={{
+                                    font: '600 11px var(--ui)',
+                                    padding: '2px 8px',
+                                    borderRadius: 6,
+                                    background: 'var(--surface-2)',
+                                    color: 'var(--ink-3)',
+                                  }}
+                                >
+                                  {shortAccountLabel(acct.name, acct.type)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <span
+                            style={{
+                              font: '600 15px var(--display)',
+                              color: 'var(--ink-1)',
+                              fontVariantNumeric: 'tabular-nums',
+                            }}
+                          >
+                            {fmtMoney(e.amount, { cents: true })}
+                          </span>
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="ghost"
+                            onClick={() => setPendingDelete(e)}
+                            aria-label="Delete expense"
+                            className="transition-colors hover:text-destructive"
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </CardContent>
+                </Card>
+              </div>
+            </Reveal>
+          ))
+        )}
+      </div>
 
       <Dialog
         open={pendingDelete !== null}
@@ -275,7 +394,7 @@ export function ExpenseList({
             <DialogTitle>Delete expense?</DialogTitle>
             <DialogDescription>
               {pendingDelete
-                ? `"${pendingDelete.description}" for ${money.format(pendingDelete.amount)} will be removed. This cannot be undone.`
+                ? `"${pendingDelete.description}" for ${fmtMoney(pendingDelete.amount, { cents: true })} will be removed. This cannot be undone.`
                 : null}
             </DialogDescription>
           </DialogHeader>

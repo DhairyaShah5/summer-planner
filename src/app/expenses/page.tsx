@@ -7,6 +7,8 @@ import {
   type Employer,
 } from '@/lib/calc'
 import type { Expense } from '@/lib/types'
+import { PageHeader } from '@/components/redesign'
+import { Reveal } from '@/components/redesign'
 import { AddExpenseForm } from './add-expense-form'
 import { ExpenseList } from './expense-list'
 import type { AccountOption } from './add-expense-form'
@@ -97,7 +99,7 @@ export default async function ExpensesPage() {
       perDiem: p.per_diem,
       extraDeposit: p.extra_deposit,
       vaultOverride: p.vault_override,
-    grossOverride: p.gross_override,
+      grossOverride: p.gross_override,
       rentPaid: p.rent_paid,
       received: p.received,
     }))
@@ -122,19 +124,19 @@ export default async function ExpensesPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8 space-y-4">
-      <div className="space-y-1">
-        <h1 className="bg-gradient-to-r from-rose-500 via-fuchsia-500 to-indigo-500 bg-clip-text text-3xl font-semibold tracking-tight text-transparent">
-          Expenses
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Log spend as it happens. Grouped by week.
-        </p>
-      </div>
-      <AddExpenseForm
-        accounts={accounts}
-        defaultAccountId={defaultAccountId}
-      />
+    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
+      <Reveal>
+        <PageHeader
+          title="Expenses"
+          subtitle="Log spend as it happens — grouped by week."
+        />
+      </Reveal>
+      <Reveal delay={40}>
+        <AddExpenseForm
+          accounts={accounts}
+          defaultAccountId={defaultAccountId}
+        />
+      </Reveal>
       <ExpenseList
         expenses={expenses}
         accounts={accounts}
