@@ -2420,6 +2420,9 @@ function CompositionCard({ items, total }: CompositionCardProps) {
         borderRadius: 'var(--radius)',
         background: 'var(--surface)',
         border: '1px solid var(--hair)',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
       <SectionLabel
@@ -2436,7 +2439,9 @@ function CompositionCard({ items, total }: CompositionCardProps) {
           display: 'flex',
           gap: 28,
           alignItems: 'center',
+          justifyContent: 'space-between',
           flexWrap: 'wrap',
+          flex: 1,
         }}
       >
         <Donut

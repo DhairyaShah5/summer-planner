@@ -81,14 +81,23 @@ export function ExpenseCharts({ expenses }: Props) {
     >
       <Reveal from="left">
         <Card style={{ padding: 20, height: '100%' }}>
-          <CardContent style={{ padding: 0 }}>
+          <CardContent
+            style={{
+              padding: 0,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
             <SectionLabel>By category</SectionLabel>
             <div
               style={{
                 display: 'flex',
                 gap: 16,
                 alignItems: 'center',
+                justifyContent: 'space-between',
                 flexWrap: 'wrap',
+                flex: 1,
               }}
             >
               <Donut

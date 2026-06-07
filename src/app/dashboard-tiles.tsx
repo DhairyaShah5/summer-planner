@@ -1138,7 +1138,14 @@ function AllocationBreakdownTile({ data }: { data: AllocationDatum[] }) {
     hue: BUCKET_HUE[d.name] ?? 250,
   }))
   return (
-    <div className="fx-card" style={tileCardStyle({ padding: 20 })}>
+    <div
+      className="fx-card"
+      style={tileCardStyle({
+        padding: 20,
+        display: 'flex',
+        flexDirection: 'column',
+      })}
+    >
       <CardHead
         icon={<Target size={17} />}
         hue={285}
@@ -1151,7 +1158,9 @@ function AllocationBreakdownTile({ data }: { data: AllocationDatum[] }) {
             display: 'flex',
             gap: 16,
             alignItems: 'center',
+            justifyContent: 'space-between',
             flexWrap: 'wrap',
+            flex: 1,
           }}
         >
           <Donut

@@ -660,6 +660,8 @@ export function PaychecksTable({
               borderRadius: 'var(--radius)',
               padding: 22,
               height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
             }}
           >
             <SectionLabel
@@ -681,7 +683,9 @@ export function PaychecksTable({
                 display: 'flex',
                 gap: 28,
                 alignItems: 'center',
+                justifyContent: 'space-between',
                 flexWrap: 'wrap',
+                flex: 1,
               }}
             >
               <Donut
