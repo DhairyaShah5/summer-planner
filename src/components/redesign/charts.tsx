@@ -13,6 +13,53 @@ function randId(prefix: string) {
   return prefix + Math.random().toString(36).slice(2);
 }
 
+/**
+ * Quadrant-clamped tooltip positioning. Given a cursor position relative
+ * to a wrapper, flips the anchor corner so the tooltip never overflows the
+ * wrapper bounds and never sits directly on top of the cursor.
+ *
+ * Returns a style object with exactly one of {left, right} and one of
+ * {top, bottom} set so the tooltip "floats" 12px away from the cursor,
+ * away from the nearest edge.
+ */
+function quadrantTooltipStyle(
+  x: number,
+  y: number,
+  wrapperW: number,
+  wrapperH: number,
+  offset = 12,
+): React.CSSProperties {
+  const style: React.CSSProperties = {};
+  // Horizontal: anchor on the side of the cursor that's farther from the
+  // wrapper edge. Using a 55/45 split so very-near-center hovers don't
+  // flicker too aggressively.
+  if (x < wrapperW * 0.55) {
+    style.left = Math.max(0, x + offset);
+  } else {
+    style.right = Math.max(0, wrapperW - x + offset);
+  }
+  if (y < wrapperH * 0.55) {
+    style.top = Math.max(0, y + offset);
+  } else {
+    style.bottom = Math.max(0, wrapperH - y + offset);
+  }
+  return style;
+}
+
+const TOOLTIP_CHROME: React.CSSProperties = {
+  position: "absolute",
+  background: "var(--surface-2)",
+  border: "1px solid var(--hair)",
+  borderRadius: 10,
+  padding: "10px 12px",
+  pointerEvents: "none",
+  boxShadow:
+    "0 12px 32px -10px color-mix(in oklch, black 50%, transparent)",
+  zIndex: 10,
+  width: "max-content",
+  maxWidth: 240,
+};
+
 type RingProps = {
   value: number;
   size?: number;
@@ -148,6 +195,7 @@ export function Donut({
 }: DonutProps) {
   const [ref, seen] = useInView<HTMLDivElement>();
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const total = data.reduce((s, d) => s + d.total, 0) || 1;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
@@ -155,9 +203,21 @@ export function Donut({
   const dur = animDur(1.1);
   const hovered = hoverIdx != null ? data[hoverIdx] : null;
   const hoveredPct = hovered ? hovered.total / total : 0;
+
+  function handleWrapperMove(e: React.MouseEvent<HTMLDivElement>) {
+    const node = ref.current;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    setCursor({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+  }
+
   return (
     <div
       ref={ref}
+      onMouseMove={handleWrapperMove}
+      onMouseLeave={() => {
+        setCursor(null);
+      }}
       style={{ width: size, height: size, position: "relative" }}
     >
       <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
@@ -197,22 +257,11 @@ export function Donut({
           );
         })}
       </svg>
-      {tooltipContent && hovered && (
+      {tooltipContent && hovered && cursor && (
         <div
           style={{
-            position: "absolute",
-            bottom: "calc(100% + 8px)",
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "var(--surface-2)",
-            border: "1px solid var(--hair)",
-            borderRadius: 10,
-            padding: "10px 12px",
-            pointerEvents: "none",
-            boxShadow:
-              "0 12px 32px -10px color-mix(in oklch, black 50%, transparent)",
-            whiteSpace: "nowrap",
-            zIndex: 10,
+            ...TOOLTIP_CHROME,
+            ...quadrantTooltipStyle(cursor.x, cursor.y, size, size),
           }}
         >
           {tooltipContent(hovered, hoveredPct)}
@@ -263,7 +312,13 @@ export function AreaChart({
   splitAt,
 }: AreaChartProps) {
   const [ref, seen] = useInView<HTMLDivElement>();
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [hover, setHover] = useState<{
+    idx: number;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
   const all = series
     .flatMap((s) => s.points.map((p) => p.y))
     .filter((v): v is number => v != null);
@@ -275,25 +330,39 @@ export function AreaChart({
     pad + (xs.length === 1 ? innerW / 2 : (i / (xs.length - 1)) * innerW);
   const yAt = (v: number) => pad + innerH - (v / maxY) * innerH;
   const dur = animDur(1.4);
+  const hoverIdx = hover?.idx ?? null;
 
-  // Mouse → nearest x-index. SVG uses viewBox, so map clientX to viewBox
-  // space using getBoundingClientRect.
-  function handleMove(e: React.MouseEvent<SVGSVGElement>) {
+  // Mouse → both (a) nearest x-index for guide-line snap and (b) cursor
+  // pixel position relative to the wrapper for cursor-following tooltip.
+  function handleMove(e: React.MouseEvent<HTMLDivElement>) {
     if (!tooltipContent) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const vbX = ((e.clientX - rect.left) / rect.width) * width;
-    if (xs.length === 1) return setHoverIdx(0);
-    const idx = Math.round(((vbX - pad) / innerW) * (xs.length - 1));
-    setHoverIdx(Math.max(0, Math.min(xs.length - 1, idx)));
+    const node = ref.current;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    // Map cursor x to SVG viewBox space, then to nearest data idx.
+    const vbX = (cx / rect.width) * width;
+    let idx: number;
+    if (xs.length === 1) {
+      idx = 0;
+    } else {
+      const raw = Math.round(((vbX - pad) / innerW) * (xs.length - 1));
+      idx = Math.max(0, Math.min(xs.length - 1, raw));
+    }
+    setHover({ idx, x: cx, y: cy, w: rect.width, h: rect.height });
   }
   return (
-    <div ref={ref} style={{ width: "100%", position: "relative" }}>
+    <div
+      ref={ref}
+      onMouseMove={handleMove}
+      onMouseLeave={() => setHover(null)}
+      style={{ width: "100%", position: "relative" }}
+    >
       <svg
         viewBox={`0 0 ${width} ${height}`}
         width="100%"
         style={{ overflow: "visible", display: "block" }}
-        onMouseMove={handleMove}
-        onMouseLeave={() => setHoverIdx(null)}
       >
         {[0.25, 0.5, 0.75, 1].map((g, i) => (
           <line
@@ -462,50 +531,23 @@ export function AreaChart({
           </g>
         )}
       </svg>
-      {tooltipContent && hoverIdx != null && (() => {
-        // Position tooltip INSIDE the chart's plot area near the top and
-        // flip its horizontal alignment near edges. Top uses a percentage
-        // of the SVG height so it scales with responsive width changes.
-        const xPct = (xAt(hoverIdx) / width) * 100;
-        const topPct = (pad / height) * 100 + 1;
-        let translateX = "-50%";
-        let alignLeft = `${xPct}%`;
-        if (xPct < 18) {
-          translateX = "0";
-          alignLeft = `${(pad / width) * 100}%`;
-        } else if (xPct > 82) {
-          translateX = "-100%";
-          alignLeft = `${((width - pad) / width) * 100}%`;
-        }
-        return (
-          <div
-            style={{
-              position: "absolute",
-              top: `${topPct}%`,
-              left: alignLeft,
-              transform: `translateX(${translateX})`,
-              background: "var(--surface-2)",
-              border: "1px solid var(--hair)",
-              borderRadius: 10,
-              padding: "10px 12px",
-              pointerEvents: "none",
-              boxShadow:
-                "0 12px 32px -10px color-mix(in oklch, black 50%, transparent)",
-              whiteSpace: "nowrap",
-              zIndex: 10,
-            }}
-          >
-            {tooltipContent(
-              xs[hoverIdx],
-              series.map((s) => ({
-                name: s.name,
-                color: s.color,
-                value: s.points[hoverIdx]?.y ?? null,
-              })),
-            )}
-          </div>
-        );
-      })()}
+      {tooltipContent && hover && (
+        <div
+          style={{
+            ...TOOLTIP_CHROME,
+            ...quadrantTooltipStyle(hover.x, hover.y, hover.w, hover.h),
+          }}
+        >
+          {tooltipContent(
+            xs[hover.idx],
+            series.map((s) => ({
+              name: s.name,
+              color: s.color,
+              value: s.points[hover.idx]?.y ?? null,
+            })),
+          )}
+        </div>
+      )}
     </div>
   );
 }
