@@ -81,6 +81,7 @@ export default async function DashboardPage() {
     actualNetWages: p.actual_net_wages,
     perDiem: p.per_diem,
     extraDeposit: p.extra_deposit,
+    reimbursement: p.reimbursement ?? 0,
     vaultOverride: p.vault_override,
     grossOverride: p.gross_override,
     rentPaid: p.rent_paid,
@@ -117,7 +118,7 @@ export default async function DashboardPage() {
       .limit(5),
     supabase
       .from("expenses")
-      .select("amount")
+      .select("amount, count_in_co_budget")
       .lte("expense_date", todayISO),
     supabase
       .from("accounts")
@@ -145,6 +146,7 @@ export default async function DashboardPage() {
     amount: e.amount,
     category: e.category ?? "",
     account_id: e.account_id ?? null,
+    count_in_co_budget: e.count_in_co_budget,
     created_at: e.created_at,
   }));
 
@@ -203,11 +205,11 @@ export default async function DashboardPage() {
     current_balance: s.current,
   }));
 
-  // Cumulative spend across the summer through today.
-  const cumSpent = (cumExpensesRes.data ?? []).reduce(
-    (s, e) => s + (e.amount ?? 0),
-    0,
-  );
+  // Cumulative spend across the summer through today. Off-budget expenses
+  // (count_in_co_budget === false) are excluded from the CO budget tile.
+  const cumSpent = (cumExpensesRes.data ?? [])
+    .filter((e) => e.count_in_co_budget !== false)
+    .reduce((s, e) => s + (e.amount ?? 0), 0);
 
   // Cumulative CO maximum allowed = sum of CO from every paycheck whose
   // pay_date <= this Sunday (end of current week). Unspent CO from prior
