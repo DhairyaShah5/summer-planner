@@ -52,6 +52,7 @@ import { updateNetWorthInclusion } from './net-worth-actions'
 import {
   addAccountEntry,
   deleteAccountEntry,
+  updateAccountEntry,
 } from './account-entry-actions'
 import { Checkbox } from '@/components/ui/checkbox'
 
@@ -274,6 +275,9 @@ export function AccountsList({
   const [ledgerNote, setLedgerNote] = useState<string>('')
   const [ledgerSaving, startLedgerTransition] = useTransition()
   const [ledgerDeletingId, setLedgerDeletingId] = useState<string | null>(null)
+  // When non-null, the form is editing an existing manual entry. When null,
+  // the form is creating a fresh one.
+  const [ledgerEditingId, setLedgerEditingId] = useState<string | null>(null)
 
   function openNetWorthDialog() {
     const draft: Record<string, boolean> = {}
@@ -303,6 +307,19 @@ export function AccountsList({
     setLedgerAmount('')
     setLedgerDescription('')
     setLedgerNote('')
+    setLedgerEditingId(null)
+  }
+
+  function startLedgerEdit(manualId: string) {
+    const raw = entries.find((e) => e.id === manualId)
+    if (!raw) return
+    setLedgerEditingId(manualId)
+    setLedgerDate(raw.dated_at)
+    setLedgerDirection(raw.amount >= 0 ? 'in' : 'out')
+    setLedgerAmount(Math.abs(raw.amount).toFixed(2))
+    setLedgerDescription(raw.description)
+    setLedgerNote(raw.note ?? '')
+    setLedgerFormOpen(true)
   }
 
   function handleLedgerSubmit() {
@@ -319,19 +336,28 @@ export function AccountsList({
     }
     const signed = ledgerDirection === 'in' ? raw : -raw
     const acctId = ledgerAccount.id
+    const editingId = ledgerEditingId
     startLedgerTransition(async () => {
-      const res = await addAccountEntry({
-        account_id: acctId,
-        dated_at: ledgerDate,
-        amount: signed,
-        description: trimmedDesc,
-        note: ledgerNote,
-      })
+      const res = editingId
+        ? await updateAccountEntry({
+            id: editingId,
+            dated_at: ledgerDate,
+            amount: signed,
+            description: trimmedDesc,
+            note: ledgerNote,
+          })
+        : await addAccountEntry({
+            account_id: acctId,
+            dated_at: ledgerDate,
+            amount: signed,
+            description: trimmedDesc,
+            note: ledgerNote,
+          })
       if (!res.ok) {
         toast.error(res.error ?? 'Could not save entry')
         return
       }
-      toast.success('Ledger entry added')
+      toast.success(editingId ? 'Entry updated' : 'Ledger entry added')
       setLedgerFormOpen(false)
       resetLedgerForm()
       router.refresh()
@@ -1582,23 +1608,47 @@ export function AccountsList({
                           </LedgerTd>
                           <LedgerTd align="right">
                             {row.source === 'manual' && row.manualId ? (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label="Delete entry"
-                                disabled={ledgerDeletingId === row.manualId}
-                                onClick={() =>
-                                  row.manualId &&
-                                  handleLedgerDelete(row.manualId)
-                                }
+                              <div
+                                style={{
+                                  display: 'inline-flex',
+                                  gap: 2,
+                                  justifyContent: 'flex-end',
+                                }}
                               >
-                                {ledgerDeletingId === row.manualId ? (
-                                  <Loader2Icon className="size-4 animate-spin" />
-                                ) : (
-                                  <Trash2Icon className="size-4" />
-                                )}
-                              </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  aria-label="Edit entry"
+                                  disabled={
+                                    ledgerSaving ||
+                                    ledgerDeletingId === row.manualId
+                                  }
+                                  onClick={() =>
+                                    row.manualId &&
+                                    startLedgerEdit(row.manualId)
+                                  }
+                                >
+                                  <PencilIcon className="size-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  aria-label="Delete entry"
+                                  disabled={ledgerDeletingId === row.manualId}
+                                  onClick={() =>
+                                    row.manualId &&
+                                    handleLedgerDelete(row.manualId)
+                                  }
+                                >
+                                  {ledgerDeletingId === row.manualId ? (
+                                    <Loader2Icon className="size-4 animate-spin" />
+                                  ) : (
+                                    <Trash2Icon className="size-4" />
+                                  )}
+                                </Button>
+                              </div>
                             ) : null}
                           </LedgerTd>
                         </tr>
@@ -1621,6 +1671,16 @@ export function AccountsList({
                     background: 'var(--surface)',
                   }}
                 >
+                  <div
+                    style={{
+                      font: '600 13px var(--ui)',
+                      letterSpacing: '.04em',
+                      textTransform: 'uppercase',
+                      color: 'var(--ink-3)',
+                    }}
+                  >
+                    {ledgerEditingId ? 'Edit entry' : 'Add entry'}
+                  </div>
                   <div
                     style={{
                       display: 'grid',
@@ -1766,6 +1826,8 @@ export function AccountsList({
                           <Loader2Icon className="size-4 animate-spin" />
                           Saving...
                         </>
+                      ) : ledgerEditingId ? (
+                        'Save changes'
                       ) : (
                         'Save entry'
                       )}
