@@ -295,49 +295,49 @@ export function PaychecksTable({
               style={{
                 borderCollapse: 'collapse',
                 width: '100%',
-                minWidth: 1280,
+                minWidth: 1400,
                 tableLayout: 'fixed',
               }}
             >
               <colgroup>
-                <col style={{ width: 36 }} />
-                <col style={{ width: 84 }} />
-                <col style={{ width: 76 }} />
-                <col style={{ width: 76 }} />
-                <col style={{ width: 70 }} />
-                <col style={{ width: 56 }} />
-                <col style={{ width: 80 }} />
-                <col style={{ width: 86 }} />
-                <col style={{ width: 100 }} />
-                <col style={{ width: 92 }} />
-                <col style={{ width: 88 }} />
-                <col style={{ width: 64 }} />
-                <col style={{ width: 86 }} />
-                <col style={{ width: 86 }} />
-                <col style={{ width: 72 }} />
-                <col style={{ width: 90 }} />
-                <col style={{ width: 82 }} />
                 <col style={{ width: 44 }} />
+                <col style={{ width: 80 }} />
+                <col style={{ width: 80 }} />
+                <col style={{ width: 80 }} />
+                <col style={{ width: 80 }} />
+                <col style={{ width: 80 }} />
+                <col style={{ width: 80 }} />
+                <col style={{ width: 80 }} />
+                <col style={{ width: 92 }} />
+                <col style={{ width: 92 }} />
+                <col style={{ width: 80 }} />
+                <col style={{ width: 80 }} />
+                <col style={{ width: 80 }} />
+                <col style={{ width: 80 }} />
+                <col style={{ width: 80 }} />
+                <col style={{ width: 80 }} />
+                <col style={{ width: 80 }} />
+                <col style={{ width: 50 }} />
               </colgroup>
               <thead>
                 <tr>
-                  <Th align="left">#</Th>
-                  <Th align="left">Pay Date</Th>
-                  <Th align="left">Employer</Th>
+                  <Th align="center">#</Th>
+                  <Th align="center">Pay Date</Th>
+                  <Th align="center">Employer</Th>
                   <Th align="center">Received</Th>
                   <Th align="center">Hours</Th>
                   <Th align="center">OT</Th>
                   <Th align="center">Per Diem</Th>
-                  <Th align="left">Reimburse</Th>
+                  <Th align="center">Reimburse</Th>
                   <Th align="center">Actual Net</Th>
-                  <Th align="right">Gross Pay</Th>
+                  <Th align="center">Gross Pay</Th>
                   <Th align="center">Extra Dep.</Th>
-                  <Th align="right">Net %</Th>
-                  <Th align="right">Vault</Th>
-                  <Th align="right">Rent</Th>
-                  <Th align="right">RH</Th>
-                  <Th align="right">CO Spend</Th>
-                  <Th align="right">BofA</Th>
+                  <Th align="center">Net %</Th>
+                  <Th align="center">Vault</Th>
+                  <Th align="center">Rent</Th>
+                  <Th align="center">RH</Th>
+                  <Th align="center">CO Spend</Th>
+                  <Th align="center">BofA</Th>
                   <Th align="center">
                     <span className="sr-only">Notes</span>
                   </Th>
@@ -364,7 +364,7 @@ export function PaychecksTable({
                         transition: 'background .15s',
                       }}
                     >
-                      <Td align="left" last={isLast}>
+                      <Td align="center" last={isLast}>
                         <Tooltip>
                           <TooltipTrigger
                             render={
@@ -403,7 +403,7 @@ export function PaychecksTable({
                           </TooltipContent>
                         </Tooltip>
                       </Td>
-                      <Td align="left" last={isLast}>
+                      <Td align="center" last={isLast}>
                         <span
                           style={{
                             font: '600 13px var(--ui)',
@@ -414,7 +414,7 @@ export function PaychecksTable({
                           {fmtDate(row.pay_date, 'short')}
                         </span>
                       </Td>
-                      <Td align="left" last={isLast}>
+                      <Td align="center" last={isLast}>
                         <span
                           style={{
                             display: 'inline-flex',
@@ -460,7 +460,7 @@ export function PaychecksTable({
                         last={isLast}
                         value={row.reimbursement}
                         step="0.01"
-                        align="right"
+                        align="center"
                         onCommit={(v) => commit(row.id, 'reimbursement', v)}
                       />
                       <NumberCell
@@ -472,7 +472,7 @@ export function PaychecksTable({
                         placeholder={projectedNetPlaceholder}
                         onCommit={(v) => commit(row.id, 'actual_net_wages', v)}
                       />
-                      <Td align="right" last={isLast}>
+                      <Td align="center" last={isLast}>
                         <MoneyCell value={c.gross} muted />
                       </Td>
                       <NumberCell
@@ -482,7 +482,7 @@ export function PaychecksTable({
                         align="center"
                         onCommit={(v) => commit(row.id, 'extra_deposit', v)}
                       />
-                      <Td align="right" last={isLast}>
+                      <Td align="center" last={isLast}>
                         <span
                           style={{
                             font: '500 12.5px var(--ui)',
@@ -493,19 +493,19 @@ export function PaychecksTable({
                           {pct.format(c.netPct)}
                         </span>
                       </Td>
-                      <Td align="right" last={isLast}>
+                      <Td align="center" last={isLast}>
                         <MoneyCell value={c.vault} hue={HUE.vault} />
                       </Td>
-                      <Td align="right" last={isLast}>
+                      <Td align="center" last={isLast}>
                         <MoneyCell value={row.rent_paid} hue={HUE.rent} />
                       </Td>
-                      <Td align="right" last={isLast}>
+                      <Td align="center" last={isLast}>
                         <MoneyCell value={c.robinhood} hue={HUE.rh} />
                       </Td>
-                      <Td align="right" last={isLast}>
+                      <Td align="center" last={isLast}>
                         <MoneyCell value={c.co} hue={HUE.co} />
                       </Td>
-                      <Td align="right" last={isLast}>
+                      <Td align="center" last={isLast}>
                         <MoneyCell value={c.bofaOverflow} hue={HUE.bofa} />
                       </Td>
                       <Td align="center" last={isLast}>
