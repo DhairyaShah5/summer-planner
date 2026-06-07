@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { Settings } from '@/lib/types'
+import { PageHeader } from '@/components/redesign'
 import { PaychecksTable, type PaycheckRow } from './paychecks-table'
 
 export const dynamic = 'force-dynamic'
@@ -71,15 +72,10 @@ export default async function PaychecksPage() {
 
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-6 space-y-1">
-        <h1 className="bg-gradient-to-r from-blue-500 via-emerald-500 to-amber-500 bg-clip-text text-3xl font-semibold tracking-tight text-transparent">
-          Paycheck Plan
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Edit hours, per diem, and actual net wages as paychecks arrive. Computed
-          columns update live; saves happen on blur.
-        </p>
-      </div>
+      <PageHeader
+        title="Paycheck Plan"
+        subtitle="Edit hours, per diem, and actual net as paychecks arrive — computed columns update live."
+      />
       <PaychecksTable initialRows={rows} settings={settings} />
     </div>
   )

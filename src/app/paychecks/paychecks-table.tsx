@@ -1,20 +1,14 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { format, parseISO } from 'date-fns'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { NotebookPen } from 'lucide-react'
+import { Check, NotebookPen } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { computeAll } from '@/lib/calc'
 import type { Employer, PaycheckInput, Settings } from '@/lib/types'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
-import { GradientProgress } from '@/components/gradient-progress'
 import {
   Popover,
   PopoverContent,
@@ -26,13 +20,16 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+  CatDot,
+  Donut,
+  GaugeArc,
+  ProgressBar,
+  Reveal,
+  SectionLabel,
+  StackedBars,
+  fmtDate,
+  fmtMoney,
+} from '@/components/redesign'
 import { cn } from '@/lib/utils'
 
 export type PaycheckRow = {
@@ -79,18 +76,21 @@ type UpdatePayload = {
   >>
 }
 
-const money = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
-
 const pct = new Intl.NumberFormat('en-US', {
   style: 'percent',
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 })
+
+const USC_HUE = 235
+const NTT_HUE = 150
+const HUE = {
+  vault: 285,
+  rent: 35,
+  rh: 150,
+  co: 220,
+  bofa: 330,
+} as const
 
 function toEmployer(s: string): Employer {
   return s === 'Colorado Internship' ? 'Colorado Internship' : 'USC On-Campus'
@@ -182,9 +182,6 @@ export function PaychecksTable({
   })
 
   function commit(id: string, field: EditableField, raw: string | boolean) {
-    // Build the patch first (pure), then update state and fire mutation
-    // outside the setState updater so React StrictMode double-invocations
-    // don't fire the mutation twice.
     const patch: UpdatePayload['patch'] = {}
     if (field === 'received') {
       patch.received = Boolean(raw)
@@ -220,15 +217,12 @@ export function PaychecksTable({
           break
         }
         case 'notes': {
-          // Notes preserves whitespace; use raw for blank check.
           patch.notes = raw === '' ? null : String(raw)
           break
         }
       }
     }
 
-    // Optimistic local update so computed cells (vault/CO/buffer/cumulative)
-    // reflect the new value immediately without waiting for refetch.
     setRows((prev) =>
       prev.map((r) => (r.id === id ? { ...r, ...patch } : r)),
     )
@@ -240,307 +234,684 @@ export function PaychecksTable({
     ? Math.min(100, (totals.currentVault / settings.vaultCap) * 100)
     : 0
 
-  return (
-    <div className="space-y-6">
-      <div className="rounded-lg border overflow-x-auto">
-        <Table className="min-w-[1476px] table-auto">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-8 px-1.5 text-center">#</TableHead>
-              <TableHead className="w-[70px] px-1.5">Pay Date</TableHead>
-              <TableHead className="w-[56px] px-1.5">Employer</TableHead>
-              <TableHead className="w-[64px] px-1.5 text-center">Received</TableHead>
-              <TableHead className="w-[72px] px-1.5 text-right">Hours</TableHead>
-              <TableHead className="w-[64px] px-1.5 text-right">OT</TableHead>
-              <TableHead className="w-[84px] px-1.5 text-right">Per Diem</TableHead>
-              <TableHead className="w-[100px] px-1.5 text-right">Actual Net</TableHead>
-              <TableHead className="w-[100px] px-1.5 text-right">Gross Pay</TableHead>
-              <TableHead className="w-[100px] px-1.5 text-right">Extra Deposit</TableHead>
-              <TableHead className="w-[68px] px-1.5 text-right">Net %</TableHead>
-              <TableHead className="w-[112px] px-1.5 text-right">
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <span className="cursor-help underline decoration-dotted decoration-from-font decoration-muted-foreground/50 underline-offset-4" />
-                    }
-                  >
-                    Vault
-                  </TooltipTrigger>
-                  <TooltipContent>To Tuition Vault</TooltipContent>
-                </Tooltip>
-              </TableHead>
-              <TableHead className="w-[112px] px-1.5 text-right">
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <span className="cursor-help underline decoration-dotted decoration-from-font decoration-muted-foreground/50 underline-offset-4" />
-                    }
-                  >
-                    Rent
-                  </TooltipTrigger>
-                  <TooltipContent>To CA Rent / Bills</TooltipContent>
-                </Tooltip>
-              </TableHead>
-              <TableHead className="w-[108px] px-1.5 text-right">
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <span className="cursor-help underline decoration-dotted decoration-from-font decoration-muted-foreground/50 underline-offset-4" />
-                    }
-                  >
-                    RH
-                  </TooltipTrigger>
-                  <TooltipContent>To Robinhood</TooltipContent>
-                </Tooltip>
-              </TableHead>
-              <TableHead className="w-[112px] px-1.5 text-right">
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <span className="cursor-help underline decoration-dotted decoration-from-font decoration-muted-foreground/50 underline-offset-4" />
-                    }
-                  >
-                    CO Spend
-                  </TooltipTrigger>
-                  <TooltipContent>To Colorado Spending</TooltipContent>
-                </Tooltip>
-              </TableHead>
-              <TableHead className="w-[96px] px-1.5 text-right">
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <span className="cursor-help underline decoration-dotted decoration-from-font decoration-muted-foreground/50 underline-offset-4" />
-                    }
-                  >
-                    BofA
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    OT-driven overflow above expected pay. Routed to BofA
-                    Checking (rounded down to nearest $100). Stays $0 on rows
-                    without OT income above the plan.
-                  </TooltipContent>
-                </Tooltip>
-              </TableHead>
-              <TableHead className="w-8 px-1.5 text-center">
-                <span className="sr-only">Notes</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((row, i) => {
-              const c = computed[i]
-              const isUSC = c.employer === 'USC On-Campus'
-              const projectedNetPlaceholder = money
-                .format(c.estimatedNet)
-                .replace('$', '')
-              const hasNotes = (row.notes ?? '').trim().length > 0
-              return (
-                <motion.tr
-                  key={row.id}
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.02, duration: 0.3 }}
-                  data-slot="table-row"
-                  className="border-b odd:bg-muted/20 transition-colors hover:bg-muted/40 [&>td]:py-1 [&>td]:px-1.5 h-12"
-                >
-                  <TableCell className="text-center font-mono text-xs text-muted-foreground">
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <span className="cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-2" />
-                        }
-                      >
-                        {row.pay_num}
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <div className="space-y-1 text-left tabular-nums">
-                          <div className="flex justify-between gap-3">
-                            <span className="text-background/70">Gross</span>
-                            <span>{money.format(c.gross)}</span>
-                          </div>
-                          <div className="flex justify-between gap-3">
-                            <span className="text-background/70">Net %</span>
-                            <span>{pct.format(c.netPct)}</span>
-                          </div>
-                          <div className="flex justify-between gap-3">
-                            <span className="text-background/70">
-                              Rent Paid
-                            </span>
-                            <span>{money.format(row.rent_paid)}</span>
-                          </div>
-                          <div className="flex justify-between gap-3">
-                            <span className="text-background/70">Buffer</span>
-                            <span>{money.format(c.buffer)}</span>
-                          </div>
-                          <div className="flex justify-between gap-3 border-t border-background/20 pt-1 mt-1">
-                            <span className="text-background/70">
-                              Cum. Vault
-                            </span>
-                            <span>{money.format(c.cumulativeVault)}</span>
-                          </div>
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell className="text-xs tabular-nums whitespace-nowrap">
-                    {format(parseISO(row.pay_date), 'MMM d')}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      className={cn(
-                        'font-normal px-1.5 py-0 text-[10px]',
-                        isUSC
-                          ? 'bg-blue-500/15 text-blue-700 hover:bg-blue-500/20 dark:text-blue-300'
-                          : 'bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300',
-                      )}
-                    >
-                      {isUSC ? 'USC' : 'NTT'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex justify-center">
-                      <Checkbox
-                        checked={row.received}
-                        onCheckedChange={(checked) =>
-                          commit(row.id, 'received', Boolean(checked))
-                        }
-                        aria-label="Mark paycheck received"
-                      />
-                    </div>
-                  </TableCell>
-                  <NumberCell
-                    value={row.hours_worked}
-                    step="1"
-                    width="w-16"
-                    onCommit={(v) => commit(row.id, 'hours_worked', v)}
-                  />
-                  <NumberCell
-                    value={row.ot_hours}
-                    step="1"
-                    width="w-14"
-                    onCommit={(v) => commit(row.id, 'ot_hours', v)}
-                  />
-                  <NumberCell
-                    value={row.per_diem}
-                    step="0.01"
-                    width="w-20"
-                    onCommit={(v) => commit(row.id, 'per_diem', v)}
-                  />
-                  <NumberCell
-                    value={row.actual_net_wages}
-                    step="0.01"
-                    width="w-24"
-                    placeholder={projectedNetPlaceholder}
-                    onCommit={(v) => commit(row.id, 'actual_net_wages', v)}
-                  />
-                  <TableCell className="text-right tabular-nums text-xs font-medium text-muted-foreground">
-                    {money.format(c.gross)}
-                  </TableCell>
-                  <NumberCell
-                    value={row.extra_deposit}
-                    step="0.01"
-                    width="w-24"
-                    onCommit={(v) => commit(row.id, 'extra_deposit', v)}
-                  />
-                  <TableCell className="text-right tabular-nums text-xs font-medium text-muted-foreground">
-                    {pct.format(c.netPct)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums text-xs font-medium text-muted-foreground">
-                    {money.format(c.vault)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums text-xs font-medium text-muted-foreground">
-                    {money.format(row.rent_paid)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums text-xs font-medium text-muted-foreground">
-                    {money.format(c.robinhood)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums text-xs font-medium text-muted-foreground">
-                    {money.format(c.co)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums text-xs font-medium text-muted-foreground">
-                    {money.format(c.bofaOverflow)}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <NotesPopover
-                      notes={row.notes}
-                      hasNotes={hasNotes}
-                      onCommit={(v) => commit(row.id, 'notes', v)}
-                    />
-                  </TableCell>
-                </motion.tr>
-              )
-            })}
-          </TableBody>
-        </Table>
-      </div>
+  const allocData = computed.map((c) => ({
+    label: fmtDate(typeof c.payDate === 'string' ? c.payDate : c.payDate.toISOString().slice(0, 10), 'short'),
+    segments: [
+      { value: c.vault + c.extraDeposit, hue: HUE.vault },
+      { value: c.rentPaid, hue: HUE.rent },
+      { value: c.robinhood, hue: HUE.rh },
+      { value: c.co, hue: HUE.co },
+      { value: c.bofaOverflow, hue: HUE.bofa },
+    ],
+  }))
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <SummaryStat
-          index={0}
-          label="Total Vault"
-          tag="Current"
-          value={money.format(totals.currentVault)}
-          projected={`Projected ${money.format(totals.cumulative)}`}
-        />
-        <SummaryStat
-          index={1}
-          label="Summer CO Budget"
-          tag="Projected"
-          value={money.format(totals.totalCO)}
-          projected={`Current allocated ${money.format(totals.currentCO)} of projected ${money.format(totals.totalCO)}`}
-        />
-        <SummaryStat
-          index={2}
-          label="Total Buffer"
-          tag="Current"
-          value={money.format(totals.currentBuffer)}
-          projected={`Projected ${money.format(totals.totalBuffer)}`}
-        />
-        <SummaryStat
-          index={3}
-          label="Vault Progress"
-          tag="Current"
-          value={`${vaultProgressPct.toFixed(1)}%`}
-          projected={`${money.format(totals.currentVault)} of ${money.format(settings.vaultCap)}`}
-          progress={vaultProgressPct}
-        />
+  const uscNet = computed
+    .filter((c) => c.employer === 'USC On-Campus')
+    .reduce((s, c) => s + (c.actualNetWages ?? c.estimatedNet), 0)
+  const nttNet = computed
+    .filter((c) => c.employer === 'Colorado Internship')
+    .reduce((s, c) => s + (c.actualNetWages ?? c.estimatedNet), 0)
+  const employerTotals = [
+    { label: 'USC', hue: USC_HUE, total: uscNet },
+    { label: 'NTT', hue: NTT_HUE, total: nttNet },
+  ]
+  const totalIncome = uscNet + nttNet
+  const collected = computed
+    .filter((c) => c.received)
+    .reduce((s, c) => s + (c.actualNetWages ?? c.estimatedNet), 0)
+  const collectedPct = totalIncome > 0 ? collected / totalIncome : 0
+
+  const legend: Array<[string, number]> = [
+    ['Vault', HUE.vault],
+    ['Rent', HUE.rent],
+    ['RH', HUE.rh],
+    ['CO', HUE.co],
+    ['BofA', HUE.bofa],
+  ]
+
+  return (
+    <div className="space-y-4">
+      <Reveal>
+        <div
+          className="card fx-card"
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--hair)',
+            borderRadius: 'var(--radius)',
+            padding: 0,
+            overflow: 'hidden',
+          }}
+        >
+          <div style={{ overflowX: 'auto' }}>
+            <table
+              style={{
+                borderCollapse: 'collapse',
+                width: '100%',
+                minWidth: 1200,
+                tableLayout: 'fixed',
+              }}
+            >
+              <colgroup>
+                <col style={{ width: 36 }} />
+                <col style={{ width: 84 }} />
+                <col style={{ width: 76 }} />
+                <col style={{ width: 76 }} />
+                <col style={{ width: 70 }} />
+                <col style={{ width: 56 }} />
+                <col style={{ width: 80 }} />
+                <col style={{ width: 100 }} />
+                <col style={{ width: 92 }} />
+                <col style={{ width: 88 }} />
+                <col style={{ width: 64 }} />
+                <col style={{ width: 86 }} />
+                <col style={{ width: 86 }} />
+                <col style={{ width: 72 }} />
+                <col style={{ width: 90 }} />
+                <col style={{ width: 82 }} />
+                <col style={{ width: 44 }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <Th align="left">#</Th>
+                  <Th align="left">Pay Date</Th>
+                  <Th align="left">Employer</Th>
+                  <Th align="center">Received</Th>
+                  <Th align="center">Hours</Th>
+                  <Th align="center">OT</Th>
+                  <Th align="center">Per Diem</Th>
+                  <Th align="center">Actual Net</Th>
+                  <Th align="right">Gross Pay</Th>
+                  <Th align="center">Extra Dep.</Th>
+                  <Th align="right">Net %</Th>
+                  <Th align="right">Vault</Th>
+                  <Th align="right">Rent</Th>
+                  <Th align="right">RH</Th>
+                  <Th align="right">CO Spend</Th>
+                  <Th align="right">BofA</Th>
+                  <Th align="center">
+                    <span className="sr-only">Notes</span>
+                  </Th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, i) => {
+                  const c = computed[i]
+                  const isUSC = c.employer === 'USC On-Campus'
+                  const empHue = isUSC ? USC_HUE : NTT_HUE
+                  const empLabel = isUSC ? 'USC' : 'NTT'
+                  const projectedNetPlaceholder = c.estimatedNet
+                    .toFixed(2)
+                  const hasNotes = (row.notes ?? '').trim().length > 0
+                  const isLast = i === rows.length - 1
+                  const rowBg = row.received
+                    ? 'color-mix(in oklch, var(--mint) 6%, transparent)'
+                    : 'transparent'
+                  return (
+                    <tr
+                      key={row.id}
+                      style={{
+                        background: rowBg,
+                        transition: 'background .15s',
+                      }}
+                    >
+                      <Td align="left" last={isLast}>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <span
+                                style={{
+                                  font: '600 12px var(--display)',
+                                  color: 'var(--ink-4)',
+                                  cursor: 'help',
+                                  textDecoration: 'underline dotted',
+                                  textUnderlineOffset: 2,
+                                }}
+                              />
+                            }
+                          >
+                            {row.pay_num}
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <div className="space-y-1 text-left tabular-nums">
+                              <KV label="Gross" v={fmtMoney(c.gross, { cents: true })} />
+                              <KV label="Net %" v={pct.format(c.netPct)} />
+                              <KV
+                                label="Rent Paid"
+                                v={fmtMoney(row.rent_paid, { cents: true })}
+                              />
+                              <KV
+                                label="Buffer"
+                                v={fmtMoney(c.buffer, { cents: true })}
+                              />
+                              <div className="border-t border-background/20 pt-1 mt-1">
+                                <KV
+                                  label="Cum. Vault"
+                                  v={fmtMoney(c.cumulativeVault, { cents: true })}
+                                />
+                              </div>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </Td>
+                      <Td align="left" last={isLast}>
+                        <span
+                          style={{
+                            font: '600 13px var(--ui)',
+                            color: 'var(--ink-1)',
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
+                        >
+                          {fmtDate(row.pay_date, 'short')}
+                        </span>
+                      </Td>
+                      <Td align="left" last={isLast}>
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            font: '600 11px var(--ui)',
+                            padding: '3px 9px',
+                            borderRadius: 7,
+                            background: `color-mix(in oklch, oklch(0.62 0.16 ${empHue}) 16%, transparent)`,
+                            color: `oklch(0.55 0.16 ${empHue})`,
+                          }}
+                        >
+                          {empLabel}
+                        </span>
+                      </Td>
+                      <Td align="center" last={isLast}>
+                        <ReceivedCheck
+                          checked={row.received}
+                          onChange={(v) => commit(row.id, 'received', v)}
+                        />
+                      </Td>
+                      <NumberCell
+                        last={isLast}
+                        value={row.hours_worked}
+                        step="1"
+                        align="center"
+                        onCommit={(v) => commit(row.id, 'hours_worked', v)}
+                      />
+                      <NumberCell
+                        last={isLast}
+                        value={row.ot_hours}
+                        step="1"
+                        align="center"
+                        onCommit={(v) => commit(row.id, 'ot_hours', v)}
+                      />
+                      <NumberCell
+                        last={isLast}
+                        value={row.per_diem}
+                        step="0.01"
+                        align="center"
+                        onCommit={(v) => commit(row.id, 'per_diem', v)}
+                      />
+                      <NumberCell
+                        last={isLast}
+                        value={row.actual_net_wages}
+                        step="0.01"
+                        align="center"
+                        strong
+                        placeholder={projectedNetPlaceholder}
+                        onCommit={(v) => commit(row.id, 'actual_net_wages', v)}
+                      />
+                      <Td align="right" last={isLast}>
+                        <MoneyCell value={c.gross} muted />
+                      </Td>
+                      <NumberCell
+                        last={isLast}
+                        value={row.extra_deposit}
+                        step="0.01"
+                        align="center"
+                        onCommit={(v) => commit(row.id, 'extra_deposit', v)}
+                      />
+                      <Td align="right" last={isLast}>
+                        <span
+                          style={{
+                            font: '500 12.5px var(--ui)',
+                            color: 'var(--ink-3)',
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
+                        >
+                          {pct.format(c.netPct)}
+                        </span>
+                      </Td>
+                      <Td align="right" last={isLast}>
+                        <MoneyCell value={c.vault} hue={HUE.vault} />
+                      </Td>
+                      <Td align="right" last={isLast}>
+                        <MoneyCell value={row.rent_paid} hue={HUE.rent} />
+                      </Td>
+                      <Td align="right" last={isLast}>
+                        <MoneyCell value={c.robinhood} hue={HUE.rh} />
+                      </Td>
+                      <Td align="right" last={isLast}>
+                        <MoneyCell value={c.co} hue={HUE.co} />
+                      </Td>
+                      <Td align="right" last={isLast}>
+                        <MoneyCell value={c.bofaOverflow} hue={HUE.bofa} />
+                      </Td>
+                      <Td align="center" last={isLast}>
+                        <NotesPopover
+                          notes={row.notes}
+                          hasNotes={hasNotes}
+                          onCommit={(v) => commit(row.id, 'notes', v)}
+                        />
+                      </Td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </Reveal>
+
+      <Reveal delay={80}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: 14,
+          }}
+        >
+          <SummaryStat
+            label="Total Vault"
+            tag="Current"
+            value={fmtMoney(totals.currentVault, { cents: true })}
+            sub={`Projected ${fmtMoney(totals.cumulative)}`}
+            hue={HUE.vault}
+          />
+          <SummaryStat
+            label="Summer CO Budget"
+            tag="Projected"
+            value={fmtMoney(totals.totalCO, { cents: true })}
+            sub={`Allocated ${fmtMoney(totals.currentCO)} so far`}
+            hue={HUE.co}
+          />
+          <SummaryStat
+            label="Total Buffer"
+            tag="Current"
+            value={fmtMoney(totals.currentBuffer, { cents: true })}
+            sub={`Projected ${fmtMoney(totals.totalBuffer)}`}
+            hue={HUE.bofa}
+          />
+          <SummaryStat
+            label="Vault Progress"
+            tag="Current"
+            value={`${vaultProgressPct.toFixed(1)}%`}
+            sub={`${fmtMoney(totals.currentVault)} of ${fmtMoney(settings.vaultCap)}`}
+            hue={45}
+            progress={vaultProgressPct / 100}
+          />
+        </div>
+      </Reveal>
+
+      <Reveal delay={120}>
+        <div
+          className="card fx-card"
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--hair)',
+            borderRadius: 'var(--radius)',
+            padding: 22,
+          }}
+        >
+          <SectionLabel
+            right={
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                {legend.map(([l, h]) => (
+                  <span
+                    key={l}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      font: '500 11.5px var(--ui)',
+                      color: 'var(--ink-3)',
+                    }}
+                  >
+                    <CatDot hue={h} />
+                    {l}
+                  </span>
+                ))}
+              </div>
+            }
+          >
+            Allocation per paycheck
+          </SectionLabel>
+          <StackedBars
+            data={allocData}
+            height={210}
+            formatTop={(v) => '$' + (v / 1000).toFixed(1) + 'k'}
+          />
+        </div>
+      </Reveal>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: 16,
+        }}
+      >
+        <Reveal from="left" delay={140}>
+          <div
+            className="card fx-card"
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--hair)',
+              borderRadius: 'var(--radius)',
+              padding: 22,
+              height: '100%',
+            }}
+          >
+            <SectionLabel
+              right={
+                <span
+                  style={{
+                    font: '500 12px var(--ui)',
+                    color: 'var(--ink-3)',
+                  }}
+                >
+                  {fmtMoney(totalIncome)} total
+                </span>
+              }
+            >
+              Net income by employer
+            </SectionLabel>
+            <div
+              style={{
+                display: 'flex',
+                gap: 28,
+                alignItems: 'center',
+                flexWrap: 'wrap',
+              }}
+            >
+              <Donut data={employerTotals} size={150} stroke={24} />
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 180,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                }}
+              >
+                {employerTotals.map((e) => (
+                  <div
+                    key={e.label}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                    }}
+                  >
+                    <CatDot hue={e.hue} />
+                    <span
+                      style={{
+                        flex: 1,
+                        font: '600 14px var(--ui)',
+                        color: 'var(--ink-1)',
+                      }}
+                    >
+                      {e.label}
+                    </span>
+                    <span
+                      style={{
+                        font: '600 14px var(--display)',
+                        color: 'var(--ink-2)',
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
+                      {fmtMoney(e.total)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Reveal>
+
+        <Reveal from="right" delay={160}>
+          <div
+            className="card fx-card"
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--hair)',
+              borderRadius: 'var(--radius)',
+              padding: 22,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <SectionLabel
+              right={
+                <span
+                  style={{
+                    font: '500 12px var(--ui)',
+                    color: 'var(--pos-ink)',
+                  }}
+                >
+                  {Math.round(collectedPct * 100)}% collected
+                </span>
+              }
+            >
+              Income collected so far
+            </SectionLabel>
+            <div
+              style={{
+                flex: 1,
+                display: 'grid',
+                placeItems: 'center',
+                paddingBottom: 6,
+              }}
+            >
+              <GaugeArc
+                value={collectedPct}
+                size={220}
+                stroke={18}
+                gradient={['var(--pos)', 'var(--accent)']}
+                glow="color-mix(in oklch, var(--pos) 40%, transparent)"
+              >
+                <div style={{ textAlign: 'center', paddingBottom: 4 }}>
+                  <div
+                    style={{
+                      font: '600 28px var(--display)',
+                      letterSpacing: '-.02em',
+                      color: 'var(--ink-1)',
+                    }}
+                  >
+                    {fmtMoney(collected)}
+                  </div>
+                  <div
+                    style={{
+                      font: '500 12px var(--ui)',
+                      color: 'var(--ink-3)',
+                    }}
+                  >
+                    of {fmtMoney(totalIncome)} summer income
+                  </div>
+                </div>
+              </GaugeArc>
+            </div>
+          </div>
+        </Reveal>
       </div>
     </div>
+  )
+}
+
+function Th({
+  align,
+  children,
+}: {
+  align: 'left' | 'center' | 'right'
+  children: React.ReactNode
+}) {
+  return (
+    <th
+      style={{
+        textAlign: align,
+        padding: '12px 8px',
+        font: '600 10.5px var(--ui)',
+        letterSpacing: '.03em',
+        textTransform: 'uppercase',
+        color: 'var(--ink-3)',
+        whiteSpace: 'nowrap',
+        borderBottom: '1px solid var(--hair)',
+        position: 'sticky',
+        top: 0,
+        background: 'var(--surface)',
+        zIndex: 1,
+      }}
+    >
+      {children}
+    </th>
+  )
+}
+
+function Td({
+  align,
+  last,
+  children,
+}: {
+  align: 'left' | 'center' | 'right'
+  last?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <td
+      style={{
+        padding: '7px 8px',
+        textAlign: align,
+        borderBottom: last ? 'none' : '1px solid var(--hair)',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
+    </td>
+  )
+}
+
+function KV({ label, v }: { label: string; v: string }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <span className="text-background/70">{label}</span>
+      <span>{v}</span>
+    </div>
+  )
+}
+
+function ReceivedCheck({
+  checked,
+  onChange,
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      aria-label={checked ? 'Mark unreceived' : 'Mark received'}
+      style={{
+        width: 22,
+        height: 22,
+        borderRadius: 7,
+        cursor: 'pointer',
+        display: 'inline-grid',
+        placeItems: 'center',
+        border: '1.5px solid',
+        borderColor: checked ? 'var(--mint)' : 'var(--ink-4)',
+        background: checked ? 'var(--mint)' : 'transparent',
+        transition: 'all .15s',
+        padding: 0,
+      }}
+    >
+      {checked && <Check size={13} color="#fff" strokeWidth={2.6} />}
+    </button>
+  )
+}
+
+function MoneyCell({
+  value,
+  hue,
+  muted,
+}: {
+  value: number
+  hue?: number
+  muted?: boolean
+}) {
+  const isZero = !value || value <= 0
+  const color = muted
+    ? 'var(--ink-3)'
+    : hue != null && value > 0
+      ? `oklch(0.55 0.14 ${hue})`
+      : 'var(--ink-2)'
+  return (
+    <span
+      style={{
+        font: `${muted ? 500 : 600} 13px var(--display)`,
+        color: isZero && !muted ? 'var(--ink-4)' : color,
+        fontVariantNumeric: 'tabular-nums',
+      }}
+    >
+      {isZero && !muted ? '—' : fmtMoney(value, { cents: true })}
+    </span>
   )
 }
 
 function NumberCell({
   value,
   step,
-  width = 'w-20',
   placeholder,
+  align = 'center',
+  strong,
+  last,
   onCommit,
 }: {
   value: number | null
   step: string
-  width?: string
   placeholder?: string
+  align?: 'left' | 'center' | 'right'
+  strong?: boolean
+  last?: boolean
   onCommit: (v: string) => void
 }) {
   const initial = value == null ? '' : String(value)
   return (
-    <TableCell className="text-right">
-      <Input
+    <Td align={align} last={last}>
+      <input
         key={initial}
         type="number"
         step={step}
         defaultValue={initial}
-        placeholder={placeholder}
+        placeholder={placeholder ?? '0'}
         className={cn(
-          'h-8 text-xs text-right tabular-nums bg-muted/30 focus:ring-1 focus:ring-primary ml-auto',
-          width,
+          'w-full bg-transparent outline-none border-0 px-1 py-1 rounded-md',
+          'focus:bg-[var(--surface-2)] focus:ring-1 focus:ring-[var(--accent)]',
+          'transition-colors',
         )}
+        style={{
+          textAlign: align,
+          font: `${strong ? 600 : 500} 13px var(--ui)`,
+          color: 'var(--ink-1)',
+          fontVariantNumeric: 'tabular-nums',
+        }}
         onBlur={(e) => {
           const raw = e.currentTarget.value
           if (raw !== initial) onCommit(raw)
         }}
       />
-    </TableCell>
+    </Td>
   )
 }
 
@@ -567,10 +938,10 @@ function NotesPopover({
         }
       >
         <NotebookPen
-          className={cn(
-            'size-4',
-            hasNotes ? 'text-primary' : 'text-muted-foreground',
-          )}
+          className={cn('size-4')}
+          style={{
+            color: hasNotes ? 'var(--accent-ink)' : 'var(--ink-4)',
+          }}
         />
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72">
@@ -596,44 +967,91 @@ function SummaryStat({
   label,
   value,
   tag,
-  projected,
+  sub,
+  hue,
   progress,
-  index = 0,
 }: {
   label: string
   value: string
   tag?: string
-  projected?: string
+  sub?: string
+  hue?: number
   progress?: number
-  index?: number
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.1 + index * 0.05, duration: 0.4 }}
-      whileHover={{ y: -2 }}
-      className="rounded-lg border bg-card p-4 transition-shadow hover:shadow-lg"
+    <div
+      className="card fx-card"
+      style={{
+        padding: 18,
+        height: '100%',
+        background: 'var(--surface)',
+        border: '1px solid var(--hair)',
+        borderRadius: 'var(--radius)',
+      }}
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-xs text-muted-foreground">{label}</div>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 10,
+        }}
+      >
+        <span
+          style={{
+            font: '600 12px var(--ui)',
+            letterSpacing: '.04em',
+            textTransform: 'uppercase',
+            color: 'var(--ink-3)',
+          }}
+        >
+          {label}
+        </span>
         {tag && (
-          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <span
+            style={{
+              font: '600 10px var(--ui)',
+              letterSpacing: '.06em',
+              textTransform: 'uppercase',
+              color: 'var(--ink-4)',
+              border: '1px solid var(--hair)',
+              borderRadius: 6,
+              padding: '2px 7px',
+            }}
+          >
             {tag}
           </span>
         )}
       </div>
-      <div className="mt-1 text-lg font-semibold tabular-nums">{value}</div>
-      {projected && (
-        <div className="mt-0.5 text-xs text-muted-foreground tabular-nums">
-          {projected}
+      <div
+        style={{
+          font: '600 28px/1 var(--display)',
+          letterSpacing: '-.02em',
+          color: hue != null ? `oklch(0.6 0.16 ${hue})` : 'var(--ink-1)',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {value}
+      </div>
+      {sub && (
+        <div
+          style={{
+            font: '500 12px var(--ui)',
+            color: 'var(--ink-3)',
+            marginTop: 7,
+          }}
+        >
+          {sub}
         </div>
       )}
       {progress != null && (
-        <div className="mt-2">
-          <GradientProgress percent={progress} height="h-2" />
+        <div style={{ marginTop: 10 }}>
+          <ProgressBar
+            pct={progress}
+            color={`linear-gradient(90deg, oklch(0.7 0.16 ${hue ?? 45}), var(--accent))`}
+          />
         </div>
       )}
-    </motion.div>
+    </div>
   )
 }
