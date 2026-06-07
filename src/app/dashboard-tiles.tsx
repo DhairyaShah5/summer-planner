@@ -2,8 +2,6 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
-import { format } from 'date-fns'
 import {
   Vault,
   Calendar,
@@ -11,52 +9,38 @@ import {
   TrendingUp,
   Receipt,
   ClipboardList,
-  Inbox,
-  Sparkles,
-  PieChart,
   Landmark,
+  Target,
+  Sparkles,
+  Clock,
+  Check,
   ArrowUpRight,
 } from 'lucide-react'
 
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { GradientProgress } from '@/components/gradient-progress'
-import { AnimatedNumber } from '@/components/animated-number'
-import { MotionTile } from '@/components/motion-card'
-import {
-  AllocationBreakdown,
-  type AllocationDatum,
-} from '@/components/allocation-breakdown'
 import type { Expense } from '@/lib/types'
-import { cn } from '@/lib/utils'
+import type { AllocationDatum } from '@/components/allocation-breakdown'
+import {
+  PageHeader,
+  Money,
+  CountText,
+  Reveal,
+  Ring,
+  Donut,
+  AreaChart,
+  ProgressBar,
+  GaugeArc,
+  Pill,
+  CatDot,
+  fmtMoney,
+  fmtDate,
+} from '@/components/redesign'
 
-const money = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
-
-const moneyWhole = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
-})
-
-const tileChrome =
-  'relative h-full ring-1 ring-foreground/10 transition-shadow hover:shadow-lg group-hover:ring-2 group-hover:ring-primary/20'
-
-const tileArrowClass =
-  'pointer-events-none absolute right-3 top-3 size-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100'
+export type VaultGrowthPoint = { label: string; value: number }
 
 export interface DashboardTilesProps {
+  todayLabel: string
+  deadlineLabel: string
+  vaultCap: number
   vault: {
     current: number
     projected: number
@@ -101,10 +85,37 @@ export interface DashboardTilesProps {
     type: 'checking' | 'credit_card' | 'hysa'
     current_balance: number
   }[]
+  vaultGrowth: VaultGrowthPoint[]
+  coGauge: { spent: number; allowed: number }
+}
+
+// Bucket / category hue palette — mirrors the design handoff palette so the
+// donut, dots, and area fills share a single source of truth.
+const BUCKET_HUE: Record<string, number> = {
+  Vault: 285,
+  Rent: 35,
+  Robinhood: 150,
+  CO: 220,
+  Buffer: 330,
+}
+
+const CATEGORY_HUE: Record<string, number> = {
+  Food: 35,
+  Transit: 220,
+  Entertainment: 285,
+  Groceries: 150,
+  Other: 250,
+}
+
+const EMPLOYER_HUE: Record<string, number> = {
+  'USC On-Campus': 235,
+  'Colorado Internship': 150,
 }
 
 export function DashboardTiles(props: DashboardTilesProps) {
   const {
+    todayLabel,
+    deadlineLabel,
     vault,
     weekBudget,
     nextPaycheck,
@@ -113,408 +124,1042 @@ export function DashboardTiles(props: DashboardTilesProps) {
     recentExpenses,
     allocation,
     accountsPreview,
+    vaultGrowth,
+    coGauge,
   } = props
 
-  return (
-    <div className="space-y-4">
-      {/* Top row: Vault hero (col-span-2) + This Week CO Budget (col-span-1) */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:grid-rows-[1fr]">
-        <MotionTile index={0} className="md:col-span-2">
-          <Link href="/paychecks" className="group block h-full">
-            <Card
-              className={cn(
-                tileChrome,
-                'bg-gradient-to-br from-indigo-500/10 via-fuchsia-500/5 to-transparent',
-              )}
-            >
-              <ArrowUpRight className={tileArrowClass} />
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <motion.span
-                    whileHover={{ rotate: 12, scale: 1.1 }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 18 }}
-                    className="inline-flex"
-                  >
-                    <Vault className="size-4 text-indigo-500" />
-                  </motion.span>
-                  Vault Progress
-                </CardTitle>
-                <CardDescription className="tabular-nums">
-                  <AnimatedNumber value={vault.current} format={money.format} />{' '}
-                  today &middot; projected{' '}
-                  {moneyWhole.format(vault.projected)} by Aug 28
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-4xl font-semibold tracking-tight tabular-nums">
-                  <AnimatedNumber value={vault.current} format={money.format} />
-                </div>
-                <p className="text-sm text-muted-foreground tabular-nums">
-                  Saving toward {moneyWhole.format(vault.cap)} (
-                  {vault.percent.toFixed(1)}% of the way)
-                </p>
-                <GradientProgress percent={vault.percent} height="h-3" />
-                <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
-                  <span>{vault.percent.toFixed(1)}% funded</span>
-                  <span>
-                    {money.format(vault.remaining)} to{' '}
-                    {moneyWhole.format(vault.cap)} cap
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        </MotionTile>
+  const vaultPctFrac = Math.min(1, vault.percent / 100)
+  const coPct = coGauge.allowed > 0 ? coGauge.spent / coGauge.allowed : 0
+  const coPctClamped = Math.max(0, Math.min(1, coPct))
 
-        <MotionTile index={1}>
-          <Link href="/expenses" className="group block h-full">
-            <Card
-              className={cn(
-                tileChrome,
-                'border-l-4',
-                weekBudget.isUnder
-                  ? 'border-l-emerald-500'
-                  : 'border-l-rose-500',
-              )}
-            >
-              <ArrowUpRight className={tileArrowClass} />
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="size-4 text-primary" />
-                  CO Budget
-                </CardTitle>
-                <CardDescription>
-                  {weekBudget.weekStartLabel} - {weekBudget.weekEndLabel}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div
-                  className={cn(
-                    'text-3xl font-semibold tracking-tight tabular-nums',
-                    weekBudget.isUnder
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-rose-600 dark:text-rose-400',
-                  )}
-                >
-                  <AnimatedNumber
-                    value={Math.abs(weekBudget.variance)}
-                    format={money.format}
-                  />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {weekBudget.isUnder
-                    ? 'left to spend overall'
-                    : 'over budget overall'}
-                </p>
-                <p className="text-xs text-muted-foreground tabular-nums">
-                  Spent {money.format(weekBudget.actual)} &middot; Maximum allowed{' '}
-                  {money.format(weekBudget.target)}
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-        </MotionTile>
-      </div>
-
-      {/* Middle row: 3 columns */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:grid-rows-[1fr]">
-        <MotionTile index={2}>
-          <Link href="/paychecks" className="group block h-full">
-            <Card className={tileChrome}>
-              <ArrowUpRight className={tileArrowClass} />
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Wallet className="size-4 text-primary" />
-                  Next Paycheck
-                </CardTitle>
-                <CardDescription>
-                  {nextPaycheck
-                    ? nextPaycheck.payDateLabel
-                    : 'No paychecks scheduled'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {nextPaycheck ? (
-                  <>
-                    <div className="flex items-center justify-between">
-                      <EmployerBadge employer={nextPaycheck.employer} />
-                      <StatusBadge status={nextPaycheck.status} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <RowLine
-                        label="Projected net"
-                        value={money.format(nextPaycheck.projectedNet)}
-                      />
-                      <RowLine
-                        label="Vault"
-                        value={money.format(nextPaycheck.vault)}
-                      />
-                      <RowLine
-                        label="CO spend"
-                        value={money.format(nextPaycheck.co)}
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <EmptyHint
-                    icon={<Sparkles className="size-5 text-muted-foreground" />}
-                    title="No paychecks yet"
-                    body="Add a paycheck on the Paychecks page."
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </Link>
-        </MotionTile>
-
-        <MotionTile index={3}>
-          <Link href="/paychecks" className="group block h-full">
-            <Card className={tileChrome}>
-              <ArrowUpRight className={tileArrowClass} />
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="size-4 text-emerald-500" />
-                  Projected (end of summer)
-                </CardTitle>
-                <CardDescription>
-                  Projected allocations across summer
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-                  <ProjectedStat
-                    label="Vault"
-                    value={money.format(projected.totalVault)}
-                  />
-                  <ProjectedStat
-                    label="CO"
-                    value={money.format(projected.totalCO)}
-                  />
-                  <ProjectedStat
-                    label="Buffer"
-                    value={money.format(projected.totalBuffer)}
-                  />
-                  <ProjectedStat
-                    label="Rent paid"
-                    value={money.format(projected.totalRentPaid)}
-                  />
-                </dl>
-              </CardContent>
-            </Card>
-          </Link>
-        </MotionTile>
-
-        <MotionTile index={4}>
-          <Link href="/paychecks" className="group block h-full">
-            <Card className={tileChrome}>
-              <ArrowUpRight className={tileArrowClass} />
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ClipboardList className="size-4 text-amber-500" />
-                  Paycheck Status
-                </CardTitle>
-                <CardDescription>
-                  {paycheckStatus.pending} pending of {paycheckStatus.total} total
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-semibold tabular-nums">
-                    <AnimatedNumber
-                      value={paycheckStatus.pending}
-                      format={(n) => String(Math.round(n))}
-                    />
-                  </span>
-                  <span className="text-sm text-muted-foreground">pending</span>
-                </div>
-                <div className="flex gap-2">
-                  <StatusBadge
-                    status="Received"
-                    count={paycheckStatus.received}
-                  />
-                  <StatusBadge
-                    status="Pending"
-                    count={paycheckStatus.pending}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        </MotionTile>
-      </div>
-
-      {/* Bottom row: 3 columns */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:grid-rows-[1fr]">
-        <MotionTile index={5}>
-          <Link href="/accounts" className="group block h-full">
-            <Card className={tileChrome}>
-              <ArrowUpRight className={tileArrowClass} />
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Landmark className="size-4 text-indigo-500" />
-                  Accounts
-                </CardTitle>
-                <CardDescription>Live balances right now</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {accountsPreview.length > 0 ? (
-                  <ul className="divide-y">
-                    {accountsPreview.map((a, i) => {
-                      const isCC = a.type === 'credit_card'
-                      return (
-                        <motion.li
-                          key={a.id}
-                          initial={{ opacity: 0, x: -6 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.4 + i * 0.04, duration: 0.3 }}
-                          className="-mx-2 flex items-center justify-between rounded px-2 py-2 first:pt-0 last:pb-0 transition-colors hover:bg-muted/40"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium">
-                              {a.name}
-                            </p>
-                            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                              {accountTypeLabel(a.type)}
-                            </p>
-                          </div>
-                          <span
-                            className={cn(
-                              'ml-3 text-sm font-semibold tabular-nums',
-                              isCC && 'text-destructive',
-                            )}
-                          >
-                            {money.format(a.current_balance)}
-                          </span>
-                        </motion.li>
-                      )
-                    })}
-                  </ul>
-                ) : (
-                  <EmptyHint
-                    icon={<Landmark className="size-5 text-muted-foreground" />}
-                    title="No accounts yet"
-                    body="Seed accounts in the database to see balances here."
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </Link>
-        </MotionTile>
-
-        <MotionTile index={6}>
-          <Link href="/expenses" className="group block h-full">
-            <Card className={tileChrome}>
-              <ArrowUpRight className={tileArrowClass} />
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Receipt className="size-4 text-rose-500" />
-                  Recent Expenses
-                </CardTitle>
-                <CardDescription>
-                  {recentExpenses.length > 0
-                    ? `Last ${recentExpenses.length} entries`
-                    : 'Nothing logged yet'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {recentExpenses.length > 0 ? (
-                  <ul className="divide-y">
-                    {recentExpenses.map((e, i) => (
-                      <motion.li
-                        key={e.id}
-                        initial={{ opacity: 0, x: -6 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.4 + i * 0.04, duration: 0.3 }}
-                        className="-mx-2 flex items-center justify-between rounded px-2 py-2 first:pt-0 last:pb-0 transition-colors hover:bg-muted/40"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">
-                            {e.description}
-                          </p>
-                          <p className="text-xs text-muted-foreground tabular-nums">
-                            {format(new Date(e.expense_date), 'MMM d')}
-                          </p>
-                        </div>
-                        <span className="ml-3 text-sm font-medium tabular-nums">
-                          {money.format(e.amount)}
-                        </span>
-                      </motion.li>
-                    ))}
-                  </ul>
-                ) : (
-                  <EmptyHint
-                    icon={<Inbox className="size-5 text-muted-foreground" />}
-                    title="No expenses yet"
-                    body="Log spend on the Expenses page to see it here."
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </Link>
-        </MotionTile>
-
-        <MotionTile index={7}>
-          <Link href="/paychecks" className="group block h-full">
-            <Card className={tileChrome}>
-              <ArrowUpRight className={tileArrowClass} />
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <PieChart className="size-4 text-fuchsia-500" />
-                  Allocation Breakdown
-                </CardTitle>
-                <CardDescription>
-                  Allocated so far, by bucket
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <AllocationBreakdown data={allocation} />
-              </CardContent>
-            </Card>
-          </Link>
-        </MotionTile>
-      </div>
-    </div>
-  )
-}
-
-function RowLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium tabular-nums">{value}</span>
-    </div>
-  )
-}
-
-function ProjectedStat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-base font-semibold tabular-nums">{value}</dd>
+      <PageHeader
+        title="Summer at a glance"
+        subtitle={`${todayLabel} · saving toward ${fmtMoney(vault.projected)} by ${deadlineLabel}`}
+      />
+
+      <div
+        className="bento-grid"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          gap: 16,
+        }}
+      >
+        <Reveal style={{ gridColumn: 'span 2' }}>
+          <TileLink href="/accounts">
+            <VaultProgressTile
+              percent={vaultPctFrac}
+              current={vault.current}
+              projected={vault.projected}
+              cap={vault.cap}
+              remaining={vault.remaining}
+              deadlineLabel={deadlineLabel}
+            />
+          </TileLink>
+        </Reveal>
+
+        <Reveal delay={60}>
+          <TileLink href="/expenses">
+            <CoBudgetTile
+              leftNow={Math.max(0, coGauge.allowed - coGauge.spent)}
+              spent={coGauge.spent}
+              allowed={coGauge.allowed}
+              weekRangeLabel={`${weekBudget.weekStartLabel} – ${weekBudget.weekEndLabel}`}
+              isUnder={weekBudget.isUnder}
+              variance={weekBudget.variance}
+            />
+          </TileLink>
+        </Reveal>
+
+        <Reveal delay={100} style={{ gridColumn: 'span 2' }}>
+          <TileLink href="/weekly">
+            <VaultGrowthTile points={vaultGrowth} cap={vault.cap} />
+          </TileLink>
+        </Reveal>
+
+        <Reveal delay={140}>
+          <TileLink href="/expenses">
+            <CoGaugeTile pct={coPctClamped} spent={coGauge.spent} allowed={coGauge.allowed} />
+          </TileLink>
+        </Reveal>
+
+        <Reveal delay={180}>
+          <TileLink href="/paychecks">
+            <NextPaycheckTile next={nextPaycheck} />
+          </TileLink>
+        </Reveal>
+
+        <Reveal delay={220}>
+          <TileLink href="/paychecks">
+            <ProjectedSummerTile projected={projected} />
+          </TileLink>
+        </Reveal>
+
+        <Reveal delay={260}>
+          <TileLink href="/paychecks">
+            <PaycheckStatusTile status={paycheckStatus} />
+          </TileLink>
+        </Reveal>
+
+        <Reveal delay={300}>
+          <TileLink href="/accounts">
+            <AccountsLiveTile accounts={accountsPreview} />
+          </TileLink>
+        </Reveal>
+
+        <Reveal delay={340}>
+          <TileLink href="/expenses">
+            <RecentExpensesTile expenses={recentExpenses} />
+          </TileLink>
+        </Reveal>
+
+        <Reveal delay={380}>
+          <TileLink href="/paychecks">
+            <AllocationBreakdownTile data={allocation} />
+          </TileLink>
+        </Reveal>
+      </div>
+
+      <style>{`
+        @media (max-width: 900px) {
+          .bento-grid { grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
+          .bento-grid > div[style*="grid-column: span 2"] { grid-column: span 2 !important; }
+        }
+        @media (max-width: 640px) {
+          .bento-grid { grid-template-columns: 1fr !important; }
+          .bento-grid > div[style*="grid-column: span 2"] { grid-column: auto !important; }
+        }
+      `}</style>
     </div>
   )
 }
 
-function EmptyHint({
-  icon,
-  title,
-  body,
+/* ---------------- Shared shell pieces ---------------- */
+
+function TileLink({
+  href,
+  children,
 }: {
-  icon: React.ReactNode
-  title: string
-  body: string
+  href: string
+  children: React.ReactNode
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.96 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay: 0.2, duration: 0.4 }}
-      className="flex flex-col items-center justify-center gap-2 py-6 text-center"
+    <Link
+      href={href}
+      style={{ display: 'block', height: '100%', textDecoration: 'none', color: 'inherit' }}
     >
-      <div className="rounded-full bg-muted p-3">{icon}</div>
-      <p className="text-sm font-medium">{title}</p>
-      <p className="text-xs text-muted-foreground">{body}</p>
-    </motion.div>
+      {children}
+    </Link>
+  )
+}
+
+type CardHeadProps = {
+  icon: React.ReactNode
+  hue?: number
+  title: string
+  sub?: string
+  right?: React.ReactNode
+}
+
+function CardHead({ icon, hue, title, sub, right }: CardHeadProps) {
+  const color = hue != null ? `oklch(0.62 0.16 ${hue})` : 'var(--accent)'
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        gap: 10,
+        marginBottom: 14,
+      }}
+    >
+      <div style={{ display: 'flex', gap: 11, minWidth: 0 }}>
+        <span
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 9,
+            flex: 'none',
+            display: 'grid',
+            placeItems: 'center',
+            background: `color-mix(in oklch, ${color} 16%, transparent)`,
+            color,
+          }}
+        >
+          {icon}
+        </span>
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              font: '600 15px/1.1 var(--ui)',
+              color: 'var(--ink-1)',
+            }}
+          >
+            {title}
+          </div>
+          {sub && (
+            <div
+              style={{
+                font: '500 12px/1.3 var(--ui)',
+                color: 'var(--ink-3)',
+                marginTop: 3,
+              }}
+            >
+              {sub}
+            </div>
+          )}
+        </div>
+      </div>
+      {right}
+    </div>
+  )
+}
+
+function KV({
+  k,
+  v,
+  color,
+}: {
+  k: string
+  v: React.ReactNode
+  color?: string
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+      }}
+    >
+      <span style={{ font: '500 13.5px var(--ui)', color: 'var(--ink-3)' }}>
+        {k}
+      </span>
+      <span
+        style={{
+          font: '600 14.5px var(--display)',
+          color: color || 'var(--ink-1)',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {v}
+      </span>
+    </div>
+  )
+}
+
+function tileCardStyle(extra?: React.CSSProperties): React.CSSProperties {
+  return {
+    padding: 22,
+    height: '100%',
+    background: 'var(--surface)',
+    border: '1px solid var(--hair)',
+    borderRadius: 'var(--radius)',
+    position: 'relative',
+    overflow: 'hidden',
+    ...extra,
+  }
+}
+
+/* ---------------- Individual tiles ---------------- */
+
+function VaultProgressTile({
+  percent,
+  current,
+  projected,
+  cap,
+  remaining,
+  deadlineLabel,
+}: {
+  percent: number
+  current: number
+  projected: number
+  cap: number
+  remaining: number
+  deadlineLabel: string
+}) {
+  return (
+    <div className="fx-card" style={tileCardStyle({ padding: 24 })}>
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background:
+            'radial-gradient(120% 130% at 100% 0%, color-mix(in oklch, var(--accent) 12%, transparent), transparent 55%)',
+          pointerEvents: 'none',
+        }}
+      />
+      <div
+        style={{
+          position: 'relative',
+          display: 'flex',
+          gap: 28,
+          alignItems: 'center',
+          flexWrap: 'wrap',
+        }}
+      >
+        <Ring
+          value={percent}
+          secondaryValue={1}
+          size={172}
+          stroke={17}
+          track="var(--ring-track)"
+          secondaryColor="color-mix(in oklch, var(--gold) 30%, transparent)"
+          gradient={['var(--gold)', 'var(--accent)']}
+          glow="color-mix(in oklch, var(--accent) 40%, transparent)"
+        >
+          <div style={{ textAlign: 'center' }}>
+            <div
+              style={{
+                font: '600 32px/1 var(--display)',
+                letterSpacing: '-.03em',
+                color: 'var(--ink-1)',
+              }}
+            >
+              <CountText value={Math.round(percent * 100)} />%
+            </div>
+            <div
+              style={{
+                font: '600 10px/1 var(--ui)',
+                letterSpacing: '.08em',
+                textTransform: 'uppercase',
+                color: 'var(--ink-3)',
+                marginTop: 5,
+              }}
+            >
+              funded
+            </div>
+          </div>
+        </Ring>
+        <div style={{ flex: 1, minWidth: 240 }}>
+          <CardHead
+            icon={<Target size={17} />}
+            title="Vault Progress"
+            sub={`Projected ${fmtMoney(projected)} by ${deadlineLabel}`}
+            right={
+              <span
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 8,
+                  display: 'grid',
+                  placeItems: 'center',
+                  color: 'var(--ink-3)',
+                }}
+              >
+                <ArrowUpRight size={16} />
+              </span>
+            }
+          />
+          <div
+            style={{
+              font: '600 clamp(34px,4vw,46px)/1 var(--display)',
+              letterSpacing: '-.03em',
+              color: 'var(--ink-1)',
+              margin: '4px 0 8px',
+            }}
+          >
+            <Money value={current} cents dur={1500} />
+          </div>
+          <div
+            style={{
+              font: '500 14px var(--ui)',
+              color: 'var(--ink-2)',
+              marginBottom: 14,
+            }}
+          >
+            Saving toward {fmtMoney(cap)} · {(percent * 100).toFixed(1)}% of the way
+          </div>
+          <ProgressBar pct={percent} />
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginTop: 9,
+              font: '500 12.5px var(--ui)',
+              color: 'var(--ink-3)',
+            }}
+          >
+            <span style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>
+              {(percent * 100).toFixed(1)}% funded
+            </span>
+            <span>
+              {fmtMoney(remaining)} to {fmtMoney(cap)} cap
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CoBudgetTile({
+  leftNow,
+  spent,
+  allowed,
+  weekRangeLabel,
+  isUnder,
+  variance,
+}: {
+  leftNow: number
+  spent: number
+  allowed: number
+  weekRangeLabel: string
+  isUnder: boolean
+  variance: number
+}) {
+  const pct = allowed > 0 ? Math.min(1, spent / allowed) : 0
+  const tone = isUnder ? 'var(--pos-ink)' : 'var(--accent-ink)'
+  const headline = isUnder ? leftNow : Math.abs(variance)
+  return (
+    <div
+      className="fx-card"
+      style={tileCardStyle({ borderLeft: '4px solid var(--pos)' })}
+    >
+      <CardHead
+        icon={<Calendar size={17} />}
+        hue={152}
+        title="CO Budget"
+        sub={weekRangeLabel}
+      />
+      <div
+        style={{
+          font: '600 clamp(30px,3.6vw,40px)/1 var(--display)',
+          letterSpacing: '-.02em',
+          color: tone,
+          margin: '6px 0 6px',
+        }}
+      >
+        <Money value={headline} cents dur={1200} />
+      </div>
+      <div
+        style={{
+          font: '500 14px var(--ui)',
+          color: 'var(--ink-2)',
+          marginBottom: 16,
+        }}
+      >
+        {isUnder ? 'left to spend overall' : 'over budget overall'}
+      </div>
+      <ProgressBar pct={pct} color="var(--pos)" />
+      <div
+        style={{
+          font: '500 12.5px var(--ui)',
+          color: 'var(--ink-3)',
+          marginTop: 10,
+        }}
+      >
+        Spent {fmtMoney(spent, { cents: true })} · Maximum allowed{' '}
+        {fmtMoney(allowed, { cents: true })}
+      </div>
+    </div>
+  )
+}
+
+function VaultGrowthTile({
+  points,
+  cap,
+}: {
+  points: VaultGrowthPoint[]
+  cap: number
+}) {
+  const series = [
+    {
+      name: 'Vault',
+      color: 'var(--accent)',
+      fill: true,
+      points: points.map((p) => ({ x: p.label, y: p.value })),
+    },
+  ]
+  return (
+    <div className="fx-card" style={tileCardStyle()}>
+      <CardHead
+        icon={<TrendingUp size={17} />}
+        hue={285}
+        title="Vault growth"
+        sub={`Cumulative climb to ${fmtMoney(cap)}`}
+      />
+      {points.length > 0 ? (
+        <AreaChart series={series} width={680} height={200} />
+      ) : (
+        <EmptyHint title="No paychecks yet" body="Add paychecks to track vault growth." />
+      )}
+    </div>
+  )
+}
+
+function CoGaugeTile({
+  pct,
+  spent,
+  allowed,
+}: {
+  pct: number
+  spent: number
+  allowed: number
+}) {
+  return (
+    <div
+      className="fx-card"
+      style={tileCardStyle({ display: 'flex', flexDirection: 'column' })}
+    >
+      <CardHead
+        icon={<Calendar size={17} />}
+        hue={152}
+        title="CO budget used"
+        sub="Spent vs allowed"
+      />
+      <div
+        style={{
+          flex: 1,
+          display: 'grid',
+          placeItems: 'center',
+          paddingBottom: 8,
+        }}
+      >
+        <GaugeArc
+          value={pct}
+          size={210}
+          stroke={18}
+          gradient={['var(--pos)', 'var(--accent)']}
+          glow="color-mix(in oklch, var(--pos) 40%, transparent)"
+        >
+          <div style={{ textAlign: 'center', paddingBottom: 4 }}>
+            <div
+              style={{
+                font: '600 30px var(--display)',
+                letterSpacing: '-.02em',
+                color: 'var(--ink-1)',
+              }}
+            >
+              <CountText value={Math.round(pct * 100)} />%
+            </div>
+            <div
+              style={{
+                font: '500 12px var(--ui)',
+                color: 'var(--ink-3)',
+              }}
+            >
+              {fmtMoney(spent)} of {fmtMoney(allowed)}
+            </div>
+          </div>
+        </GaugeArc>
+      </div>
+    </div>
+  )
+}
+
+function NextPaycheckTile({
+  next,
+}: {
+  next: DashboardTilesProps['nextPaycheck']
+}) {
+  if (!next) {
+    return (
+      <div className="fx-card" style={tileCardStyle({ padding: 20 })}>
+        <CardHead
+          icon={<Wallet size={17} />}
+          title="Next Paycheck"
+          sub="No paychecks scheduled"
+        />
+        <EmptyHint
+          title="No paychecks yet"
+          body="Add a paycheck on the Paychecks page."
+        />
+      </div>
+    )
+  }
+  const hue = EMPLOYER_HUE[next.employer] ?? 235
+  const isUSC = next.employer === 'USC On-Campus'
+  const employerShort = isUSC ? 'USC' : 'NTT'
+  return (
+    <div className="fx-card" style={tileCardStyle({ padding: 20 })}>
+      <CardHead
+        icon={<Wallet size={17} />}
+        title="Next Paycheck"
+        sub={next.payDateLabel}
+      />
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        <span
+          style={{
+            font: '600 12px var(--ui)',
+            padding: '4px 10px',
+            borderRadius: 8,
+            background: `color-mix(in oklch, oklch(0.62 0.16 ${hue}) 16%, transparent)`,
+            color: `oklch(0.5 0.16 ${hue})`,
+          }}
+        >
+          {employerShort}
+        </span>
+        {next.status === 'Pending' ? (
+          <Pill tone="upcoming">
+            <Clock size={12} /> Pending
+          </Pill>
+        ) : (
+          <Pill tone="received">
+            <Check size={12} /> Received
+          </Pill>
+        )}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+        <KV k="Projected net" v={<Money value={next.projectedNet} cents />} />
+        <KV
+          k="Vault"
+          v={<Money value={next.vault} cents />}
+          color="var(--accent-ink)"
+        />
+        <KV k="CO spend" v={<Money value={next.co} cents />} />
+      </div>
+    </div>
+  )
+}
+
+function ProjectedSummerTile({
+  projected,
+}: {
+  projected: DashboardTilesProps['projected']
+}) {
+  const items = [
+    { label: 'Vault', value: projected.totalVault, hue: BUCKET_HUE.Vault },
+    { label: 'CO', value: projected.totalCO, hue: BUCKET_HUE.CO },
+    { label: 'Buffer', value: projected.totalBuffer, hue: BUCKET_HUE.Buffer },
+    { label: 'Rent paid', value: projected.totalRentPaid, hue: BUCKET_HUE.Rent },
+  ]
+  return (
+    <div className="fx-card" style={tileCardStyle({ padding: 20 })}>
+      <CardHead
+        icon={<TrendingUp size={17} />}
+        hue={152}
+        title="Projected (end of summer)"
+        sub="Projected allocations across summer"
+      />
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 14,
+        }}
+      >
+        {items.map((it) => (
+          <div key={it.label}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginBottom: 4,
+              }}
+            >
+              <CatDot hue={it.hue} size={8} />
+              <span
+                style={{
+                  font: '500 12px var(--ui)',
+                  color: 'var(--ink-3)',
+                }}
+              >
+                {it.label}
+              </span>
+            </div>
+            <div
+              style={{
+                font: '600 19px var(--display)',
+                letterSpacing: '-.01em',
+                color: 'var(--ink-1)',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              <Money value={it.value} cents />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function PaycheckStatusTile({
+  status,
+}: {
+  status: DashboardTilesProps['paycheckStatus']
+}) {
+  const total = Math.max(status.total, 1)
+  return (
+    <div
+      className="fx-card"
+      style={tileCardStyle({
+        padding: 20,
+        display: 'flex',
+        flexDirection: 'column',
+      })}
+    >
+      <CardHead
+        icon={<ClipboardList size={17} />}
+        title="Paycheck Status"
+        sub={`${status.pending} pending of ${status.total} total`}
+      />
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          gap: 8,
+          margin: '2px 0 14px',
+        }}
+      >
+        <span
+          style={{
+            font: '600 40px/1 var(--display)',
+            letterSpacing: '-.02em',
+            color: 'var(--ink-1)',
+          }}
+        >
+          <CountText value={status.pending} />
+        </span>
+        <span
+          style={{ font: '500 15px var(--ui)', color: 'var(--ink-3)' }}
+        >
+          pending
+        </span>
+      </div>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
+        {Array.from({ length: total }).map((_, i) => (
+          <div
+            key={i}
+            style={{
+              flex: 1,
+              height: 6,
+              borderRadius: 3,
+              background: i < status.received ? 'var(--mint)' : 'var(--hair)',
+            }}
+          />
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
+        <Pill tone="received">
+          <Check size={12} /> {status.received} received
+        </Pill>
+        <Pill tone="upcoming">
+          <Clock size={12} /> {status.pending} pending
+        </Pill>
+      </div>
+    </div>
+  )
+}
+
+function AccountsLiveTile({
+  accounts,
+}: {
+  accounts: DashboardTilesProps['accountsPreview']
+}) {
+  return (
+    <div
+      className="fx-card"
+      style={tileCardStyle({
+        padding: 20,
+        display: 'flex',
+        flexDirection: 'column',
+      })}
+    >
+      <CardHead
+        icon={<Landmark size={17} />}
+        title="Accounts"
+        sub="Live balances right now"
+        right={
+          <span
+            style={{
+              font: '600 12px var(--ui)',
+              color: 'var(--ink-3)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 3,
+            }}
+          >
+            All <ArrowUpRight size={13} />
+          </span>
+        }
+      />
+      {accounts.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+          {accounts.map((a, i) => {
+            const isCC = a.type === 'credit_card'
+            return (
+              <div
+                key={a.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  padding: '10px 2px',
+                  borderTop: i ? '1px solid var(--hair)' : 'none',
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      font: '600 13.5px var(--ui)',
+                      color: 'var(--ink-1)',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {a.name}
+                  </div>
+                  <div
+                    style={{
+                      font: '500 11px var(--ui)',
+                      letterSpacing: '.04em',
+                      textTransform: 'uppercase',
+                      color: 'var(--ink-4)',
+                    }}
+                  >
+                    {accountTypeLabel(a.type)}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    font: '600 14.5px var(--display)',
+                    fontVariantNumeric: 'tabular-nums',
+                    color:
+                      isCC && a.current_balance > 0
+                        ? 'var(--accent-ink)'
+                        : 'var(--ink-1)',
+                  }}
+                >
+                  {isCC && a.current_balance > 0 ? '−' : ''}
+                  <Money
+                    value={Math.abs(a.current_balance)}
+                    cents
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <EmptyHint
+          title="No accounts yet"
+          body="Seed accounts in the database to see balances here."
+        />
+      )}
+    </div>
+  )
+}
+
+function RecentExpensesTile({ expenses }: { expenses: Expense[] }) {
+  return (
+    <div
+      className="fx-card"
+      style={tileCardStyle({
+        padding: 20,
+        display: 'flex',
+        flexDirection: 'column',
+      })}
+    >
+      <CardHead
+        icon={<Receipt size={17} />}
+        hue={345}
+        title="Recent Expenses"
+        sub={
+          expenses.length > 0
+            ? `Last ${expenses.length} entries`
+            : 'Nothing logged yet'
+        }
+        right={
+          <span
+            style={{
+              font: '600 12px var(--ui)',
+              color: 'var(--ink-3)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 3,
+            }}
+          >
+            All <ArrowUpRight size={13} />
+          </span>
+        }
+      />
+      {expenses.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+          {expenses.map((e, i) => {
+            const hue = CATEGORY_HUE[e.category] ?? 250
+            return (
+              <div
+                key={e.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 11,
+                  padding: '9px 2px',
+                  borderTop: i ? '1px solid var(--hair)' : 'none',
+                }}
+              >
+                <span
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 9,
+                    flex: 'none',
+                    display: 'grid',
+                    placeItems: 'center',
+                    background: `color-mix(in oklch, oklch(0.68 0.14 ${hue}) 16%, transparent)`,
+                    color: `oklch(0.54 0.14 ${hue})`,
+                  }}
+                >
+                  <CatDot hue={hue} size={8} />
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      font: '600 13.5px var(--ui)',
+                      color: 'var(--ink-1)',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {e.description}
+                  </div>
+                  <div
+                    style={{
+                      font: '500 11.5px var(--ui)',
+                      color: 'var(--ink-3)',
+                    }}
+                  >
+                    {fmtDate(e.expense_date, 'short')}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    font: '600 14px var(--display)',
+                    color: 'var(--ink-1)',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  <Money value={e.amount} cents />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <EmptyHint
+          title="No expenses yet"
+          body="Log spend on the Expenses page to see it here."
+        />
+      )}
+    </div>
+  )
+}
+
+function AllocationBreakdownTile({ data }: { data: AllocationDatum[] }) {
+  const total = data.reduce((s, d) => s + d.value, 0)
+  const donutData = data.map((d) => ({
+    label: d.name,
+    total: d.value,
+    hue: BUCKET_HUE[d.name] ?? 250,
+  }))
+  return (
+    <div className="fx-card" style={tileCardStyle({ padding: 20 })}>
+      <CardHead
+        icon={<Target size={17} />}
+        hue={285}
+        title="Allocation Breakdown"
+        sub="Allocated so far, by bucket"
+      />
+      {total > 0 ? (
+        <div
+          style={{
+            display: 'flex',
+            gap: 16,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+          }}
+        >
+          <Donut data={donutData} size={130} stroke={20} />
+          <div
+            style={{
+              flex: 1,
+              minWidth: 130,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+            }}
+          >
+            {donutData.map((b) => (
+              <div
+                key={b.label}
+                style={{ display: 'flex', alignItems: 'center', gap: 9 }}
+              >
+                <CatDot hue={b.hue} />
+                <span
+                  style={{
+                    flex: 1,
+                    font: '500 13px var(--ui)',
+                    color: 'var(--ink-2)',
+                  }}
+                >
+                  {b.label}
+                </span>
+                <span
+                  style={{
+                    font: '600 13px var(--display)',
+                    color: 'var(--ink-1)',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {Math.round((b.total / total) * 100)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <EmptyHint
+          title="Nothing allocated yet"
+          body="Mark a paycheck received to see allocation."
+        />
+      )}
+    </div>
+  )
+}
+
+function EmptyHint({ title, body }: { title: string; body: string }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        padding: '24px 8px',
+        textAlign: 'center',
+      }}
+    >
+      <span
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 12,
+          display: 'grid',
+          placeItems: 'center',
+          background: 'var(--surface-2)',
+          color: 'var(--ink-3)',
+          marginBottom: 4,
+        }}
+      >
+        <Sparkles size={18} />
+      </span>
+      <div style={{ font: '600 13px var(--ui)', color: 'var(--ink-1)' }}>
+        {title}
+      </div>
+      <div style={{ font: '500 12px var(--ui)', color: 'var(--ink-3)' }}>
+        {body}
+      </div>
+    </div>
   )
 }
 
@@ -527,37 +1172,4 @@ function accountTypeLabel(t: 'checking' | 'credit_card' | 'hysa'): string {
     case 'hysa':
       return 'HYSA'
   }
-}
-
-function EmployerBadge({ employer }: { employer: string }) {
-  const isUSC = employer === 'USC On-Campus'
-  return (
-    <Badge
-      className={
-        isUSC
-          ? 'bg-blue-500/15 text-blue-700 hover:bg-blue-500/20 dark:text-blue-300 font-normal'
-          : 'bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300 font-normal'
-      }
-    >
-      {isUSC ? 'USC' : 'NTT'}
-    </Badge>
-  )
-}
-
-function StatusBadge({
-  status,
-  count,
-}: {
-  status: 'Received' | 'Pending'
-  count?: number
-}) {
-  const label = count == null ? status : `${count} ${status.toLowerCase()}`
-  if (status === 'Received') {
-    return <Badge variant="default">{label}</Badge>
-  }
-  return (
-    <Badge className="bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300 font-normal">
-      {label}
-    </Badge>
-  )
 }

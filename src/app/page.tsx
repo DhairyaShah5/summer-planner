@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { format, startOfWeek, endOfWeek } from "date-fns";
+import type { VaultGrowthPoint } from "./dashboard-tiles";
 
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -224,6 +225,15 @@ export default async function DashboardPage() {
       : 0;
   const vaultRemaining = Math.max(0, settings.vaultCap - totals.currentVault);
 
+  // Weekly vault growth series for the AreaChart: one cumulative point per
+  // paycheck, already capped via computeRow's cumulativeVault. We show every
+  // other label to avoid axis crowding.
+  const vaultGrowthSeries: VaultGrowthPoint[] = computed.map((r, i) => ({
+    label:
+      i % 2 === 0 ? format(new Date(String(r.payDate)), "MMM d") : "",
+    value: r.cumulativeVault,
+  }));
+
   const allocation: AllocationDatum[] = [
     { name: "Vault", value: totals.currentVault },
     { name: "Rent", value: currentRentPaid },
@@ -232,18 +242,12 @@ export default async function DashboardPage() {
     { name: "Buffer", value: totals.currentBuffer },
   ].filter((d) => d.value > 0) as AllocationDatum[];
 
-  return (
-    <div className="container mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="space-y-1">
-        <h1 className="bg-gradient-to-r from-indigo-500 via-fuchsia-500 to-amber-500 bg-clip-text text-3xl font-semibold tracking-tight text-transparent">
-          Dashboard
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Summer 2026 paycheck allocation overview
-        </p>
-      </div>
+  const todayLabel = format(now, "EEE, MMM d");
 
+  return (
+    <div className="container mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <DashboardTiles
+        todayLabel={todayLabel}
         vault={{
           current: totals.currentVault,
           projected: totals.totalVault,
@@ -292,6 +296,10 @@ export default async function DashboardPage() {
         recentExpenses={recentExpenses}
         allocation={allocation}
         accountsPreview={accountsPreview}
+        vaultGrowth={vaultGrowthSeries}
+        coGauge={{ spent: cumSpent, allowed: cumMaxAllowed }}
+        vaultCap={settings.vaultCap}
+        deadlineLabel={format(new Date("2026-08-28T12:00:00"), "MMM d")}
       />
     </div>
   );
