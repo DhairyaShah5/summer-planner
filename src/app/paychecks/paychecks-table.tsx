@@ -94,6 +94,29 @@ const HUE = {
   bofa: 330,
 } as const
 
+// Explicit per-bucket hex colors used in the AllocationChart bars + Buffer
+// card. Tuned for contrast against the dark surface — these read more
+// vividly than oklch(0.7 0.2 hue) used elsewhere, which all came out the
+// same pastel saturation.
+const BUCKET_COLOR = {
+  vault: '#9d83ff', // brighter violet (matches --accent family)
+  rent: '#f0a04c', // warm amber/orange
+  rh: '#3acc7d', // emerald
+  co: '#4ec3f7', // sky cyan
+  bofa: '#ec71ad', // rose
+} as const
+
+function colorForHue(hue: number): string {
+  switch (hue) {
+    case HUE.vault: return BUCKET_COLOR.vault
+    case HUE.rent: return BUCKET_COLOR.rent
+    case HUE.rh: return BUCKET_COLOR.rh
+    case HUE.co: return BUCKET_COLOR.co
+    case HUE.bofa: return BUCKET_COLOR.bofa
+    default: return `oklch(0.7 0.2 ${hue})`
+  }
+}
+
 function toEmployer(s: string): Employer {
   return s === 'Colorado Internship' ? 'Colorado Internship' : 'USC On-Campus'
 }
@@ -572,48 +595,10 @@ export function PaychecksTable({
             <div
               style={{
                 display: 'flex',
-                gap: 18,
-                alignItems: 'center',
+                gap: 12,
                 flexWrap: 'wrap',
               }}
             >
-              <div>
-                <div
-                  style={{
-                    font: '600 10px var(--ui)',
-                    letterSpacing: '.05em',
-                    textTransform: 'uppercase',
-                    color: 'var(--ink-3)',
-                  }}
-                >
-                  Buffer
-                </div>
-                <div
-                  style={{
-                    font: '600 16px/1 var(--display)',
-                    color: `oklch(0.7 0.2 ${HUE.bofa})`,
-                    fontVariantNumeric: 'tabular-nums',
-                  }}
-                >
-                  {fmtMoney(totals.currentBuffer, { cents: true })}
-                </div>
-                <div
-                  style={{
-                    font: '500 11px var(--ui)',
-                    color: 'var(--ink-4)',
-                    marginTop: 2,
-                  }}
-                >
-                  Projected {fmtMoney(totals.totalBuffer)}
-                </div>
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 12,
-                  flexWrap: 'wrap',
-                }}
-              >
                 {legend.map(([l, h]) => (
                   <span
                     key={l}
@@ -625,11 +610,19 @@ export function PaychecksTable({
                       color: 'var(--ink-3)',
                     }}
                   >
-                    <CatDot hue={h} />
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: 3,
+                        background: colorForHue(h),
+                        flex: 'none',
+                      }}
+                    />
                     {l}
                   </span>
                 ))}
-              </div>
             </div>
           </div>
           <AllocationChart bars={allocBars} max={allocMax} height={260} />
@@ -639,10 +632,78 @@ export function PaychecksTable({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
           gap: 16,
         }}
       >
+        <Reveal delay={130}>
+          <div
+            className="card fx-card"
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--hair)',
+              borderRadius: 'var(--radius)',
+              padding: 22,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              gap: 14,
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 10,
+              }}
+            >
+              <span
+                style={{
+                  font: '600 12px var(--ui)',
+                  letterSpacing: '.04em',
+                  textTransform: 'uppercase',
+                  color: 'var(--ink-3)',
+                }}
+              >
+                Total Buffer
+              </span>
+              <span
+                style={{
+                  font: '600 10px var(--ui)',
+                  letterSpacing: '.06em',
+                  textTransform: 'uppercase',
+                  color: 'var(--ink-4)',
+                  border: '1px solid var(--hair)',
+                  borderRadius: 6,
+                  padding: '2px 7px',
+                }}
+              >
+                Current
+              </span>
+            </div>
+            <div
+              style={{
+                font: '600 32px/1 var(--display)',
+                letterSpacing: '-.02em',
+                color: BUCKET_COLOR.bofa,
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {fmtMoney(totals.currentBuffer, { cents: true })}
+            </div>
+            <div
+              style={{
+                font: '500 12px var(--ui)',
+                color: 'var(--ink-3)',
+              }}
+            >
+              Projected {fmtMoney(totals.totalBuffer)}
+            </div>
+          </div>
+        </Reveal>
+
         <Reveal from="left" delay={140}>
           <div
             className="card fx-card"
@@ -1107,7 +1168,7 @@ function AllocationChart({
                       key={si}
                       style={{
                         height: `${(s.value / (total || 1)) * 100}%`,
-                        background: `oklch(0.7 0.2 ${s.hue})`,
+                        background: colorForHue(s.hue),
                       }}
                     />
                   ) : null,
@@ -1207,7 +1268,7 @@ function AllocTooltip({ bar, total }: { bar: AllocBar; total: number }) {
                   width: 8,
                   height: 8,
                   borderRadius: 2,
-                  background: `oklch(0.7 0.2 ${s.hue})`,
+                  background: colorForHue(s.hue),
                 }}
               />
               {s.key}
