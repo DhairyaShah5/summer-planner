@@ -286,6 +286,15 @@ export interface CCPaymentInput {
   amount: number
 }
 
+export interface TransferInput {
+  id: string
+  transferred_at: string
+  from_account_id: string
+  to_account_id: string
+  amount: number
+  kind: 'manual' | 'rollover_sweep' | 'per_diem_to_bofa' | 'ot_to_bofa'
+}
+
 export interface AccountState {
   account: AccountInput
   arrival: number
@@ -295,15 +304,44 @@ export interface AccountState {
   projected: number
 }
 
+// Chase holds per diem + OT until a transfer is logged, so its "current"
+// balance includes those amounts until the user records moving them out.
+// The remainingExpectedBofaTransfer term ensures projected balances still
+// net out to the full-summer model regardless of how much has been swept.
 export function computeAccountStates(
   accounts: AccountInput[],
   paychecks: PaycheckInput[],
   expenses: ExpenseInput[],
   settings: Settings,
   ccPayments: CCPaymentInput[] = [],
+  transfers: TransferInput[] = [],
 ): AccountState[] {
   const computed = computeAll(paychecks, settings)
   const todayISO = new Date().toISOString().slice(0, 10)
+
+  // Temporary heuristic: BofA Checking is matched by name. Replace with a
+  // dedicated `is_overflow_destination` column once schema permits.
+  const bofaAccount = accounts.find((a) => a.name === 'BofA Checking')
+  const chaseAccount = accounts.find((a) => a.is_paycheck_destination)
+
+  const totalExpectedBofaTransfer = computed.reduce(
+    (sum, r) => sum + r.bofaOverflow,
+    0,
+  )
+  const totalLoggedChaseToBofa =
+    chaseAccount && bofaAccount
+      ? transfers
+          .filter(
+            (t) =>
+              t.from_account_id === chaseAccount.id &&
+              t.to_account_id === bofaAccount.id,
+          )
+          .reduce((sum, t) => sum + t.amount, 0)
+      : 0
+  const remainingExpectedBofaTransfer = Math.max(
+    0,
+    totalExpectedBofaTransfer - totalLoggedChaseToBofa,
+  )
 
   return accounts.map((account) => {
     const arrival = account.arrival_balance
@@ -311,16 +349,13 @@ export function computeAccountStates(
     let fullSummer = 0
 
     // --- Paycheck-driven flows ---
-    // Temporary heuristic: BofA Checking is matched by name. Replace with a
-    // dedicated `is_overflow_destination` column once schema permits.
-    const isBofaOverflow = account.name === 'BofA Checking'
+    const isBofaOverflow = bofaAccount?.id === account.id
 
     if (account.is_paycheck_destination) {
       // Paycheck destination (e.g. Chase Checking).
-      // baseNet + perDiem hits checking (per diem is part of the paystub
-      // direct deposit), then vault + rent + RH + bofaOverflow leave it.
-      // Per diem nets to zero on Chase since the full perDiem amount is
-      // already included in bofaOverflow (Plan B: per diem → BofA same day).
+      // baseNet + perDiem hits checking, then vault + rent + RH leave it.
+      // bofaOverflow stays in Chase until the user logs a transfer out
+      // (see logged-transfer loop below).
       // NOTE: extraDeposit is external income deposited directly into the
       // vault (Marcus HYSA) - it never passes through Chase Checking, so it
       // is excluded from this flow.
@@ -329,12 +364,14 @@ export function computeAccountStates(
           row.received && row.actualNetWages != null
             ? row.actualNetWages
             : row.estimatedNet
-        const netFlow =
-          baseNet + row.perDiem - row.vault - row.rentPaid - row.robinhood -
-          row.bofaOverflow
-        fullSummer += netFlow
-        if (row.received) toDate += netFlow
+        const autoFlow =
+          baseNet + row.perDiem - row.vault - row.rentPaid - row.robinhood
+        fullSummer += autoFlow
+        if (row.received) toDate += autoFlow
       }
+      // Projected: assume the user WILL transfer the rest of the expected
+      // overflow to BofA by end of summer.
+      fullSummer -= remainingExpectedBofaTransfer
     } else if (account.is_vault) {
       // Vault account (Marcus HYSA): receives vault + extraDeposit each check.
       for (const row of computed) {
@@ -343,15 +380,24 @@ export function computeAccountStates(
         if (row.received) toDate += inflow
       }
     } else if (isBofaOverflow) {
-      // BofA Checking: receives OT-driven excess + per diem each check
-      // (both are wrapped in row.bofaOverflow).
-      for (const row of computed) {
-        const inflow = row.bofaOverflow
-        fullSummer += inflow
-        if (row.received) toDate += inflow
-      }
+      // BofA Checking: projected assumes the full expected overflow lands
+      // here by end of summer. Current is driven ONLY by logged transfers
+      // (added below) + expenses on this account.
+      fullSummer += remainingExpectedBofaTransfer
     }
     // Other accounts (credit cards): no paycheck flows.
+
+    // --- Logged transfer flows (apply to ALL accounts) ---
+    for (const t of transfers) {
+      if (t.from_account_id === account.id) {
+        fullSummer -= t.amount
+        if (t.transferred_at <= todayISO) toDate -= t.amount
+      }
+      if (t.to_account_id === account.id) {
+        fullSummer += t.amount
+        if (t.transferred_at <= todayISO) toDate += t.amount
+      }
+    }
 
     // --- Expense flows ---
     for (const exp of expenses) {
