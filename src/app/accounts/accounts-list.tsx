@@ -3,9 +3,11 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
+  ArrowRightIcon,
   CreditCardIcon,
   Loader2Icon,
   PencilIcon,
+  RepeatIcon,
   TrendingUpIcon,
   TrendingDownIcon,
 } from 'lucide-react'
@@ -32,16 +34,25 @@ import {
 } from '@/components/ui/select'
 import {
   Money,
+  Pill,
   Reveal,
   SectionLabel,
   Donut,
   CatDot,
   ProgressBar,
+  fmtDate,
   fmtMoney,
 } from '@/components/redesign'
 import { payCreditCard } from './cc-payment-actions'
+import { logTransfer } from './transfer-actions'
 
 export type AccountType = 'checking' | 'credit_card' | 'hysa'
+
+export type TransferKind =
+  | 'manual'
+  | 'rollover_sweep'
+  | 'per_diem_to_bofa'
+  | 'ot_to_bofa'
 
 export interface AccountStateRow {
   id: string
@@ -53,6 +64,16 @@ export interface AccountStateRow {
   is_paycheck_destination: boolean
   is_vault: boolean
   display_order: number
+}
+
+export interface TransferRow {
+  id: string
+  transferred_at: string
+  from_account_id: string
+  to_account_id: string
+  amount: number
+  kind: TransferKind
+  note: string | null
 }
 
 const moneyFmt = new Intl.NumberFormat('en-US', {
@@ -97,12 +118,32 @@ function typeLabel(t: AccountType): string {
   }
 }
 
+function transferKindLabel(k: TransferKind): string {
+  switch (k) {
+    case 'manual':
+      return 'Manual'
+    case 'rollover_sweep':
+      return 'Rollover sweep'
+    case 'per_diem_to_bofa':
+      return 'Per diem'
+    case 'ot_to_bofa':
+      return 'Overtime'
+  }
+}
+
+function transferKindTone(
+  k: TransferKind,
+): 'received' | 'upcoming' | 'accent' {
+  return k === 'manual' ? 'upcoming' : 'accent'
+}
+
 interface Props {
   states: AccountStateRow[]
   vaultCap: number
+  transfers: TransferRow[]
 }
 
-export function AccountsList({ states, vaultCap }: Props) {
+export function AccountsList({ states, vaultCap, transfers }: Props) {
   const router = useRouter()
   const [editing, setEditing] = useState<AccountStateRow | null>(null)
   const [editValue, setEditValue] = useState('')
@@ -115,6 +156,15 @@ export function AccountsList({ states, vaultCap }: Props) {
   const [payDate, setPayDate] = useState<string>(todayISO())
   const [payPending, startPayTransition] = useTransition()
 
+  // Log-transfer dialog state
+  const [transferOpen, setTransferOpen] = useState(false)
+  const [transferFromId, setTransferFromId] = useState<string>('')
+  const [transferToId, setTransferToId] = useState<string>('')
+  const [transferAmount, setTransferAmount] = useState<string>('')
+  const [transferDate, setTransferDate] = useState<string>(todayISO())
+  const [transferNote, setTransferNote] = useState<string>('')
+  const [transferPending, startTransferTransition] = useTransition()
+
   const checkingAccounts = useMemo(
     () => states.filter((s) => s.type === 'checking'),
     [states],
@@ -126,6 +176,81 @@ export function AccountsList({ states, vaultCap }: Props) {
       null,
     [checkingAccounts],
   )
+  const transferableAccounts = useMemo(
+    () => states.filter((s) => s.type !== 'credit_card'),
+    [states],
+  )
+  const defaultTransferFromId = useMemo(() => {
+    const chase = transferableAccounts.find((a) =>
+      a.name.toLowerCase().includes('chase'),
+    )
+    return chase?.id ?? transferableAccounts[0]?.id ?? ''
+  }, [transferableAccounts])
+  const defaultTransferToId = useMemo(() => {
+    const bofa = transferableAccounts.find(
+      (a) =>
+        a.name.toLowerCase().includes('bofa') ||
+        a.name.toLowerCase().includes('bank of america'),
+    )
+    if (bofa) return bofa.id
+    const fallback = transferableAccounts.find(
+      (a) => a.id !== defaultTransferFromId,
+    )
+    return fallback?.id ?? ''
+  }, [transferableAccounts, defaultTransferFromId])
+
+  const accountNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const s of states) map.set(s.id, s.name)
+    return map
+  }, [states])
+
+  const recentTransfers = useMemo(() => transfers.slice(0, 10), [transfers])
+
+  function openTransferDialog() {
+    setTransferFromId(defaultTransferFromId)
+    setTransferToId(defaultTransferToId)
+    setTransferAmount('')
+    setTransferDate(todayISO())
+    setTransferNote('')
+    setTransferOpen(true)
+  }
+
+  function closeTransferDialog() {
+    setTransferOpen(false)
+  }
+
+  function handleTransferSubmit() {
+    const amount = parseFloat(transferAmount)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error('Enter a valid amount')
+      return
+    }
+    if (!transferFromId || !transferToId) {
+      toast.error('Pick both accounts')
+      return
+    }
+    if (transferFromId === transferToId) {
+      toast.error('From and to must differ')
+      return
+    }
+    startTransferTransition(async () => {
+      const res = await logTransfer({
+        fromAccountId: transferFromId,
+        toAccountId: transferToId,
+        amount,
+        transferredAt: transferDate,
+        note: transferNote,
+      })
+      if (!res.ok) {
+        toast.error(res.error ?? 'Could not log transfer')
+        return
+      }
+      toast.success('Transfer logged')
+      setTransferOpen(false)
+      router.refresh()
+    })
+  }
 
   function openPayDialog(cc: AccountStateRow) {
     setPaying(cc)
@@ -237,6 +362,25 @@ export function AccountsList({ states, vaultCap }: Props) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Top toolbar */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+        }}
+      >
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={openTransferDialog}
+          disabled={transferableAccounts.length < 2}
+        >
+          <RepeatIcon className="size-4" />
+          Log a transfer
+        </Button>
+      </div>
+
       {/* 3 net cards: arrival / now / projected */}
       <div
         style={{
@@ -342,6 +486,247 @@ export function AccountsList({ states, vaultCap }: Props) {
           </div>
         )}
       </div>
+
+      {/* Recent transfers */}
+      {recentTransfers.length > 0 && (
+        <Reveal delay={80}>
+          <div>
+            <SectionLabel
+              right={
+                <span
+                  style={{ font: '500 12px var(--ui)', color: 'var(--ink-3)' }}
+                >
+                  Last {recentTransfers.length}
+                </span>
+              }
+            >
+              Recent transfers
+            </SectionLabel>
+            <div
+              className="card fx-card"
+              style={{
+                padding: '4px 0',
+                borderRadius: 'var(--radius)',
+                background: 'var(--surface)',
+                border: '1px solid var(--hair)',
+              }}
+            >
+              {recentTransfers.map((t, i) => (
+                <div
+                  key={t.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '12px 18px',
+                    borderTop:
+                      i === 0 ? 'none' : '1px solid var(--hair)',
+                  }}
+                >
+                  <span
+                    style={{
+                      font: '500 12px var(--ui)',
+                      color: 'var(--ink-3)',
+                      minWidth: 70,
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {fmtDate(t.transferred_at, 'short')}
+                  </span>
+                  <span
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      font: '600 13px var(--ui)',
+                      color: 'var(--ink-1)',
+                    }}
+                  >
+                    <span
+                      style={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {accountNameById.get(t.from_account_id) ?? 'Account'}
+                    </span>
+                    <ArrowRightIcon
+                      size={13}
+                      style={{ color: 'var(--ink-4)', flex: 'none' }}
+                    />
+                    <span
+                      style={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {accountNameById.get(t.to_account_id) ?? 'Account'}
+                    </span>
+                  </span>
+                  <Pill tone={transferKindTone(t.kind)}>
+                    {transferKindLabel(t.kind)}
+                  </Pill>
+                  <span
+                    style={{
+                      font: '600 13.5px var(--display)',
+                      color: 'var(--ink-1)',
+                      fontVariantNumeric: 'tabular-nums',
+                      minWidth: 80,
+                      textAlign: 'right',
+                    }}
+                  >
+                    {fmtMoney(t.amount, { cents: true })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Reveal>
+      )}
+
+      {/* Log a transfer dialog */}
+      <Dialog
+        open={transferOpen}
+        onOpenChange={(open) => {
+          if (!open) closeTransferDialog()
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Log a transfer</DialogTitle>
+            <DialogDescription>
+              Record a manual transfer you already made between two accounts.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="transfer-date">Date</Label>
+              <Input
+                id="transfer-date"
+                type="date"
+                value={transferDate}
+                onChange={(e) => setTransferDate(e.target.value)}
+                disabled={transferPending}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="transfer-from">From account</Label>
+              <Select
+                value={transferFromId}
+                onValueChange={(v) => setTransferFromId(String(v ?? ''))}
+                disabled={transferPending}
+              >
+                <SelectTrigger id="transfer-from" className="w-full">
+                  <SelectValue placeholder="Pick an account">
+                    {(value) =>
+                      transferableAccounts.find((a) => a.id === value)?.name ??
+                      'Pick an account'
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {transferableAccounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="transfer-to">To account</Label>
+              <Select
+                value={transferToId}
+                onValueChange={(v) => setTransferToId(String(v ?? ''))}
+                disabled={transferPending}
+              >
+                <SelectTrigger id="transfer-to" className="w-full">
+                  <SelectValue placeholder="Pick an account">
+                    {(value) =>
+                      transferableAccounts.find((a) => a.id === value)?.name ??
+                      'Pick an account'
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {transferableAccounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="transfer-amount">Amount</Label>
+              <div style={{ position: 'relative' }}>
+                <span
+                  style={{
+                    position: 'absolute',
+                    left: 12,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: 'var(--ink-3)',
+                    font: '500 14px var(--ui)',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  $
+                </span>
+                <Input
+                  id="transfer-amount"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  value={transferAmount}
+                  onChange={(e) => setTransferAmount(e.target.value)}
+                  placeholder="0.00"
+                  disabled={transferPending}
+                  style={{ paddingLeft: 26 }}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="transfer-note">Note (optional)</Label>
+              <Input
+                id="transfer-note"
+                type="text"
+                value={transferNote}
+                onChange={(e) => setTransferNote(e.target.value)}
+                placeholder="What was this transfer for?"
+                disabled={transferPending}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={closeTransferDialog}
+              disabled={transferPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleTransferSubmit}
+              disabled={transferPending}
+            >
+              {transferPending ? (
+                <>
+                  <Loader2Icon className="size-4 animate-spin" />
+                  Logging...
+                </>
+              ) : (
+                'Log transfer'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit arrival dialog */}
       <Dialog

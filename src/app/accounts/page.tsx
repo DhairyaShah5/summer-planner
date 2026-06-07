@@ -8,9 +8,14 @@ import {
   type PaycheckInput,
   type Employer,
   type Settings,
+  type TransferInput,
 } from '@/lib/calc'
 import { PageHeader } from '@/components/redesign'
-import { AccountsList, type AccountStateRow } from './accounts-list'
+import {
+  AccountsList,
+  type AccountStateRow,
+  type TransferRow,
+} from './accounts-list'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,28 +27,41 @@ export default async function AccountsPage() {
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [accountsRes, settingsRes, paychecksRes, expensesRes, ccPaymentsRes] =
-    await Promise.all([
-      supabase
-        .from('accounts')
-        .select('*')
-        .order('display_order', { ascending: true }),
-      supabase.from('settings').select('*').maybeSingle(),
-      supabase.from('paychecks').select('*').order('pay_num', { ascending: true }),
-      supabase
-        .from('expenses')
-        .select('id, expense_date, amount, account_id'),
-      supabase
-        .from('cc_payments')
-        .select('*')
-        .order('paid_at', { ascending: false }),
-    ])
+  const [
+    accountsRes,
+    settingsRes,
+    paychecksRes,
+    expensesRes,
+    ccPaymentsRes,
+    transfersRes,
+  ] = await Promise.all([
+    supabase
+      .from('accounts')
+      .select('*')
+      .order('display_order', { ascending: true }),
+    supabase.from('settings').select('*').maybeSingle(),
+    supabase.from('paychecks').select('*').order('pay_num', { ascending: true }),
+    supabase
+      .from('expenses')
+      .select('id, expense_date, amount, account_id'),
+    supabase
+      .from('cc_payments')
+      .select('*')
+      .order('paid_at', { ascending: false }),
+    supabase
+      .from('transfers')
+      .select(
+        'id, transferred_at, from_account_id, to_account_id, amount, kind, note',
+      )
+      .order('transferred_at', { ascending: false }),
+  ])
 
   if (accountsRes.error) throw accountsRes.error
   if (settingsRes.error) throw settingsRes.error
   if (paychecksRes.error) throw paychecksRes.error
   if (expensesRes.error) throw expensesRes.error
   if (ccPaymentsRes.error) throw ccPaymentsRes.error
+  if (transfersRes.error) throw transfersRes.error
 
   const accounts: AccountInput[] = (accountsRes.data ?? []).map((a) => ({
     id: a.id,
@@ -114,12 +132,33 @@ export default async function AccountsPage() {
     amount: Number(p.amount),
   }))
 
+  const transferRowsRaw = transfersRes.data ?? []
+  const transfers: TransferInput[] = transferRowsRaw.map((t) => ({
+    id: t.id,
+    transferred_at: t.transferred_at,
+    from_account_id: t.from_account_id,
+    to_account_id: t.to_account_id,
+    amount: Number(t.amount),
+    kind: t.kind,
+  }))
+
+  const transferRows: TransferRow[] = transferRowsRaw.map((t) => ({
+    id: t.id,
+    transferred_at: t.transferred_at,
+    from_account_id: t.from_account_id,
+    to_account_id: t.to_account_id,
+    amount: Number(t.amount),
+    kind: t.kind,
+    note: t.note,
+  }))
+
   const states = computeAccountStates(
     accounts,
     paychecks,
     expenses,
     settings,
     ccPayments,
+    transfers,
   )
 
   const stateRows: AccountStateRow[] = states.map((s) => ({
@@ -140,7 +179,11 @@ export default async function AccountsPage() {
         title="Accounts"
         subtitle="Live balances derived from paychecks + expenses. Arrival balances anchor the math."
       />
-      <AccountsList states={stateRows} vaultCap={settings.vaultCap} />
+      <AccountsList
+        states={stateRows}
+        vaultCap={settings.vaultCap}
+        transfers={transferRows}
+      />
     </div>
   )
 }
