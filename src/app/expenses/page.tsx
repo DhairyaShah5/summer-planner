@@ -6,6 +6,7 @@ import {
   type PaycheckInput,
   type Employer,
 } from '@/lib/calc'
+import { todayInUserTz, dayOfWeekInUserTz } from '@/lib/today'
 import type { Expense } from '@/lib/types'
 import { PageHeader } from '@/components/redesign'
 import { Reveal } from '@/components/redesign'
@@ -108,13 +109,14 @@ export default async function ExpensesPage() {
 
     const computed = computeAll(inputs, settings)
 
-    const now = new Date()
-    const day = now.getDay()
+    // User-timezone today + "this Sunday" so the week boundary doesn't
+    // shift around the user's local midnight (server runs in UTC).
+    const todayISO = todayInUserTz()
+    const day = dayOfWeekInUserTz()
     const daysUntilSunday = (7 - day) % 7
-    const sunday = new Date(now)
-    sunday.setDate(now.getDate() + daysUntilSunday)
-    const sundayISO = sunday.toISOString().slice(0, 10)
-    const todayISO = now.toISOString().slice(0, 10)
+    const [y, m, d] = todayISO.split('-').map(Number)
+    const sunday = new Date(y, (m ?? 1) - 1, (d ?? 1) + daysUntilSunday)
+    const sundayISO = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`
 
     cumMaxAllowed = computed
       .filter((r) => String(r.payDate) <= sundayISO)

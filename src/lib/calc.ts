@@ -336,9 +336,13 @@ export function computeAccountStates(
   ccPayments: CCPaymentInput[] = [],
   transfers: TransferInput[] = [],
   accountEntries: AccountEntryInput[] = [],
+  todayISO?: string,
 ): AccountState[] {
   const computed = computeAll(paychecks, settings)
-  const todayISO = new Date().toISOString().slice(0, 10)
+  // Caller passes the user-timezone today (YYYY-MM-DD) when available so
+  // a Sunday 11pm local edit doesn't flip the week. Falls back to UTC for
+  // legacy callers / client-side use.
+  const today = todayISO ?? new Date().toISOString().slice(0, 10)
 
   // Temporary heuristic: BofA Checking is matched by name. Replace with a
   // dedicated `is_overflow_destination` column once schema permits.
@@ -417,11 +421,11 @@ export function computeAccountStates(
     for (const t of transfers) {
       if (t.from_account_id === account.id) {
         fullSummer -= t.amount
-        if (t.transferred_at <= todayISO) toDate -= t.amount
+        if (t.transferred_at <= today) toDate -= t.amount
       }
       if (t.to_account_id === account.id) {
         fullSummer += t.amount
-        if (t.transferred_at <= todayISO) toDate += t.amount
+        if (t.transferred_at <= today) toDate += t.amount
       }
     }
 
@@ -433,7 +437,7 @@ export function computeAccountStates(
       // No projected (future-dated) expenses are tracked separately yet, so
       // to-date matches full-summer for any expense already in the system.
       // We still gate by today's date for forward-compatibility.
-      if (exp.expense_date <= todayISO) toDate += delta
+      if (exp.expense_date <= today) toDate += delta
     }
 
     // --- CC payment flows ---
@@ -450,7 +454,7 @@ export function computeAccountStates(
       }
       if (delta === 0) continue
       fullSummer += delta
-      if (pay.paid_at <= todayISO) toDate += delta
+      if (pay.paid_at <= today) toDate += delta
     }
 
     // --- Free-form account entry flows ---
@@ -460,7 +464,7 @@ export function computeAccountStates(
     for (const entry of accountEntries) {
       if (entry.account_id !== account.id) continue
       fullSummer += entry.amount
-      if (entry.dated_at <= todayISO) toDate += entry.amount
+      if (entry.dated_at <= today) toDate += entry.amount
     }
 
     return {

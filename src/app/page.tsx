@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
-import { format, startOfWeek, endOfWeek } from "date-fns";
+import { format, parseISO, startOfWeek, endOfWeek } from "date-fns";
 import type { VaultGrowthPoint } from "./dashboard-tiles";
+import { todayInUserTz } from "@/lib/today";
 
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -92,11 +93,13 @@ export default async function DashboardPage() {
   const computed = computeAll(inputs, settings);
   const totals = summarize(computed, settings);
 
-  const now = new Date();
+  // User-timezone today/week boundaries so the server's UTC clock
+  // doesn't shift the week one day early around local midnight.
+  const todayISO = todayInUserTz();
+  const now = parseISO(todayISO);
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
   const weekEndISO = format(weekEnd, "yyyy-MM-dd");
-  const todayISO = format(now, "yyyy-MM-dd");
 
   // Parallel queries: recent expenses for the list, cumulative expenses
   // through today for the CO Budget tile, all accounts (full set is needed
@@ -212,6 +215,7 @@ export default async function DashboardPage() {
     ccPaymentInputs,
     transferInputs,
     accountEntryInputs,
+    todayISO,
   );
 
   const accountsPreview = accountStates.slice(0, 3).map((s) => ({

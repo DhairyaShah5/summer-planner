@@ -12,6 +12,7 @@ import {
   type Settings,
   type TransferInput,
 } from '@/lib/calc'
+import { todayInUserTz } from '@/lib/today'
 import { PageHeader } from '@/components/redesign'
 import {
   AccountsList,
@@ -192,6 +193,7 @@ export default async function AccountsPage() {
     ccPayments,
     transfers,
     accountEntries,
+    todayInUserTz(),
   )
 
   // Build a side map of paycheck id + per-paycheck flow_overrides so the

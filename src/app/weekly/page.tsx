@@ -1,6 +1,7 @@
 import { addDays, format, isAfter, isBefore, parseISO } from 'date-fns'
 import { createClient } from '@/lib/supabase/server'
 import { computeAll, floor100 } from '@/lib/calc'
+import { dayOfWeekInUserTz, todayInUserTz } from '@/lib/today'
 import type {
   Employer,
   PaycheckInput,
@@ -128,13 +129,19 @@ export default async function WeeklyPage() {
 
   const computed = computeAll(paycheckInputs, settings)
 
-  const today = startOfDay(new Date())
+  // User-timezone "today" (YYYY-MM-DD). Server runs in UTC so calling
+  // `new Date()` directly would flip the date around the user's local
+  // midnight; using America/Denver keeps the planner's notion of "today"
+  // aligned with the user's clock.
+  const todayStr = todayInUserTz()
   const startDate = parseISO(INTERNSHIP_START)
   const endDate = parseISO(INTERNSHIP_END)
   const weekBounds = buildWeeks(startDate, endDate)
 
   const weeks: WeeklyRow[] = weekBounds.map((w, i) => {
     const weekEnd = w.end
+    const weekEndISO = isoDate(weekEnd)
+    const weekStartISO = isoDate(w.start)
     let targetCumulative = 0
     let vaultBalance = 0
     for (const row of computed) {
@@ -154,10 +161,12 @@ export default async function WeeklyPage() {
       }
     }
     const variance = targetCumulative - actualCumulative
+    // Compare as YYYY-MM-DD strings so server timezone can't flip a
+    // Sunday-night-local entry into next week's bucket.
     const status: WeeklyRow['status'] =
-      isBefore(weekEnd, today)
+      weekEndISO < todayStr
         ? 'Past'
-        : !isAfter(w.start, today) && !isBefore(weekEnd, today)
+        : weekStartISO <= todayStr && todayStr <= weekEndISO
           ? 'Current'
           : 'Future'
 
@@ -184,16 +193,16 @@ export default async function WeeklyPage() {
   const summerRemaining = totalSummerCO - totalActualToDate
 
   // --- Rollover sweep computation ---
-  // Find last Sunday: today minus (days since Monday) - 1
-  // i.e. the Sunday strictly before today's week. Equivalent: this week's
-  // Monday minus one day.
-  const dayOfWeek = today.getDay() // 0=Sun, 1=Mon, ...
+  // Find last Sunday in the user's timezone. Server is UTC, so we use a
+  // TZ-aware day-of-week + a parsed-local date as the pivot.
+  const todayLocal = parseISO(todayStr)
+  const dayOfWeek = dayOfWeekInUserTz() // 0=Sun, 1=Mon, ...
   // Days since Monday (Mon=0, Tue=1, ..., Sun=6)
   const daysSinceMonday = (dayOfWeek + 6) % 7
-  const thisMonday = addDays(today, -daysSinceMonday)
+  const thisMonday = addDays(todayLocal, -daysSinceMonday)
   const lastSunday = addDays(thisMonday, -1)
   const lastSundayISO = isoDate(lastSunday)
-  const todayISOStr = isoDate(today)
+  const todayISOStr = todayStr
 
   let cumAllowedThroughLastSunday = 0
   for (const row of computed) {
