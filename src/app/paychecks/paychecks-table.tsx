@@ -323,15 +323,23 @@ export function PaychecksTable({
       <Reveal>
         <div
           data-no-tilt
+          className="paychecks-table-card"
           style={{
             background: 'var(--surface)',
             border: '1px solid var(--hair)',
             borderRadius: 'var(--radius)',
             padding: 0,
             overflow: 'hidden',
+            minWidth: 0,
           }}
         >
-          <div style={{ overflowX: 'auto' }}>
+          <div
+            style={{
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              maxWidth: '100%',
+            }}
+          >
             <table
               style={{
                 borderCollapse: 'collapse',
@@ -567,7 +575,7 @@ export function PaychecksTable({
 
       <Reveal delay={80}>
         <div
-          className="card fx-card"
+          className="card fx-card paychecks-alloc-card"
           style={{
             background: 'var(--surface)',
             border: '1px solid var(--hair)',
@@ -640,7 +648,18 @@ export function PaychecksTable({
                 ))}
             </div>
           </div>
-          <AllocationChart bars={allocBars} max={allocMax} height={260} />
+          <div
+            className="paychecks-alloc-scroll"
+            style={{
+              overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              maxWidth: '100%',
+            }}
+          >
+            <div className="paychecks-alloc-inner">
+              <AllocationChart bars={allocBars} max={allocMax} height={260} />
+            </div>
+          </div>
         </div>
       </Reveal>
 
@@ -653,7 +672,7 @@ export function PaychecksTable({
       >
         <Reveal from="left" delay={140}>
           <div
-            className="card fx-card"
+            className="card fx-card paychecks-summary-card"
             style={{
               background: 'var(--surface)',
               border: '1px solid var(--hair)',
@@ -770,7 +789,7 @@ export function PaychecksTable({
 
         <Reveal delay={150}>
           <div
-            className="card fx-card"
+            className="card fx-card paychecks-summary-card"
             style={{
               background: 'var(--surface)',
               border: '1px solid var(--hair)',
@@ -864,7 +883,7 @@ export function PaychecksTable({
 
         <Reveal from="right" delay={160}>
           <div
-            className="card fx-card"
+            className="card fx-card paychecks-summary-card"
             style={{
               background: 'var(--surface)',
               border: '1px solid var(--hair)',
@@ -928,6 +947,30 @@ export function PaychecksTable({
           </div>
         </Reveal>
       </div>
+      <style>{`
+        .paychecks-alloc-inner {
+          min-width: 0;
+        }
+        @media (max-width: 640px) {
+          .paychecks-alloc-card {
+            padding: 14px !important;
+          }
+          .paychecks-summary-card {
+            padding: 16px !important;
+          }
+          .paychecks-alloc-inner {
+            min-width: 560px;
+          }
+        }
+        @media (max-width: 430px) {
+          .paychecks-alloc-card {
+            padding: 12px !important;
+          }
+          .paychecks-summary-card {
+            padding: 14px !important;
+          }
+        }
+      `}</style>
     </div>
   )
 }
