@@ -146,7 +146,7 @@ export function SettingsForm({
                 className="s-2col"
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
+                  gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)",
                   gap: 12,
                 }}
               >
@@ -160,7 +160,7 @@ export function SettingsForm({
                     value={FALL_2026_DEADLINE}
                     readOnly
                     aria-readonly
-                    style={inpStyle}
+                    style={{ ...inpStyle, boxSizing: "border-box" }}
                   />
                 </SField>
               </div>
