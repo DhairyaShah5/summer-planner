@@ -54,10 +54,10 @@ export function SiteNav({ vault }: SiteNavProps = {}) {
         borderBottom: "1px solid var(--hair, var(--border))",
       }}
     >
-      <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
+      <div className="site-nav-row mx-auto flex h-16 max-w-7xl items-center gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8">
         <Link
           href="/"
-          className="group flex items-center gap-2.5 transition-opacity hover:opacity-90"
+          className="group flex flex-none items-center gap-2.5 transition-opacity hover:opacity-90"
           aria-label="Summer Planner home"
         >
           <motion.span
@@ -129,12 +129,23 @@ export function SiteNav({ vault }: SiteNavProps = {}) {
           })}
         </nav>
 
-        <nav className="ml-2 flex items-center gap-1 overflow-x-auto md:hidden">
+        <nav
+          className="site-nav-mobile flex min-w-0 flex-1 items-center gap-1 overflow-x-auto md:hidden"
+          style={{
+            scrollbarWidth: "none",
+            msOverflowStyle: "none",
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const active = isActive(pathname, item.href);
             return (
-              <motion.div key={item.href} whileTap={{ scale: 0.92 }}>
+              <motion.div
+                key={item.href}
+                whileTap={{ scale: 0.92 }}
+                style={{ flex: "none" }}
+              >
                 <Link
                   href={item.href}
                   aria-label={item.label}
@@ -162,14 +173,12 @@ export function SiteNav({ vault }: SiteNavProps = {}) {
           })}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-none items-center gap-1.5 sm:gap-2">
           {vault ? (
-            <div className="hidden sm:block">
-              <VaultMini
-                currentVault={vault.currentVault}
-                vaultCap={vault.vaultCap}
-              />
-            </div>
+            <VaultMini
+              currentVault={vault.currentVault}
+              vaultCap={vault.vaultCap}
+            />
           ) : null}
           <ThemeToggle />
           <form action="/auth/signout" method="post">
@@ -178,7 +187,8 @@ export function SiteNav({ vault }: SiteNavProps = {}) {
                 type="submit"
                 variant="outline"
                 size="sm"
-                className="gap-2 transition-colors hover:bg-muted"
+                aria-label="Sign out"
+                className="gap-2 px-2.5 transition-colors hover:bg-muted sm:px-3"
               >
                 <LogOut className="size-4" />
                 <span className="hidden sm:inline">Sign out</span>
@@ -187,6 +197,9 @@ export function SiteNav({ vault }: SiteNavProps = {}) {
           </form>
         </div>
       </div>
+      <style>{`
+        .site-nav-mobile::-webkit-scrollbar { display: none; }
+      `}</style>
     </header>
   );
 }

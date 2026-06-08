@@ -62,7 +62,7 @@ export default async function SettingsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8">
+    <div className="settings-page mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8">
       <PageHeader
         title="Settings"
         subtitle="Goal, employers, and how each paycheck cascades into buckets."
@@ -70,7 +70,7 @@ export default async function SettingsPage() {
       <SettingsForm initialValues={values} defaults={DEFAULTS} />
       <Reveal delay={300}>
         <div
-          className="fx-card"
+          className="fx-card settings-maint"
           style={{
             marginTop: 16,
             padding: 22,
@@ -103,6 +103,12 @@ export default async function SettingsPage() {
           <ImportFromXlsx />
         </div>
       </Reveal>
+      <style>{`
+        @media (max-width: 640px) {
+          .settings-page { padding-left: 12px !important; padding-right: 12px !important; padding-top: 16px !important; padding-bottom: 24px !important; }
+          .settings-page .fx-card { padding: 14px !important; }
+        }
+      `}</style>
     </div>
   );
 }

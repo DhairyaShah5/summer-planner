@@ -120,7 +120,7 @@ function SweepBanner({
 }: SweepBannerProps) {
   return (
     <div
-      className="fx-card"
+      className="fx-card sweep-banner"
       style={{
         padding: '16px 20px',
         marginBottom: 18,
@@ -137,6 +137,7 @@ function SweepBanner({
     >
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
+          className="sweep-banner-headline"
           style={{
             font: '600 22px/1.15 var(--display)',
             letterSpacing: '-.02em',
@@ -160,6 +161,7 @@ function SweepBanner({
       <Button
         type="button"
         onClick={onSweep}
+        className="sweep-banner-btn"
         style={{
           background: 'var(--accent)',
           color: 'white',
@@ -169,6 +171,13 @@ function SweepBanner({
         Sweep {fmtMoney(suggestedSweep, { cents: true })} to BofA
         <ArrowRightIcon className="size-4" />
       </Button>
+      <style>{`
+        @media (max-width: 640px) {
+          .sweep-banner { padding: 14px 16px !important; gap: 12px !important; }
+          .sweep-banner-headline { font-size: 18px !important; }
+          .sweep-banner-btn { width: 100% !important; }
+        }
+      `}</style>
     </div>
   )
 }
@@ -253,7 +262,7 @@ export function WeeklyView({
   )
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-8">
+    <div className="weekly-page mx-auto w-full max-w-6xl px-4 py-8">
       <PageHeader
         title="Weekly Tracker"
         subtitle="Maximum allowed to spend (cumulative) vs actual spent · week ending Sunday."
@@ -723,6 +732,12 @@ export function WeeklyView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <style>{`
+        @media (max-width: 640px) {
+          .weekly-page { padding-left: 12px !important; padding-right: 12px !important; padding-top: 16px !important; padding-bottom: 24px !important; }
+          .weekly-page .fx-card { padding: 14px !important; }
+        }
+      `}</style>
     </div>
   )
 }

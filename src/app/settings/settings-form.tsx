@@ -143,6 +143,7 @@ export function SettingsForm({
             <Card>
               <SectionLabel>Tuition goal</SectionLabel>
               <div
+                className="s-2col"
                 style={{
                   display: "grid",
                   gridTemplateColumns: "1fr 1fr",
@@ -199,6 +200,7 @@ export function SettingsForm({
                   caption="Biweekly gross + net %"
                 >
                   <div
+                    className="s-2col"
                     style={{
                       display: "grid",
                       gridTemplateColumns: "1fr 1fr",
@@ -224,6 +226,7 @@ export function SettingsForm({
                   caption="Hourly rate + net %"
                 >
                   <div
+                    className="s-2col"
                     style={{
                       display: "grid",
                       gridTemplateColumns: "1fr 1fr",
@@ -252,6 +255,7 @@ export function SettingsForm({
           <Card>
             <SectionLabel>Rent, Robinhood & vault defaults</SectionLabel>
             <div
+              className="s-2col"
               style={{
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
@@ -302,6 +306,7 @@ export function SettingsForm({
           <Card>
             <SectionLabel>Rollover sweep</SectionLabel>
             <div
+              className="s-2col"
               style={{
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
@@ -403,6 +408,7 @@ export function SettingsForm({
 
         <Reveal delay={200}>
           <div
+            className="settings-actions"
             style={{
               display: "flex",
               alignItems: "center",
@@ -475,6 +481,19 @@ export function SettingsForm({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <style>{`
+        @media (max-width: 640px) {
+          .settings-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
+          .s-2col { grid-template-columns: 1fr !important; }
+          .cascade-row { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; }
+          .settings-actions { flex-wrap: wrap !important; justify-content: stretch !important; }
+          .settings-actions > div { flex: 1 1 auto !important; }
+          .settings-actions > div button { width: 100% !important; }
+        }
+        @media (min-width: 641px) and (max-width: 900px) {
+          .cascade-row { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+        }
+      `}</style>
     </>
   );
 }

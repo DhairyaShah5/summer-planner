@@ -27,7 +27,7 @@ export default async function LoginPage() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center px-4 py-12">
+    <div className="flex flex-1 items-center justify-center px-4 py-8 sm:py-12">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
           <div className="mx-auto flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
