@@ -105,6 +105,7 @@ export type Database = {
           from_account_id: string
           to_account_id: string
           amount: number
+          kind: 'payment' | 'refund_claim'
           note: string | null
           created_at: string
         }
@@ -115,6 +116,7 @@ export type Database = {
           from_account_id: string
           to_account_id: string
           amount: number
+          kind?: 'payment' | 'refund_claim'
           note?: string | null
           created_at?: string
         }
@@ -125,6 +127,7 @@ export type Database = {
           from_account_id?: string
           to_account_id?: string
           amount?: number
+          kind?: 'payment' | 'refund_claim'
           note?: string | null
           created_at?: string
         }

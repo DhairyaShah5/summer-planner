@@ -285,12 +285,19 @@ export interface ExpenseInput {
   account_id: string | null
 }
 
+export type CCPaymentKind = 'payment' | 'refund_claim'
+
 export interface CCPaymentInput {
   id: string
   paid_at: string
   from_account_id: string
   to_account_id: string
   amount: number
+  /** 'payment' (default) drains the from-account and reduces CC outstanding
+   *  (paying down debt). 'refund_claim' flows the other way: the from-
+   *  account (checking) RISES and the CC outstanding RISES toward 0 —
+   *  used when the bank ACHes a credit balance back to your checking. */
+  kind?: CCPaymentKind
 }
 
 export interface TransferInput {
@@ -441,16 +448,19 @@ export function computeAccountStates(
     }
 
     // --- CC payment flows ---
-    // A CC payment moves money from a checking-type "from" account to a
-    // credit-card "to" account, reducing both balances. The from-account
-    // loses cash; the to-account's outstanding balance shrinks.
+    // Default kind 'payment': money flows from checking -> CC.
+    //   from (checking) loses cash, to (CC) outstanding shrinks → both -amt.
+    // kind 'refund_claim': CC has a credit balance (negative outstanding)
+    // and the bank ACHes it back to checking.
+    //   from (checking) RISES, to (CC) outstanding RISES toward 0 → both +amt.
     for (const pay of ccPayments) {
       let delta = 0
+      const sign = pay.kind === 'refund_claim' ? +1 : -1
       if (pay.from_account_id === account.id) {
-        delta -= pay.amount
+        delta += sign * pay.amount
       }
       if (pay.to_account_id === account.id) {
-        delta -= pay.amount
+        delta += sign * pay.amount
       }
       if (delta === 0) continue
       fullSummer += delta

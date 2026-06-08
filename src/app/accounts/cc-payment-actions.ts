@@ -8,6 +8,7 @@ export interface PayCreditCardInput {
   toAccountId: string
   amount: number
   paidAt?: string
+  kind?: 'payment' | 'refund_claim'
 }
 
 export interface ActionResult {
@@ -40,6 +41,7 @@ export async function payCreditCard(
     from_account_id: input.fromAccountId,
     to_account_id: input.toAccountId,
     amount: input.amount,
+    kind: input.kind ?? 'payment',
   })
   if (insertErr) return { ok: false, error: insertErr.message }
 

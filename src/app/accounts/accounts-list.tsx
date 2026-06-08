@@ -123,6 +123,7 @@ export interface LedgerCCPaymentRow {
   from_account_id: string
   to_account_id: string
   amount: number
+  kind?: 'payment' | 'refund_claim'
 }
 
 /** Per-paycheck summary needed to derive ledger entries client-side without
@@ -278,6 +279,9 @@ export function AccountsList({
   const [payFromId, setPayFromId] = useState<string>('')
   const [payAmount, setPayAmount] = useState<string>('')
   const [payDate, setPayDate] = useState<string>(todayISO())
+  // 'payment'      = drain checking, drop CC outstanding (normal)
+  // 'refund_claim' = bank ACHes credit balance to checking (CC.current < 0)
+  const [payKind, setPayKind] = useState<'payment' | 'refund_claim'>('payment')
   const [payPending, startPayTransition] = useTransition()
 
   // Log-transfer dialog state
@@ -680,17 +684,22 @@ export function AccountsList({
       })
     }
 
-    // 4. CC payments touching this account (from-side drains cash, to-side
-    //    is the CC and outstanding shrinks - both deltas are negative).
+    // 4. CC payments touching this account. Default 'payment' flows checking
+    //    -> CC (both deltas negative). 'refund_claim' flows the other way
+    //    (both deltas positive: checking rises, CC outstanding rises toward 0).
     for (const pay of ccPayments) {
+      const isRefund = pay.kind === 'refund_claim'
+      const sign = isRefund ? +1 : -1
       if (pay.from_account_id === acctId) {
         const toName = accountNameById.get(pay.to_account_id) ?? 'credit card'
         items.push({
           key: `cc-from-${pay.id}`,
           date: pay.paid_at,
           source: 'cc_payment',
-          description: `Payment to ${toName}`,
-          amount: -pay.amount,
+          description: isRefund
+            ? `Refund claim from ${toName}`
+            : `Payment to ${toName}`,
+          amount: sign * pay.amount,
         })
       }
       if (pay.to_account_id === acctId) {
@@ -700,8 +709,10 @@ export function AccountsList({
           key: `cc-to-${pay.id}`,
           date: pay.paid_at,
           source: 'cc_payment',
-          description: `Payment from ${fromName}`,
-          amount: -pay.amount,
+          description: isRefund
+            ? `Refund applied to ${fromName}`
+            : `Payment from ${fromName}`,
+          amount: sign * pay.amount,
         })
       }
     }
@@ -820,7 +831,16 @@ export function AccountsList({
   function openPayDialog(cc: AccountStateRow) {
     setPaying(cc)
     setPayFromId(defaultFromAccount?.id ?? '')
-    setPayAmount(cc.current > 0 ? cc.current.toFixed(2) : '0.00')
+    // Default kind based on the CC's current state: if the card has a
+    // credit balance (outstanding < 0), assume the user wants to claim
+    // it back. Prefill amount to the absolute outstanding either way.
+    if (cc.current < 0) {
+      setPayKind('refund_claim')
+      setPayAmount(Math.abs(cc.current).toFixed(2))
+    } else {
+      setPayKind('payment')
+      setPayAmount(cc.current > 0 ? cc.current.toFixed(2) : '0.00')
+    }
     setPayDate(todayISO())
   }
 
@@ -847,6 +867,7 @@ export function AccountsList({
         toAccountId,
         amount,
         paidAt: payDate,
+        kind: payKind,
       })
       if (!res.ok) {
         toast.error(res.error ?? 'Could not record payment')
@@ -1384,15 +1405,64 @@ export function AccountsList({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {paying ? `Pay ${paying.name} from...` : 'Pay credit card'}
+              {paying
+                ? payKind === 'refund_claim'
+                  ? `Claim ${paying.name} refund into...`
+                  : `Pay ${paying.name} from...`
+                : 'Pay credit card'}
             </DialogTitle>
             <DialogDescription>
-              Record a payment from a checking account to this credit card.
+              {payKind === 'refund_claim'
+                ? 'Pull the credit balance back to a checking account. Use when the bank ACHes a credit/refund to your checking.'
+                : 'Record a payment from a checking account to this credit card.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="pay-from">From account</Label>
+              <Label>Action</Label>
+              <div
+                role="radiogroup"
+                aria-label="Direction"
+                style={{
+                  display: 'inline-flex',
+                  borderRadius: 8,
+                  border: '1px solid var(--hair)',
+                  overflow: 'hidden',
+                }}
+              >
+                {(['payment', 'refund_claim'] as const).map((k) => {
+                  const active = payKind === k
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => setPayKind(k)}
+                      disabled={payPending}
+                      style={{
+                        all: 'unset',
+                        cursor: payPending ? 'default' : 'pointer',
+                        padding: '6px 14px',
+                        font: '600 12.5px var(--ui)',
+                        color: active
+                          ? 'var(--accent-ink)'
+                          : 'var(--ink-3)',
+                        background: active
+                          ? 'color-mix(in oklch, var(--accent) 14%, transparent)'
+                          : 'transparent',
+                      }}
+                    >
+                      {k === 'payment' ? 'Pay down balance' : 'Claim refund'}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pay-from">
+                {payKind === 'refund_claim' ? 'Deposit to' : 'From account'}
+              </Label>
               <Select
                 value={payFromId}
                 onValueChange={(v) => setPayFromId(String(v ?? ''))}
@@ -1452,10 +1522,10 @@ export function AccountsList({
               {payPending ? (
                 <>
                   <Loader2Icon className="size-4 animate-spin" />
-                  Paying...
+                  {payKind === 'refund_claim' ? 'Claiming...' : 'Paying...'}
                 </>
               ) : (
-                `Pay ${moneyFmt.format(parseFloat(payAmount) || 0)}`
+                `${payKind === 'refund_claim' ? 'Claim' : 'Pay'} ${moneyFmt.format(parseFloat(payAmount) || 0)}`
               )}
             </Button>
           </DialogFooter>

@@ -136,7 +136,7 @@ export default async function DashboardPage() {
       .select("id, expense_date, amount, account_id"),
     supabase
       .from("cc_payments")
-      .select("id, paid_at, from_account_id, to_account_id, amount"),
+      .select("id, paid_at, from_account_id, to_account_id, amount, kind"),
     supabase
       .from("transfers")
       .select(
@@ -185,6 +185,7 @@ export default async function DashboardPage() {
       from_account_id: p.from_account_id,
       to_account_id: p.to_account_id,
       amount: Number(p.amount),
+      kind: p.kind ?? 'payment',
     }),
   );
 

@@ -144,6 +144,7 @@ export default async function AccountsPage() {
     from_account_id: p.from_account_id,
     to_account_id: p.to_account_id,
     amount: Number(p.amount),
+    kind: p.kind ?? 'payment',
   }))
 
   const transferRowsRaw = transfersRes.data ?? []
@@ -251,6 +252,7 @@ export default async function AccountsPage() {
     from_account_id: p.from_account_id,
     to_account_id: p.to_account_id,
     amount: p.amount,
+    kind: p.kind,
   }))
 
   const includeMap = new Map<string, boolean>(
