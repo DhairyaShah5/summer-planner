@@ -116,6 +116,22 @@ const EMPLOYER_HUE: Record<string, number> = {
   'Colorado Internship': 150,
 }
 
+// Track viewport width so SVG-based components (Ring / GaugeArc / Donut) can
+// receive a smaller numeric `size` on phones. CSS media queries can't reach
+// into the SVG width/height attrs, so we resort to a tiny resize listener.
+function useViewportWidth() {
+  const [w, setW] = React.useState<number>(() =>
+    typeof window === 'undefined' ? 1280 : window.innerWidth,
+  )
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onResize = () => setW(window.innerWidth)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  return w
+}
+
 export function DashboardTiles(props: DashboardTilesProps) {
   const {
     todayLabel,
@@ -135,6 +151,15 @@ export function DashboardTiles(props: DashboardTilesProps) {
   const vaultPctFrac = Math.min(1, vault.percent / 100)
   const coPct = coGauge.allowed > 0 ? coGauge.spent / coGauge.allowed : 0
   const coPctClamped = Math.max(0, Math.min(1, coPct))
+
+  const vw = useViewportWidth()
+  // Phone (<=640): smaller rings/gauges/donuts so they fit one-column tiles.
+  // Tablet (<=900): slight reduction so the 2-col layout breathes.
+  const isPhone = vw <= 640
+  const isTablet = vw > 640 && vw <= 900
+  const ringSize = isPhone ? 132 : isTablet ? 150 : 172
+  const gaugeSize = isPhone ? 170 : isTablet ? 190 : 210
+  const donutSize = isPhone ? 116 : 130
 
   return (
     <div>
@@ -160,6 +185,7 @@ export function DashboardTiles(props: DashboardTilesProps) {
               cap={vault.cap}
               remaining={vault.remaining}
               deadlineLabel={deadlineLabel}
+              ringSize={ringSize}
             />
           </TileLink>
         </Reveal>
@@ -185,7 +211,12 @@ export function DashboardTiles(props: DashboardTilesProps) {
 
         <Reveal delay={140}>
           <TileLink href="/expenses">
-            <CoGaugeTile pct={coPctClamped} spent={coGauge.spent} allowed={coGauge.allowed} />
+            <CoGaugeTile
+              pct={coPctClamped}
+              spent={coGauge.spent}
+              allowed={coGauge.allowed}
+              size={gaugeSize}
+            />
           </TileLink>
         </Reveal>
 
@@ -221,19 +252,25 @@ export function DashboardTiles(props: DashboardTilesProps) {
 
         <Reveal delay={380}>
           <TileLink href="/paychecks">
-            <AllocationBreakdownTile data={allocation} />
+            <AllocationBreakdownTile data={allocation} donutSize={donutSize} />
           </TileLink>
         </Reveal>
       </div>
 
       <style>{`
         @media (max-width: 900px) {
-          .bento-grid { grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
+          .bento-grid { grid-template-columns: repeat(2, minmax(0,1fr)) !important; gap: 14px !important; }
           .bento-grid > div[style*="grid-column: span 2"] { grid-column: span 2 !important; }
+          .fx-card { padding: 18px !important; }
         }
         @media (max-width: 640px) {
-          .bento-grid { grid-template-columns: 1fr !important; }
+          .bento-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
           .bento-grid > div[style*="grid-column: span 2"] { grid-column: auto !important; }
+          .fx-card { padding: 14px !important; }
+          /* Stack any side-by-side row inside a tile (ring+content, donut+legend) */
+          .tile-stack-sm { flex-direction: column !important; align-items: stretch !important; gap: 14px !important; }
+          .tile-stack-sm > * { width: 100% !important; min-width: 0 !important; }
+          .tile-center-sm { justify-content: center !important; }
         }
       `}</style>
     </div>
@@ -377,6 +414,7 @@ function VaultProgressTile({
   cap,
   remaining,
   deadlineLabel,
+  ringSize,
 }: {
   percent: number
   current: number
@@ -384,6 +422,7 @@ function VaultProgressTile({
   cap: number
   remaining: number
   deadlineLabel: string
+  ringSize: number
 }) {
   return (
     <div className="fx-card" style={tileCardStyle({ padding: 24 })}>
@@ -397,19 +436,21 @@ function VaultProgressTile({
         }}
       />
       <div
+        className="tile-stack-sm"
         style={{
           position: 'relative',
           display: 'flex',
           gap: 28,
           alignItems: 'center',
           flexWrap: 'wrap',
+          justifyContent: 'center',
         }}
       >
         <Ring
           value={percent}
           secondaryValue={1}
-          size={172}
-          stroke={17}
+          size={ringSize}
+          stroke={Math.max(12, Math.round(ringSize * 0.1))}
           track="var(--ring-track)"
           secondaryColor="color-mix(in oklch, var(--gold) 30%, transparent)"
           gradient={['var(--gold)', 'var(--accent)']}
@@ -671,10 +712,12 @@ function CoGaugeTile({
   pct,
   spent,
   allowed,
+  size,
 }: {
   pct: number
   spent: number
   allowed: number
+  size: number
 }) {
   return (
     <div
@@ -697,8 +740,8 @@ function CoGaugeTile({
       >
         <GaugeArc
           value={pct}
-          size={210}
-          stroke={18}
+          size={size}
+          stroke={Math.max(14, Math.round(size * 0.086))}
           gradient={['var(--pos)', 'var(--accent)']}
           glow="color-mix(in oklch, var(--pos) 40%, transparent)"
         >
@@ -1130,7 +1173,13 @@ function RecentExpensesTile({ expenses }: { expenses: Expense[] }) {
   )
 }
 
-function AllocationBreakdownTile({ data }: { data: AllocationDatum[] }) {
+function AllocationBreakdownTile({
+  data,
+  donutSize,
+}: {
+  data: AllocationDatum[]
+  donutSize: number
+}) {
   const total = data.reduce((s, d) => s + d.value, 0)
   const donutData = data.map((d) => ({
     label: d.name,
@@ -1154,6 +1203,7 @@ function AllocationBreakdownTile({ data }: { data: AllocationDatum[] }) {
       />
       {total > 0 ? (
         <div
+          className="tile-stack-sm"
           style={{
             display: 'flex',
             gap: 16,
@@ -1165,8 +1215,8 @@ function AllocationBreakdownTile({ data }: { data: AllocationDatum[] }) {
         >
           <Donut
             data={donutData}
-            size={130}
-            stroke={20}
+            size={donutSize}
+            stroke={Math.max(16, Math.round(donutSize * 0.154))}
             tooltipContent={(d, pct) => (
               <div style={{ minWidth: 110, textAlign: 'center' }}>
                 <div
