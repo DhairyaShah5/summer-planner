@@ -976,6 +976,7 @@ export function AccountsList({
       {/* 3 net cards: arrival / now / projected. Each opens the
           net-worth customization dialog when clicked. */}
       <div
+        className="accounts-netcards-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
@@ -1124,6 +1125,7 @@ export function AccountsList({
               {recentTransfers.map((t, i) => (
                 <div
                   key={t.id}
+                  className="accounts-transfer-row"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -1131,9 +1133,11 @@ export function AccountsList({
                     padding: '12px 18px',
                     borderTop:
                       i === 0 ? 'none' : '1px solid var(--hair)',
+                    flexWrap: 'wrap',
                   }}
                 >
                   <span
+                    className="accounts-transfer-date"
                     style={{
                       font: '500 12px var(--ui)',
                       color: 'var(--ink-3)',
@@ -1144,6 +1148,7 @@ export function AccountsList({
                     {fmtDate(t.transferred_at, 'short')}
                   </span>
                   <span
+                    className="accounts-transfer-names"
                     style={{
                       flex: 1,
                       minWidth: 0,
@@ -1159,6 +1164,7 @@ export function AccountsList({
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
+                        minWidth: 0,
                       }}
                     >
                       {accountNameById.get(t.from_account_id) ?? 'Account'}
@@ -1172,6 +1178,7 @@ export function AccountsList({
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
+                        minWidth: 0,
                       }}
                     >
                       {accountNameById.get(t.to_account_id) ?? 'Account'}
@@ -1181,6 +1188,7 @@ export function AccountsList({
                     {transferKindLabel(t.kind)}
                   </Pill>
                   <span
+                    className="accounts-transfer-amount"
                     style={{
                       font: '600 13.5px var(--display)',
                       color: 'var(--ink-1)',
@@ -1423,11 +1431,13 @@ export function AccountsList({
               <div
                 role="radiogroup"
                 aria-label="Direction"
+                className="accounts-pay-actions"
                 style={{
                   display: 'inline-flex',
                   borderRadius: 8,
                   border: '1px solid var(--hair)',
                   overflow: 'hidden',
+                  maxWidth: '100%',
                 }}
               >
                 {(['payment', 'refund_claim'] as const).map((k) => {
@@ -1648,6 +1658,8 @@ export function AccountsList({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 10,
+                flexWrap: 'wrap',
+                lineHeight: 1.2,
               }}
             >
               {ledgerAccount?.name ?? 'Ledger'}
@@ -1678,6 +1690,7 @@ export function AccountsList({
                   a balance the user pays down on their own cadence. The two
                   remaining cells get more breathing room. */}
               <div
+                className={`accounts-ledger-stats${ledgerAccount.type === 'credit_card' ? ' accounts-ledger-stats--credit' : ''}`}
                 style={{
                   display: 'grid',
                   gridTemplateColumns:
@@ -1705,16 +1718,18 @@ export function AccountsList({
                 )}
               </div>
 
-              {/* Ledger table - scrolls inside */}
+              {/* Ledger table - scrolls inside vertically + horizontally on phone */}
               <div
                 style={{
                   maxHeight: 360,
                   overflowY: 'auto',
+                  overflowX: 'auto',
                   border: '1px solid var(--hair)',
                   borderRadius: 12,
                 }}
               >
                 <table
+                  className="accounts-ledger-table"
                   style={{
                     width: '100%',
                     borderCollapse: 'collapse',
@@ -2063,6 +2078,7 @@ export function AccountsList({
                     {ledgerEditingId ? 'Edit entry' : 'Add entry'}
                   </div>
                   <div
+                    className="accounts-ledger-form-row"
                     style={{
                       display: 'grid',
                       gridTemplateColumns: '1fr 1fr',
@@ -2089,6 +2105,7 @@ export function AccountsList({
                           borderRadius: 8,
                           border: '1px solid var(--hair)',
                           overflow: 'hidden',
+                          maxWidth: '100%',
                         }}
                       >
                         {(['in', 'out'] as const).map((dir) => {
@@ -2232,6 +2249,94 @@ export function AccountsList({
           )}
         </DialogContent>
       </Dialog>
+
+      <style>{`
+        @media (max-width: 640px) {
+          .accounts-netcards-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .accounts-transfer-row {
+            padding: 12px 14px !important;
+            row-gap: 6px !important;
+          }
+          .accounts-transfer-names {
+            order: 2;
+            flex-basis: 100% !important;
+          }
+          .accounts-transfer-amount {
+            margin-left: auto;
+          }
+          .accounts-account-card {
+            padding: 16px !important;
+          }
+          .accounts-account-grid {
+            grid-template-columns: 1fr !important;
+            gap: 14px !important;
+          }
+          .accounts-account-stages {
+            display: grid !important;
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            gap: 10px !important;
+          }
+          .accounts-account-stages--credit {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+          .accounts-account-actions {
+            justify-self: stretch !important;
+            justify-content: space-between !important;
+            width: 100%;
+          }
+          .accounts-composition-card {
+            padding: 16px !important;
+          }
+          .accounts-composition-row {
+            flex-direction: column !important;
+            gap: 18px !important;
+            align-items: stretch !important;
+          }
+          .accounts-composition-legend {
+            min-width: 0 !important;
+            width: 100% !important;
+          }
+          .accounts-ledger-stats {
+            grid-template-columns: 1fr !important;
+            gap: 10px !important;
+          }
+          .accounts-ledger-stats--credit {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 10px !important;
+          }
+          .accounts-ledger-form-row {
+            grid-template-columns: 1fr !important;
+          }
+          .accounts-pay-actions {
+            flex-wrap: wrap !important;
+          }
+        }
+        @media (min-width: 641px) and (max-width: 900px) {
+          .accounts-account-grid {
+            grid-template-columns: 1fr !important;
+            gap: 14px !important;
+          }
+          .accounts-account-stages {
+            display: grid !important;
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            gap: 14px !important;
+          }
+          .accounts-account-stages--credit {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+          .accounts-account-actions {
+            justify-self: stretch !important;
+            justify-content: flex-end !important;
+          }
+        }
+        @media (max-width: 640px) {
+          .accounts-ledger-table {
+            min-width: 560px;
+          }
+        }
+      `}</style>
     </div>
   )
 }
@@ -2484,7 +2589,7 @@ type CompositionCardProps = {
 function CompositionCard({ items, total }: CompositionCardProps) {
   return (
     <div
-      className="card fx-card"
+      className="card fx-card accounts-composition-card"
       style={{
         padding: 22,
         borderRadius: 'var(--radius)',
@@ -2505,6 +2610,7 @@ function CompositionCard({ items, total }: CompositionCardProps) {
         Composition right now
       </SectionLabel>
       <div
+        className="accounts-composition-row"
         style={{
           display: 'flex',
           gap: 28,
@@ -2551,6 +2657,7 @@ function CompositionCard({ items, total }: CompositionCardProps) {
           )}
         />
         <div
+          className="accounts-composition-legend"
           style={{
             flex: 1,
             minWidth: 220,
@@ -2629,7 +2736,7 @@ function AccountCard({
 
   return (
     <div
-      className="card fx-card"
+      className="card fx-card accounts-account-card"
       role="button"
       tabIndex={0}
       onClick={onOpenLedger}
@@ -2649,6 +2756,7 @@ function AccountCard({
       }}
     >
       <div
+        className="accounts-account-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: isCredit
@@ -2729,18 +2837,24 @@ function AccountCard({
           )}
         </div>
 
-        <Stage label="At arrival" value={account.arrival} />
-        <Stage
-          label="Right now"
-          value={account.current}
-          big
-          credit={isCredit}
-        />
-        {!isCredit && (
-          <Stage label="Projected end" value={account.projected} delta={delta} />
-        )}
+        <div
+          className={`accounts-account-stages${isCredit ? ' accounts-account-stages--credit' : ''}`}
+          style={{ display: 'contents' }}
+        >
+          <Stage label="At arrival" value={account.arrival} />
+          <Stage
+            label="Right now"
+            value={account.current}
+            big
+            credit={isCredit}
+          />
+          {!isCredit && (
+            <Stage label="Projected end" value={account.projected} delta={delta} />
+          )}
+        </div>
 
         <div
+          className="accounts-account-actions"
           style={{
             display: 'flex',
             alignItems: 'center',
