@@ -638,7 +638,7 @@ function MoneyInput({
   const numeric = typeof value === "number" ? value : Number(value);
   const display = Number.isFinite(numeric) ? numeric.toLocaleString("en-US") : "";
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative", width: "100%" }}>
       <span
         style={{
           position: "absolute",
@@ -685,7 +685,7 @@ function MoneyField({ form, name, label, description }: FieldProps) {
       >
         {label}
       </label>
-      <div style={{ position: "relative" }}>
+      <div style={{ position: "relative", width: "100%" }}>
         <span
           style={{
             pointerEvents: "none",
@@ -824,7 +824,7 @@ function PercentField({ form, name, label, description }: FieldProps) {
       >
         {label} (%)
       </label>
-      <div style={{ position: "relative" }}>
+      <div style={{ position: "relative", width: "100%" }}>
         <Input
           id={`${name}-display`}
           type="number"
