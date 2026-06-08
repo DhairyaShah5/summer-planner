@@ -683,16 +683,32 @@ function MoneyField({ form, name, label, description }: FieldProps) {
           color: "var(--ink-3)",
         }}
       >
-        {label} ($)
+        {label}
       </label>
-      <Input
-        id={name}
-        type="number"
-        step="0.01"
-        inputMode="decimal"
-        aria-invalid={!!error}
-        {...form.register(name, { valueAsNumber: true })}
-      />
+      <div style={{ position: "relative" }}>
+        <span
+          style={{
+            pointerEvents: "none",
+            position: "absolute",
+            left: 12,
+            top: "50%",
+            transform: "translateY(-50%)",
+            font: "500 12.5px var(--ui)",
+            color: "var(--ink-3)",
+          }}
+        >
+          $
+        </span>
+        <Input
+          id={name}
+          type="number"
+          step="0.01"
+          inputMode="decimal"
+          aria-invalid={!!error}
+          className="pl-7"
+          {...form.register(name, { valueAsNumber: true })}
+        />
+      </div>
       {description && !error && (
         <p
           style={{

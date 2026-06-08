@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { VaultMini } from "@/components/redesign/vault-mini";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
@@ -39,11 +38,7 @@ function isActive(pathname: string | null, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-type SiteNavProps = {
-  vault?: { currentVault: number; vaultCap: number } | null;
-};
-
-export function SiteNav({ vault }: SiteNavProps = {}) {
+export function SiteNav() {
   const pathname = usePathname();
 
   return (
@@ -174,12 +169,6 @@ export function SiteNav({ vault }: SiteNavProps = {}) {
         </nav>
 
         <div className="ml-auto flex flex-none items-center gap-1.5 sm:gap-2">
-          {vault ? (
-            <VaultMini
-              currentVault={vault.currentVault}
-              vaultCap={vault.vaultCap}
-            />
-          ) : null}
           <ThemeToggle />
           <form action="/auth/signout" method="post">
             <motion.div whileTap={{ scale: 0.96 }}>

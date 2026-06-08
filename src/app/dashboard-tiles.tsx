@@ -258,8 +258,15 @@ export function DashboardTiles(props: DashboardTilesProps) {
       </div>
 
       <style>{`
+        /* Tablet band (641-900px): use 2-col layout but allow single-col
+           tiles to backfill gaps left by span-2 tiles via dense auto-flow.
+           Without dense, a span-2 tile after a span-1 tile leaves a hole. */
         @media (max-width: 900px) {
-          .bento-grid { grid-template-columns: repeat(2, minmax(0,1fr)) !important; gap: 14px !important; }
+          .bento-grid {
+            grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+            grid-auto-flow: dense !important;
+            gap: 14px !important;
+          }
           .bento-grid > div[style*="grid-column: span 2"] { grid-column: span 2 !important; }
           .fx-card { padding: 18px !important; }
         }
