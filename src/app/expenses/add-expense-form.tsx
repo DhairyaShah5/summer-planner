@@ -102,7 +102,7 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
 
   return (
     <Card
-      className="mb-4"
+      className="add-expense-card mb-4"
       style={{
         padding: 22,
         borderColor: 'color-mix(in oklch, var(--accent) 32%, var(--hair))',
@@ -111,6 +111,7 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
       <CardContent style={{ padding: 0 }}>
         <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column' }}>
           <div
+            className="add-expense-row1"
             style={{
               display: 'grid',
               gridTemplateColumns: '1fr 160px',
@@ -161,6 +162,7 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
           </div>
 
           <div
+            className="add-expense-row2"
             style={{
               display: 'grid',
               gridTemplateColumns: '160px 1fr 1fr',
@@ -296,6 +298,13 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
           </Button>
         </form>
       </CardContent>
+      <style>{`
+        @media (max-width: 640px) {
+          .add-expense-card { padding: 14px !important; }
+          .add-expense-row1 { grid-template-columns: 1fr !important; }
+          .add-expense-row2 { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </Card>
   )
 }

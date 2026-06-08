@@ -71,14 +71,21 @@ export function ExpenseCharts({ expenses }: Props) {
 
   return (
     <div
+      className="expense-charts-grid"
       style={{
         display: 'grid',
         gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.2fr)',
         gap: 16,
         marginBottom: 18,
       }}
-      className="grid-cols-1 sm:grid-cols-[1fr_1.2fr]"
     >
+      <style>{`
+        @media (max-width: 640px) {
+          .expense-charts-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
       <Reveal from="left">
         <Card style={{ padding: 20, height: '100%' }}>
           <CardContent

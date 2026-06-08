@@ -269,6 +269,7 @@ export function ExpenseList({
               {isUnder ? 'left to spend overall' : 'over budget overall'}
             </span>
             <span
+              className="budget-summary-meta"
               style={{
                 marginLeft: 'auto',
                 font: '500 12.5px var(--ui)',
@@ -370,7 +371,7 @@ export function ExpenseList({
                     {fmtMoney(g.total, { cents: true })}
                   </span>
                 </div>
-                <Card style={{ padding: '4px 16px' }}>
+                <Card className="expense-week-card" style={{ padding: '4px 16px' }}>
                   <CardContent style={{ padding: 0 }}>
                     {g.expenses.map((e, i) => {
                       const acct = e.account_id
@@ -381,6 +382,7 @@ export function ExpenseList({
                       return (
                         <div
                           key={e.id}
+                          className="expense-row"
                           style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -392,6 +394,7 @@ export function ExpenseList({
                           }}
                         >
                           <span
+                            className="expense-row-date"
                             style={{
                               width: 64,
                               flex: 'none',
@@ -465,6 +468,7 @@ export function ExpenseList({
                             </div>
                           </div>
                           <span
+                            className="expense-row-amount"
                             style={{
                               font: '600 15px var(--display)',
                               color: 'var(--ink-1)',
@@ -598,6 +602,7 @@ export function ExpenseList({
               />
             </div>
             <div
+              className="edit-expense-grid"
               style={{
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr',
@@ -644,6 +649,7 @@ export function ExpenseList({
               </div>
             </div>
             <div
+              className="edit-expense-grid"
               style={{
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr',
@@ -751,6 +757,33 @@ export function ExpenseList({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <style>{`
+        @media (max-width: 640px) {
+          .edit-expense-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .expense-week-card {
+            padding: 4px 12px !important;
+          }
+          .expense-row {
+            gap: 8px !important;
+            padding: 12px 2px !important;
+          }
+          .expense-row-date {
+            width: 52px !important;
+            font-size: 11px !important;
+          }
+          .expense-row-amount {
+            font-size: 14px !important;
+          }
+          .budget-summary-meta {
+            margin-left: 0 !important;
+            font-size: 11.5px !important;
+            width: 100%;
+          }
+        }
+      `}</style>
     </div>
   )
 }
