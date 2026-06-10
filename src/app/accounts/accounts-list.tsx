@@ -659,10 +659,15 @@ export function AccountsList({
         }
       }
       // Weekly Robinhood: one $robinhoodWeekly entry per Monday from the
-      // cutover through internship end, no paycheck attachment. The user
-      // invests on the same Monday cadence regardless of which day USC pays.
+      // cutover through TODAY, no paycheck attachment. Future Mondays don't
+      // render until they actually arrive — mirrors how future paycheck
+      // entries stay hidden until the paycheck is marked received. (The
+      // projected balance in computeAccountStates still accounts for every
+      // remaining Monday.)
       if (robinhoodWeekly > 0) {
+        const today = todayISO()
         for (const monday of mondaysBetween(RH_WEEKLY_CUTOVER, INTERNSHIP_END)) {
+          if (monday > today) break
           items.push({
             key: `rh-weekly-${monday}`,
             date: monday,
