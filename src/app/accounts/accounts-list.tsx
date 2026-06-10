@@ -63,6 +63,11 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { hueForCategory } from '@/app/expenses/categories'
+import {
+  INTERNSHIP_END,
+  RH_WEEKLY_CUTOVER,
+  mondaysBetween,
+} from '@/lib/calc'
 
 export type AccountType = 'checking' | 'credit_card' | 'hysa'
 
@@ -258,6 +263,7 @@ interface Props {
   expenses: LedgerExpenseRow[]
   ccPayments: LedgerCCPaymentRow[]
   paycheckRows: PaycheckRow[]
+  robinhoodWeekly: number
 }
 
 export function AccountsList({
@@ -268,6 +274,7 @@ export function AccountsList({
   expenses,
   ccPayments,
   paycheckRows,
+  robinhoodWeekly,
 }: Props) {
   const router = useRouter()
   const [editing, setEditing] = useState<AccountStateRow | null>(null)
@@ -616,32 +623,52 @@ export function AccountsList({
           })
         }
         if (p.robinhood > 0) {
-          // The paycheck.robinhood field stores the 2-week total (set by
-          // robinhood_weekly * 2 in calc.ts). User actually invests it as
-          // two weekly $X/2 transfers, so split into 2 ledger entries.
+          // Per-paycheck RH split is retained ONLY for entries dated before
+          // the RH_WEEKLY_CUTOVER — those are the legacy rows the user already
+          // edited (e.g. May 28 + Jun 1). Post-cutover RH lives as a weekly
+          // Monday entry generated below, independent of paycheck cadence.
           const half = p.robinhood / 2
           const rh1Override = p.flow_overrides.robinhood
           const rh2Override = p.flow_overrides.robinhood_2
-          const defaultDate2 = shiftIsoDate(p.payDate, 7)
+          const date1 = rh1Override ?? p.payDate
+          const date2 = rh2Override ?? shiftIsoDate(p.payDate, 7)
+          if (date1 < RH_WEEKLY_CUTOVER) {
+            items.push({
+              key: `pay-rh1-${p.payNum}`,
+              date: date1,
+              source: 'robinhood_transfer',
+              description: 'Robinhood (week 1)',
+              amount: -half,
+              paycheckId: p.id,
+              overrideKind: 'robinhood',
+              hasOverride: Boolean(rh1Override),
+            })
+          }
+          if (date2 < RH_WEEKLY_CUTOVER) {
+            items.push({
+              key: `pay-rh2-${p.payNum}`,
+              date: date2,
+              source: 'robinhood_transfer',
+              description: 'Robinhood (week 2)',
+              amount: -half,
+              paycheckId: p.id,
+              overrideKind: 'robinhood_2',
+              hasOverride: Boolean(rh2Override),
+            })
+          }
+        }
+      }
+      // Weekly Robinhood: one $robinhoodWeekly entry per Monday from the
+      // cutover through internship end, no paycheck attachment. The user
+      // invests on the same Monday cadence regardless of which day USC pays.
+      if (robinhoodWeekly > 0) {
+        for (const monday of mondaysBetween(RH_WEEKLY_CUTOVER, INTERNSHIP_END)) {
           items.push({
-            key: `pay-rh1-${p.payNum}`,
-            date: rh1Override ?? p.payDate,
+            key: `rh-weekly-${monday}`,
+            date: monday,
             source: 'robinhood_transfer',
-            description: 'Robinhood (week 1)',
-            amount: -half,
-            paycheckId: p.id,
-            overrideKind: 'robinhood',
-            hasOverride: Boolean(rh1Override),
-          })
-          items.push({
-            key: `pay-rh2-${p.payNum}`,
-            date: rh2Override ?? defaultDate2,
-            source: 'robinhood_transfer',
-            description: 'Robinhood (week 2)',
-            amount: -half,
-            paycheckId: p.id,
-            overrideKind: 'robinhood_2',
-            hasOverride: Boolean(rh2Override),
+            description: 'Robinhood',
+            amount: -robinhoodWeekly,
           })
         }
       }
@@ -781,6 +808,7 @@ export function AccountsList({
     transfers,
     entries,
     accountNameById,
+    robinhoodWeekly,
   ])
 
   function openTransferDialog() {

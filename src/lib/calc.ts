@@ -80,6 +80,44 @@ export function floor100(x: number): number {
   return Math.floor(x / 100) * 100
 }
 
+/** Date the planner switches from paycheck-derived Robinhood to weekly
+ *  Robinhood. Entries dated before this stay attached to their USC paycheck
+ *  (so the existing user-edited Robinhood week 1/2 rows are preserved);
+ *  on/after this date, Robinhood drains $robinhoodWeekly from Chase every
+ *  Monday, independent of when paychecks actually arrive. */
+export const RH_WEEKLY_CUTOVER = '2026-06-08'
+
+/** Last day the weekly Robinhood schedule is generated through (internship end). */
+export const INTERNSHIP_END = '2026-08-31'
+
+/** Inclusive list of every Monday on/after `startISO` and on/before `endISO`,
+ *  as YYYY-MM-DD strings. Parses input as local midnight so DST offsets
+ *  can't shift a boundary date. */
+export function mondaysBetween(startISO: string, endISO: string): string[] {
+  const parse = (iso: string): Date => {
+    const [y, m, d] = iso.split('-').map(Number)
+    return new Date(y, (m ?? 1) - 1, d ?? 1)
+  }
+  const fmt = (d: Date): string => {
+    const yyyy = d.getFullYear()
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    return `${yyyy}-${mm}-${dd}`
+  }
+  const cur = parse(startISO)
+  const end = parse(endISO)
+  // 1=Mon, 0=Sun, 6=Sat. Advance to first Monday on/after start.
+  const dow = cur.getDay()
+  const offset = dow === 1 ? 0 : (8 - dow) % 7
+  cur.setDate(cur.getDate() + offset)
+  const out: string[] = []
+  while (cur <= end) {
+    out.push(fmt(cur))
+    cur.setDate(cur.getDate() + 7)
+  }
+  return out
+}
+
 /**
  * Compute one paycheck row given the previous cumulative vault balance.
  * Threading prevCumulative through computeAll yields the full ledger.
@@ -394,17 +432,33 @@ export function computeAccountStates(
       // Reimbursement is a tax-free pass-through that lands here and stays
       // here - no onward flow to BofA/vault/etc.
       for (const row of computed) {
+        const payDateISO =
+          typeof row.payDate === 'string'
+            ? row.payDate
+            : (row.payDate as Date).toISOString().slice(0, 10)
         const baseNet =
           row.received && row.actualNetWages != null
             ? row.actualNetWages
             : row.estimatedNet
+        // Pre-cutover USC paychecks still drain RH per-paycheck (preserves
+        // existing user-edited week-1/week-2 ledger entries). Post-cutover
+        // RH flows out of Chase weekly, not per check — handled below.
+        const rhDrain = payDateISO < RH_WEEKLY_CUTOVER ? row.robinhood : 0
         const autoFlow =
-          baseNet + row.perDiem - row.vault - row.rentPaid - row.robinhood
+          baseNet + row.perDiem - row.vault - row.rentPaid - rhDrain
         fullSummer += autoFlow
         if (row.received) toDate += autoFlow
         // Reimbursement: invisible to allocations, but a real Chase inflow.
         fullSummer += row.reimbursement
         if (row.received) toDate += row.reimbursement
+      }
+      // Weekly Robinhood: $robinhoodWeekly drains Chase every Monday from
+      // the cutover through internship end, regardless of paycheck cadence.
+      if (settings.robinhoodWeekly > 0) {
+        for (const monday of mondaysBetween(RH_WEEKLY_CUTOVER, INTERNSHIP_END)) {
+          fullSummer -= settings.robinhoodWeekly
+          if (monday <= today) toDate -= settings.robinhoodWeekly
+        }
       }
       // Projected: assume the user WILL transfer the rest of the expected
       // overflow to BofA by end of summer.

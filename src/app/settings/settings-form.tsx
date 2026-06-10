@@ -278,7 +278,7 @@ export function SettingsForm({
                 form={form}
                 name="robinhood_weekly"
                 label="Robinhood weekly"
-                description="Weekly deposit (doubled per biweekly USC check)."
+                description="Drains Chase every Monday from 2026-06-08 through 2026-08-31."
               />
               <MoneyField
                 form={form}

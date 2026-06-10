@@ -286,6 +286,7 @@ export default async function AccountsPage() {
         expenses={ledgerExpenseRows}
         ccPayments={ledgerCCPaymentRows}
         paycheckRows={paycheckRows}
+        robinhoodWeekly={settings.robinhoodWeekly}
       />
     </div>
   )
