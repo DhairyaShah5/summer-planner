@@ -863,7 +863,19 @@ export function AccountsList({
 
   function openPayDialog(cc: AccountStateRow) {
     setPaying(cc)
-    setPayFromId(defaultFromAccount?.id ?? '')
+    // Default to the checking account that shares the CC's bank (BofA CC
+    // → BofA Checking, Chase CC → Chase Checking). Fall back to the
+    // paycheck-destination checking if no name match is found.
+    const ccBank = cc.name.toLowerCase()
+    const matchingChecking = checkingAccounts.find((a) => {
+      const n = a.name.toLowerCase()
+      if (ccBank.includes('bofa') || ccBank.includes('bank of america')) {
+        return n.includes('bofa') || n.includes('bank of america')
+      }
+      if (ccBank.includes('chase')) return n.includes('chase')
+      return false
+    })
+    setPayFromId(matchingChecking?.id ?? defaultFromAccount?.id ?? '')
     // Default kind based on the CC's current state: if the card has a
     // credit balance (outstanding < 0), assume the user wants to claim
     // it back. Prefill amount to the absolute outstanding either way.
@@ -1905,6 +1917,7 @@ export function AccountsList({
                                   row.amount >= 0
                                     ? 'var(--pos-ink)'
                                     : 'var(--accent-ink)',
+                                whiteSpace: 'nowrap',
                               }}
                             >
                               {row.amount >= 0 ? '+' : '−'}
@@ -1916,6 +1929,7 @@ export function AccountsList({
                               style={{
                                 font: '600 13px var(--display)',
                                 color: 'var(--ink-2)',
+                                whiteSpace: 'nowrap',
                               }}
                             >
                               {fmtMoney(row.runningBalance, { cents: true })}
