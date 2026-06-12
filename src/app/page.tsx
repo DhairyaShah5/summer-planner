@@ -151,7 +151,7 @@ export default async function DashboardPage() {
     id: e.id,
     expense_date: e.expense_date,
     description: e.description,
-    amount: e.amount,
+    amount: Number(e.amount),
     category: e.category ?? "",
     account_id: e.account_id ?? null,
     count_in_co_budget: e.count_in_co_budget,

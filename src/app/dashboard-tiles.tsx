@@ -1164,7 +1164,7 @@ function RecentExpensesTile({ expenses }: { expenses: Expense[] }) {
                     fontVariantNumeric: 'tabular-nums',
                   }}
                 >
-                  <Money value={e.amount} cents />
+                  {fmtMoney(Number(e.amount), { cents: true })}
                 </div>
               </div>
             )
