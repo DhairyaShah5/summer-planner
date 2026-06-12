@@ -34,9 +34,7 @@ export default async function LoginPage() {
             <Sun className="size-5" />
           </div>
           <CardTitle className="text-lg">Summer Planner</CardTitle>
-          <CardDescription>
-            Sign in with a magic link or your password.
-          </CardDescription>
+          <CardDescription>Sign in with your password.</CardDescription>
         </CardHeader>
         <CardContent>
           <LoginForm />
