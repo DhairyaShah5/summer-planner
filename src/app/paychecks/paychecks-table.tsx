@@ -651,7 +651,6 @@ export function PaychecksTable({
           <div
             className="paychecks-alloc-scroll"
             style={{
-              overflowX: 'auto',
               WebkitOverflowScrolling: 'touch',
               maxWidth: '100%',
             }}
@@ -957,6 +956,9 @@ export function PaychecksTable({
           }
           .paychecks-summary-card {
             padding: 16px !important;
+          }
+          .paychecks-alloc-scroll {
+            overflow-x: auto;
           }
           .paychecks-alloc-inner {
             min-width: 560px;
