@@ -51,6 +51,7 @@ export default async function ExpensesPage() {
     category: e.category ?? '',
     account_id: e.account_id ?? null,
     count_in_co_budget: e.count_in_co_budget ?? true,
+    is_personal: e.is_personal ?? false,
     created_at: e.created_at,
   }))
 

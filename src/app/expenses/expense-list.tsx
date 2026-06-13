@@ -30,9 +30,10 @@ import {
 } from '@/components/ui/select'
 import {
   deleteExpense,
-  toggleReimbursable,
+  setExpenseBudgetKind,
   updateExpense,
 } from './expense-actions'
+import { classifyBudgetKind, type BudgetKind } from './budget-kind'
 import type { AccountOption } from './add-expense-form'
 import { ExpenseCharts } from './expense-charts'
 import { EXPENSE_CATEGORIES, hueForCategory } from './categories'
@@ -113,7 +114,7 @@ export function ExpenseList({
   const [editAmount, setEditAmount] = useState('')
   const [editCategory, setEditCategory] = useState('')
   const [editAccountId, setEditAccountId] = useState('')
-  const [editReimbursable, setEditReimbursable] = useState(false)
+  const [editBudgetKind, setEditBudgetKind] = useState<BudgetKind>('co')
   const [editPending, startEditTransition] = useTransition()
 
   function openEdit(e: Expense) {
@@ -123,7 +124,7 @@ export function ExpenseList({
     setEditAmount(String(e.amount))
     setEditCategory(e.category || EXPENSE_CATEGORIES[0].id)
     setEditAccountId(e.account_id ?? '')
-    setEditReimbursable(e.count_in_co_budget === false)
+    setEditBudgetKind(classifyBudgetKind(e))
   }
 
   function handleSaveEdit() {
@@ -150,7 +151,7 @@ export function ExpenseList({
         amount: amt,
         category: editCategory,
         account_id: editAccountId,
-        count_in_co_budget: !editReimbursable,
+        budget_kind: editBudgetKind,
       })
       if (!res.ok) {
         toast.error(res.error ?? 'Could not update')
@@ -162,16 +163,30 @@ export function ExpenseList({
     })
   }
 
-  async function handleToggleReimbursable(e: Expense) {
-    const next = e.count_in_co_budget !== false
+  async function handleCycleBudgetKind(e: Expense) {
+    // Inline cycle: co → reimbursable → personal → co. The edit dialog has the
+    // explicit 3-way radio for when the user wants to skip a step.
+    const current = classifyBudgetKind(e)
+    const next: BudgetKind =
+      current === 'co'
+        ? 'reimbursable'
+        : current === 'reimbursable'
+          ? 'personal'
+          : 'co'
     setTogglingId(e.id)
-    const res = await toggleReimbursable(e.id, next)
+    const res = await setExpenseBudgetKind(e.id, next)
     setTogglingId(null)
     if (!res.ok) {
       toast.error(res.error ?? 'Could not update')
       return
     }
-    toast.success(next ? 'Marked reimbursable' : 'Marked personal')
+    toast.success(
+      next === 'co'
+        ? 'Back in CO budget'
+        : next === 'reimbursable'
+          ? 'Marked reimbursable'
+          : 'Marked off-budget',
+    )
     router.refresh()
   }
 
@@ -378,7 +393,8 @@ export function ExpenseList({
                         ? accountById.get(e.account_id)
                         : undefined
                       const hue = hueForCategory(e.category)
-                      const isReimbursable = e.count_in_co_budget === false
+                      const kind = classifyBudgetKind(e)
+                      const isOffBudget = kind !== 'co'
                       return (
                         <div
                           key={e.id}
@@ -389,7 +405,7 @@ export function ExpenseList({
                             gap: 14,
                             padding: '13px 4px',
                             borderTop: i ? '1px solid var(--hair)' : 'none',
-                            opacity: isReimbursable ? 0.45 : 1,
+                            opacity: isOffBudget ? 0.45 : 1,
                             transition: 'opacity .25s ease',
                           }}
                         >
@@ -438,7 +454,7 @@ export function ExpenseList({
                                   {e.category}
                                 </span>
                               )}
-                              {e.count_in_co_budget === false && (
+                              {kind !== 'co' && (
                                 <span
                                   style={{
                                     font: '600 11px var(--ui)',
@@ -449,7 +465,9 @@ export function ExpenseList({
                                     border: '1px solid var(--hair)',
                                   }}
                                 >
-                                  Reimbursable
+                                  {kind === 'reimbursable'
+                                    ? 'Reimbursable'
+                                    : 'Off-budget'}
                                 </span>
                               )}
                               {acct && (
@@ -481,23 +499,18 @@ export function ExpenseList({
                             type="button"
                             size="icon-sm"
                             variant="ghost"
-                            onClick={() => handleToggleReimbursable(e)}
+                            onClick={() => handleCycleBudgetKind(e)}
                             disabled={togglingId === e.id}
-                            aria-label={
-                              e.count_in_co_budget === false
-                                ? 'Unmark reimbursable'
-                                : 'Mark reimbursable'
-                            }
+                            aria-label="Cycle budget treatment"
                             title={
-                              e.count_in_co_budget === false
-                                ? 'Reimbursable (off CO budget). Click to put back.'
-                                : 'Mark as reimbursable (off CO budget)'
+                              kind === 'co'
+                                ? 'In CO budget · click to mark Reimbursable'
+                                : kind === 'reimbursable'
+                                  ? 'Reimbursable · click to mark Off-budget'
+                                  : 'Off-budget · click to put back in CO budget'
                             }
                             style={{
-                              color:
-                                e.count_in_co_budget === false
-                                  ? 'var(--accent)'
-                                  : 'var(--ink-4)',
+                              color: isOffBudget ? 'var(--accent)' : 'var(--ink-4)',
                             }}
                           >
                             {togglingId === e.id ? (
@@ -707,34 +720,67 @@ export function ExpenseList({
                 </Select>
               </div>
             </div>
-            <label
-              htmlFor="edit-reimbursable"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '10px 12px',
-                borderRadius: 10,
-                border: '1px solid var(--hair)',
-                background: 'var(--surface-2)',
-                cursor: editPending ? 'not-allowed' : 'pointer',
-              }}
-            >
-              <Checkbox
-                id="edit-reimbursable"
-                checked={editReimbursable}
-                onCheckedChange={(v) => setEditReimbursable(v === true)}
-                disabled={editPending}
-              />
+            <div>
               <span
                 style={{
-                  font: '500 13px var(--ui)',
-                  color: 'var(--ink-2)',
+                  font: '600 11.5px var(--ui)',
+                  letterSpacing: '.04em',
+                  textTransform: 'uppercase',
+                  color: 'var(--ink-3)',
+                  display: 'block',
+                  marginBottom: 8,
                 }}
               >
-                Reimbursable (off CO budget)
+                Budget treatment
               </span>
-            </label>
+              <div
+                role="radiogroup"
+                aria-label="Budget treatment"
+                style={{
+                  display: 'inline-flex',
+                  padding: 3,
+                  borderRadius: 999,
+                  border: '1px solid var(--hair)',
+                  background: 'var(--surface-2)',
+                  gap: 2,
+                }}
+              >
+                {(
+                  [
+                    { v: 'co', label: 'In CO budget' },
+                    { v: 'reimbursable', label: 'Reimbursable' },
+                    { v: 'personal', label: 'Off-budget' },
+                  ] as const
+                ).map((opt) => {
+                  const active = editBudgetKind === opt.v
+                  return (
+                    <button
+                      key={opt.v}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => setEditBudgetKind(opt.v)}
+                      disabled={editPending}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: 999,
+                        border: 'none',
+                        font: '600 12px var(--ui)',
+                        cursor: editPending ? 'not-allowed' : 'pointer',
+                        background: active ? 'var(--surface)' : 'transparent',
+                        color: active ? 'var(--ink-1)' : 'var(--ink-3)',
+                        boxShadow: active
+                          ? '0 1px 0 var(--hair), 0 4px 12px -8px rgba(0,0,0,.4)'
+                          : 'none',
+                        transition: 'all .15s',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button

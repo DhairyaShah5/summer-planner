@@ -24,5 +24,6 @@ export interface Expense {
   category: string
   account_id: string | null
   count_in_co_budget: boolean
+  is_personal: boolean
   created_at: string
 }

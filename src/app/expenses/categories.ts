@@ -11,6 +11,7 @@ export const EXPENSE_CATEGORIES: readonly ExpenseCategory[] = [
   { id: 'Groceries', hue: 150 },
   { id: 'Personal Care', hue: 330 },
   { id: 'Transport', hue: 235 },
+  { id: 'Travel', hue: 195 },
   { id: 'Entertainment', hue: 295 },
   { id: 'Shopping', hue: 60 },
   { id: 'Bills & Utilities', hue: 200 },

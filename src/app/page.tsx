@@ -155,6 +155,7 @@ export default async function DashboardPage() {
     category: e.category ?? "",
     account_id: e.account_id ?? null,
     count_in_co_budget: e.count_in_co_budget,
+    is_personal: e.is_personal ?? false,
     created_at: e.created_at,
   }));
 

@@ -143,6 +143,7 @@ export type Database = {
           description: string
           expense_date: string
           id: string
+          is_personal: boolean
           user_id: string
         }
         Insert: {
@@ -154,6 +155,7 @@ export type Database = {
           description: string
           expense_date: string
           id?: string
+          is_personal?: boolean
           user_id: string
         }
         Update: {
@@ -165,6 +167,7 @@ export type Database = {
           description?: string
           expense_date?: string
           id?: string
+          is_personal?: boolean
           user_id?: string
         }
         Relationships: [

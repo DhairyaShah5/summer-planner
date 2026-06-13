@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { deriveBudgetFlags, type BudgetKind } from './budget-kind'
 
 export interface AddExpenseInput {
   expense_date: string
@@ -9,7 +10,7 @@ export interface AddExpenseInput {
   amount: number
   category: string
   account_id: string
-  count_in_co_budget?: boolean
+  budget_kind?: BudgetKind
 }
 
 export interface ActionResult {
@@ -32,6 +33,7 @@ export async function addExpense(input: AddExpenseInput): Promise<ActionResult> 
   }
   if (!input.account_id) return { ok: false, error: 'Account required' }
 
+  const flags = deriveBudgetFlags(input.budget_kind ?? 'co')
   const { error: insertErr } = await supabase.from('expenses').insert({
     user_id: user.id,
     expense_date: input.expense_date,
@@ -39,7 +41,8 @@ export async function addExpense(input: AddExpenseInput): Promise<ActionResult> 
     amount: input.amount,
     category: input.category.trim() || null,
     account_id: input.account_id,
-    count_in_co_budget: input.count_in_co_budget ?? true,
+    count_in_co_budget: flags.count_in_co_budget,
+    is_personal: flags.is_personal,
   })
   if (insertErr) return { ok: false, error: insertErr.message }
 
@@ -56,7 +59,7 @@ export interface UpdateExpenseInput {
   amount: number
   category: string
   account_id: string
-  count_in_co_budget: boolean
+  budget_kind: BudgetKind
 }
 
 export async function updateExpense(
@@ -76,6 +79,7 @@ export async function updateExpense(
   }
   if (!input.account_id) return { ok: false, error: 'Account required' }
 
+  const flags = deriveBudgetFlags(input.budget_kind)
   const { error } = await supabase
     .from('expenses')
     .update({
@@ -84,7 +88,8 @@ export async function updateExpense(
       amount: input.amount,
       category: input.category.trim() || null,
       account_id: input.account_id,
-      count_in_co_budget: input.count_in_co_budget,
+      count_in_co_budget: flags.count_in_co_budget,
+      is_personal: flags.is_personal,
     })
     .eq('id', input.id)
     .eq('user_id', user.id)
@@ -97,9 +102,9 @@ export async function updateExpense(
   return { ok: true }
 }
 
-export async function toggleReimbursable(
+export async function setExpenseBudgetKind(
   expenseId: string,
-  reimbursable: boolean,
+  kind: BudgetKind,
 ): Promise<ActionResult> {
   const supabase = await createClient()
   const {
@@ -107,9 +112,13 @@ export async function toggleReimbursable(
   } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'Not signed in' }
 
+  const flags = deriveBudgetFlags(kind)
   const { error } = await supabase
     .from('expenses')
-    .update({ count_in_co_budget: !reimbursable })
+    .update({
+      count_in_co_budget: flags.count_in_co_budget,
+      is_personal: flags.is_personal,
+    })
     .eq('id', expenseId)
     .eq('user_id', user.id)
   if (error) return { ok: false, error: error.message }

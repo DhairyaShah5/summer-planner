@@ -55,6 +55,7 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState<string>(EXPENSE_CATEGORIES[0].id)
   const [accountId, setAccountId] = useState<string>(defaultAccountId ?? '')
+  const [budgetKind, setBudgetKind] = useState<'co' | 'reimbursable' | 'personal'>('co')
 
   useEffect(() => {
     descriptionRef.current?.focus()
@@ -86,7 +87,7 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
         amount: amt,
         category: category.trim(),
         account_id: accountId,
-        count_in_co_budget: true,
+        budget_kind: budgetKind,
       })
       if (!res.ok) {
         toast.error(res.error ?? 'Could not add expense')
@@ -277,6 +278,59 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
             })}
           </div>
 
+
+          <div style={{ marginBottom: 14 }}>
+            <span style={{ ...fieldLabel, display: 'block', marginBottom: 8 }}>
+              Budget treatment
+            </span>
+            <div
+              role="radiogroup"
+              aria-label="Budget treatment"
+              style={{
+                display: 'inline-flex',
+                padding: 3,
+                borderRadius: 999,
+                border: '1px solid var(--hair)',
+                background: 'var(--surface-2)',
+                gap: 2,
+              }}
+            >
+              {(
+                [
+                  { v: 'co', label: 'In CO budget' },
+                  { v: 'reimbursable', label: 'Reimbursable' },
+                  { v: 'personal', label: 'Off-budget' },
+                ] as const
+              ).map((opt) => {
+                const active = budgetKind === opt.v
+                return (
+                  <button
+                    key={opt.v}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => setBudgetKind(opt.v)}
+                    disabled={pending}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: 999,
+                      border: 'none',
+                      font: '600 12px var(--ui)',
+                      cursor: pending ? 'not-allowed' : 'pointer',
+                      background: active ? 'var(--surface)' : 'transparent',
+                      color: active ? 'var(--ink-1)' : 'var(--ink-3)',
+                      boxShadow: active
+                        ? '0 1px 0 var(--hair), 0 4px 12px -8px rgba(0,0,0,.4)'
+                        : 'none',
+                      transition: 'all .15s',
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
 
           <Button
             type="submit"
