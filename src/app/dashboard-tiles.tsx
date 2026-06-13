@@ -15,8 +15,16 @@ import {
   Clock,
   Check,
   ArrowUpRight,
+  ArrowRightIcon,
+  Loader2Icon,
 } from 'lucide-react'
 
+import { useRouter } from 'next/navigation'
+import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
+
+import { Button } from '@/components/ui/button'
+import { logVaultTopupSweep } from './weekly/sweep-actions'
 import type { Expense } from '@/lib/types'
 import type { AllocationDatum } from '@/components/allocation-breakdown'
 import {
@@ -91,6 +99,17 @@ export interface DashboardTilesProps {
   }[]
   vaultGrowth: VaultGrowthPoint[]
   coGauge: { spent: number; allowed: number }
+  vaultTopup: {
+    show: boolean
+    ready: number
+    suggested: number
+    fromAccountId: string
+    toAccountId: string
+  }
+  perDiem: {
+    received: number
+    expected: number
+  }
 }
 
 // Bucket / category hue palette - mirrors the design handoff palette so the
@@ -146,6 +165,8 @@ export function DashboardTiles(props: DashboardTilesProps) {
     accountsPreview,
     vaultGrowth,
     coGauge,
+    vaultTopup,
+    perDiem,
   } = props
 
   const vaultPctFrac = Math.min(1, vault.percent / 100)
@@ -167,6 +188,20 @@ export function DashboardTiles(props: DashboardTilesProps) {
         title="Summer at a glance"
         subtitle={`${todayLabel} · saving toward ${fmtMoney(vault.projected)} by ${deadlineLabel}`}
       />
+
+      {vaultTopup.show && (
+        <Reveal>
+          <VaultTopupBanner
+            ready={vaultTopup.ready}
+            suggested={vaultTopup.suggested}
+            fromAccountId={vaultTopup.fromAccountId}
+            toAccountId={vaultTopup.toAccountId}
+            vaultRoom={Math.max(0, vault.cap - vault.current)}
+          />
+        </Reveal>
+      )}
+
+      <PerDiemStrip received={perDiem.received} expected={perDiem.expected} />
 
       <div
         className="bento-grid"
@@ -1349,4 +1384,261 @@ function accountTypeLabel(t: 'checking' | 'credit_card' | 'hysa'): string {
     case 'hysa':
       return 'HYSA'
   }
+}
+
+function VaultTopupBanner({
+  ready,
+  suggested,
+  fromAccountId,
+  toAccountId,
+  vaultRoom,
+}: {
+  ready: number
+  suggested: number
+  fromAccountId: string
+  toAccountId: string
+  vaultRoom: number
+}) {
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
+  function onSweep() {
+    if (!fromAccountId || !toAccountId) {
+      toast.error('Missing BofA or Vault account')
+      return
+    }
+    if (suggested <= 0) {
+      toast.error('Nothing ready to sweep')
+      return
+    }
+    startTransition(async () => {
+      const res = await logVaultTopupSweep({
+        fromAccountId,
+        toAccountId,
+        amount: suggested,
+      })
+      if (!res.ok) {
+        toast.error(res.error ?? 'Could not record top-up')
+        return
+      }
+      toast.success(`${fmtMoney(suggested)} swept to Vault`)
+      setConfirmOpen(false)
+      router.refresh()
+    })
+  }
+
+  return (
+    <div
+      className="fx-card vault-topup-banner"
+      style={{
+        padding: '16px 20px',
+        marginBottom: 14,
+        borderRadius: 'var(--radius)',
+        border:
+          '1px solid color-mix(in oklch, var(--accent) 30%, var(--hair))',
+        borderLeft: '4px solid var(--accent)',
+        background: 'color-mix(in oklch, var(--accent) 8%, var(--surface))',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 18,
+        flexWrap: 'wrap',
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          className="vault-topup-headline"
+          style={{
+            font: '600 20px/1.15 var(--display)',
+            letterSpacing: '-.02em',
+            color: 'var(--ink-1)',
+          }}
+        >
+          {fmtMoney(ready, { cents: true })} of wages waiting in BofA
+        </div>
+        <div
+          style={{
+            font: '500 13px var(--ui)',
+            color: 'var(--ink-2)',
+            marginTop: 4,
+          }}
+        >
+          Top up Vault by {fmtMoney(suggested)}? Vault has {fmtMoney(vaultRoom)}{' '}
+          room remaining. Per diem is excluded.
+        </div>
+      </div>
+      <Button
+        type="button"
+        onClick={() => setConfirmOpen(true)}
+        className="vault-topup-btn"
+        disabled={pending}
+        style={{
+          background: 'var(--accent)',
+          color: 'white',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        Sweep {fmtMoney(suggested)} to Vault
+        <ArrowRightIcon className="size-4" />
+      </Button>
+      {confirmOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.currentTarget === e.target && !pending) setConfirmOpen(false)
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'color-mix(in oklch, black 50%, transparent)',
+            display: 'grid',
+            placeItems: 'center',
+            zIndex: 100,
+          }}
+        >
+          <div
+            style={{
+              width: 'min(420px, calc(100vw - 32px))',
+              background: 'var(--surface)',
+              border: '1px solid var(--hair)',
+              borderRadius: 'var(--radius)',
+              padding: 22,
+            }}
+          >
+            <div
+              style={{
+                font: '600 17px var(--display)',
+                color: 'var(--ink-1)',
+                marginBottom: 6,
+              }}
+            >
+              Sweep {fmtMoney(suggested)} from BofA Checking to Vault?
+            </div>
+            <div
+              style={{
+                font: '500 13px var(--ui)',
+                color: 'var(--ink-2)',
+                marginBottom: 16,
+              }}
+            >
+              Records a one-time transfer dated today. Frees up{' '}
+              {fmtMoney(suggested)} of the BofA wages tracker so it can grow
+              toward the next top-up.
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                gap: 8,
+                justifyContent: 'flex-end',
+              }}
+            >
+              <Button
+                variant="outline"
+                onClick={() => setConfirmOpen(false)}
+                disabled={pending}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={onSweep}
+                disabled={pending}
+                style={{ background: 'var(--accent)', color: 'white' }}
+              >
+                {pending ? (
+                  <>
+                    <Loader2Icon className="size-4 animate-spin" />
+                    Sweeping...
+                  </>
+                ) : (
+                  'Confirm sweep'
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      <style>{`
+        @media (max-width: 640px) {
+          .vault-topup-banner { padding: 14px 16px !important; gap: 12px !important; }
+          .vault-topup-headline { font-size: 17px !important; }
+          .vault-topup-btn { width: 100% !important; }
+        }
+      `}</style>
+    </div>
+  )
+}
+
+function PerDiemStrip({
+  received,
+  expected,
+}: {
+  received: number
+  expected: number
+}) {
+  if (expected <= 0) return null
+  const pct = Math.min(100, (received / expected) * 100)
+  const remaining = Math.max(0, expected - received)
+  return (
+    <div
+      className="fx-card per-diem-strip"
+      style={{
+        padding: '12px 18px',
+        marginBottom: 16,
+        borderRadius: 'var(--radius)',
+        border: '1px solid var(--hair)',
+        background: 'var(--surface)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 18,
+        flexWrap: 'wrap',
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            font: '600 11.5px var(--ui)',
+            letterSpacing: '.06em',
+            textTransform: 'uppercase',
+            color: 'var(--ink-3)',
+            marginBottom: 4,
+          }}
+        >
+          Per diem received
+        </div>
+        <div
+          style={{
+            font: '600 16px var(--display)',
+            color: 'var(--ink-1)',
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {fmtMoney(received)}{' '}
+          <span style={{ font: '500 13px var(--ui)', color: 'var(--ink-3)' }}>
+            of {fmtMoney(expected)} · {fmtMoney(remaining)} left
+          </span>
+        </div>
+      </div>
+      <div
+        aria-hidden="true"
+        style={{
+          flex: '0 1 220px',
+          minWidth: 140,
+          height: 6,
+          borderRadius: 999,
+          background: 'var(--surface-2)',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            width: `${pct}%`,
+            height: '100%',
+            background: 'color-mix(in oklch, var(--accent) 80%, white)',
+            transition: 'width 240ms ease',
+          }}
+        />
+      </div>
+    </div>
+  )
 }

@@ -311,7 +311,7 @@ export type Database = {
           from_account_id: string
           to_account_id: string
           amount: number
-          kind: 'manual' | 'rollover_sweep' | 'per_diem_to_bofa' | 'ot_to_bofa'
+          kind: 'manual' | 'rollover_sweep' | 'per_diem_to_bofa' | 'ot_to_bofa' | 'vault_topup_sweep'
           note: string | null
           created_at: string
         }
@@ -322,7 +322,7 @@ export type Database = {
           from_account_id: string
           to_account_id: string
           amount: number
-          kind?: 'manual' | 'rollover_sweep' | 'per_diem_to_bofa' | 'ot_to_bofa'
+          kind?: 'manual' | 'rollover_sweep' | 'per_diem_to_bofa' | 'ot_to_bofa' | 'vault_topup_sweep'
           note?: string | null
           created_at?: string
         }
@@ -333,7 +333,7 @@ export type Database = {
           from_account_id?: string
           to_account_id?: string
           amount?: number
-          kind?: 'manual' | 'rollover_sweep' | 'per_diem_to_bofa' | 'ot_to_bofa'
+          kind?: 'manual' | 'rollover_sweep' | 'per_diem_to_bofa' | 'ot_to_bofa' | 'vault_topup_sweep'
           note?: string | null
           created_at?: string
         }

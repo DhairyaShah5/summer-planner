@@ -285,6 +285,43 @@ export default async function DashboardPage() {
 
   const todayLabel = format(now, "EEE, MMM d");
 
+  // BofA wages tracker: each received paycheck routes floor100(OT excess)
+  // into BofA via the model's bofaOverflow field. Per diem is intentionally
+  // *excluded* from the topup math per user request, even though the model
+  // bundles it into bofaOverflow alongside the OT excess. Subtracting perDiem
+  // isolates the wage-only portion that should drive vault top-ups.
+  const wagesInBofa = computed
+    .filter((r) => r.received)
+    .reduce((s, r) => s + Math.max(0, r.bofaOverflow - r.perDiem), 0);
+  const vaultTopupSwept = transferInputs
+    .filter((t) => t.kind === "vault_topup_sweep")
+    .reduce((s, t) => s + t.amount, 0);
+  const vaultTopupReady = Math.max(0, wagesInBofa - vaultTopupSwept);
+  // Sweep in $1,000 chunks but never overshoot the cap. Cap-room is floored
+  // to $100 so a half-step doesn't sneak in.
+  const vaultRoom = Math.max(0, settings.vaultCap - totals.currentVault);
+  const vaultRoomFloored = Math.floor(vaultRoom / 100) * 100;
+  const suggestedTopup = Math.min(
+    Math.floor(vaultTopupReady / 1000) * 1000,
+    vaultRoomFloored,
+  );
+  const showTopupBanner = vaultTopupReady >= 1000 && suggestedTopup > 0;
+
+  // Per diem progress: cumulative received vs full-summer total. Visibility
+  // only - never drives an auto-action.
+  const perDiemExpected = computed.reduce((s, r) => s + r.perDiem, 0);
+  const perDiemReceived = computed
+    .filter((r) => r.received)
+    .reduce((s, r) => s + r.perDiem, 0);
+
+  const bofaCheckingAccount = accountInputs.find(
+    (a) =>
+      a.type === "checking" &&
+      (a.name.toLowerCase().includes("bofa") ||
+        a.name.toLowerCase().includes("bank of america")),
+  );
+  const vaultAccount = accountInputs.find((a) => a.is_vault);
+
   return (
     <div className="container mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <DashboardTiles
@@ -341,6 +378,17 @@ export default async function DashboardPage() {
         coGauge={{ spent: cumSpent, allowed: cumMaxAllowed }}
         vaultCap={settings.vaultCap}
         deadlineLabel={format(new Date("2026-08-28T12:00:00"), "MMM d")}
+        vaultTopup={{
+          show: showTopupBanner,
+          ready: vaultTopupReady,
+          suggested: suggestedTopup,
+          fromAccountId: bofaCheckingAccount?.id ?? "",
+          toAccountId: vaultAccount?.id ?? "",
+        }}
+        perDiem={{
+          received: perDiemReceived,
+          expected: perDiemExpected,
+        }}
       />
     </div>
   );
