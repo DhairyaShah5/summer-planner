@@ -201,8 +201,6 @@ export function DashboardTiles(props: DashboardTilesProps) {
         </Reveal>
       )}
 
-      <PerDiemStrip received={perDiem.received} expected={perDiem.expected} />
-
       <div
         className="bento-grid"
         style={{
@@ -253,6 +251,13 @@ export function DashboardTiles(props: DashboardTilesProps) {
               size={gaugeSize}
             />
           </TileLink>
+        </Reveal>
+
+        <Reveal delay={160} style={{ gridColumn: '1 / -1' }}>
+          <PerDiemStrip
+            received={perDiem.received}
+            expected={perDiem.expected}
+          />
         </Reveal>
 
         <Reveal delay={180}>
@@ -1584,7 +1589,6 @@ function PerDiemStrip({
       className="fx-card per-diem-strip"
       style={{
         padding: '12px 18px',
-        marginBottom: 16,
         borderRadius: 'var(--radius)',
         border: '1px solid var(--hair)',
         background: 'var(--surface)',
