@@ -8,7 +8,6 @@ import { createClient } from '@/lib/supabase/client'
 import { computeAll } from '@/lib/calc'
 import type { Employer, PaycheckInput, Settings } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import {
   Popover,
   PopoverContent,
@@ -58,7 +57,6 @@ type EditableField =
   | 'extra_deposit'
   | 'vault_override'
   | 'rent_paid'
-  | 'notes'
   | 'received'
 
 type UpdatePayload = {
@@ -73,7 +71,6 @@ type UpdatePayload = {
     | 'extra_deposit'
     | 'vault_override'
     | 'rent_paid'
-    | 'notes'
     | 'received'
   >>
 }
@@ -246,10 +243,6 @@ export function PaychecksTable({
           patch.rent_paid = trimmed === '' ? 0 : Number(trimmed)
           break
         }
-        case 'notes': {
-          patch.notes = raw === '' ? null : String(raw)
-          break
-        }
       }
     }
 
@@ -400,7 +393,6 @@ export function PaychecksTable({
                   const empLabel = isUSC ? 'USC' : 'NTT'
                   const projectedNetPlaceholder = c.estimatedNet
                     .toFixed(2)
-                  const hasNotes = (row.notes ?? '').trim().length > 0
                   const isLast = i === rows.length - 1
                   const rowBg = row.received
                     ? 'color-mix(in oklch, var(--mint) 6%, transparent)'
@@ -559,8 +551,6 @@ export function PaychecksTable({
                       </Td>
                       <Td align="center" last={isLast}>
                         <NotesPopover
-                          notes={row.notes}
-                          hasNotes={hasNotes}
                           chaseBreakdown={{
                             wages:
                               c.received && c.actualNetWages != null
@@ -574,7 +564,6 @@ export function PaychecksTable({
                             bofaOverflow: c.bofaOverflow,
                             total: c.co + c.buffer + c.reimbursement,
                           }}
-                          onCommit={(v) => commit(row.id, 'notes', v)}
                         />
                       </Td>
                     </tr>
@@ -1168,15 +1157,9 @@ interface ChaseBreakdown {
 }
 
 function NotesPopover({
-  notes,
-  hasNotes,
   chaseBreakdown,
-  onCommit,
 }: {
-  notes: string | null
-  hasNotes: boolean
   chaseBreakdown: ChaseBreakdown
-  onCommit: (v: string) => void
 }) {
   const inflows: { label: string; value: number }[] = [
     { label: 'Wages (net)', value: chaseBreakdown.wages },
@@ -1221,15 +1204,13 @@ function NotesPopover({
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            aria-label={hasNotes ? 'Edit notes' : 'Add notes'}
+            aria-label="Show Chase breakdown"
           />
         }
       >
         <NotebookPen
           className={cn('size-4')}
-          style={{
-            color: hasNotes ? 'var(--accent-ink)' : 'var(--ink-4)',
-          }}
+          style={{ color: 'var(--ink-4)' }}
         />
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72">
@@ -1298,19 +1279,6 @@ function NotesPopover({
             </span>
           </div>
         </div>
-        <Textarea
-          key={notes ?? ''}
-          defaultValue={notes ?? ''}
-          rows={4}
-          placeholder="Notes…"
-          className="min-h-[96px] w-full text-xs leading-snug focus:ring-1 focus:ring-primary"
-          onBlur={(e) => {
-            const v = e.currentTarget.value
-            if ((notes ?? '') !== v) {
-              onCommit(v)
-            }
-          }}
-        />
       </PopoverContent>
     </Popover>
   )
