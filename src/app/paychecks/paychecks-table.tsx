@@ -561,7 +561,19 @@ export function PaychecksTable({
                         <NotesPopover
                           notes={row.notes}
                           hasNotes={hasNotes}
-                          chaseStays={c.co + c.buffer + c.reimbursement}
+                          chaseBreakdown={{
+                            wages:
+                              c.received && c.actualNetWages != null
+                                ? c.actualNetWages
+                                : c.estimatedNet,
+                            perDiem: c.perDiem,
+                            reimbursement: c.reimbursement,
+                            vault: c.vault,
+                            rent: c.rentPaid,
+                            robinhood: c.robinhood,
+                            bofaOverflow: c.bofaOverflow,
+                            total: c.co + c.buffer + c.reimbursement,
+                          }}
                           onCommit={(v) => commit(row.id, 'notes', v)}
                         />
                       </Td>
@@ -1144,17 +1156,62 @@ function NumberCell({
   )
 }
 
+interface ChaseBreakdown {
+  wages: number
+  perDiem: number
+  reimbursement: number
+  vault: number
+  rent: number
+  robinhood: number
+  bofaOverflow: number
+  total: number
+}
+
 function NotesPopover({
   notes,
   hasNotes,
-  chaseStays,
+  chaseBreakdown,
   onCommit,
 }: {
   notes: string | null
   hasNotes: boolean
-  chaseStays: number
+  chaseBreakdown: ChaseBreakdown
   onCommit: (v: string) => void
 }) {
+  const inflows: { label: string; value: number }[] = [
+    { label: 'Wages (net)', value: chaseBreakdown.wages },
+  ]
+  if (chaseBreakdown.perDiem > 0)
+    inflows.push({ label: 'Per diem', value: chaseBreakdown.perDiem })
+  if (chaseBreakdown.reimbursement > 0)
+    inflows.push({
+      label: 'Reimbursement',
+      value: chaseBreakdown.reimbursement,
+    })
+
+  const outflows: { label: string; value: number }[] = []
+  if (chaseBreakdown.vault > 0)
+    outflows.push({ label: 'Vault', value: chaseBreakdown.vault })
+  if (chaseBreakdown.rent > 0)
+    outflows.push({ label: 'Rent', value: chaseBreakdown.rent })
+  if (chaseBreakdown.robinhood > 0)
+    outflows.push({ label: 'Robinhood', value: chaseBreakdown.robinhood })
+  if (chaseBreakdown.bofaOverflow > 0)
+    outflows.push({
+      label: 'BofA transfer',
+      value: chaseBreakdown.bofaOverflow,
+    })
+
+  const rowStyle: React.CSSProperties = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 8,
+    padding: '2px 0',
+    font: '500 11.5px var(--ui)',
+    fontVariantNumeric: 'tabular-nums',
+  }
+
   return (
     <Popover>
       <PopoverTrigger
@@ -1178,29 +1235,68 @@ function NotesPopover({
       <PopoverContent align="end" className="w-72">
         <div
           style={{
-            padding: '8px 10px',
+            padding: '10px 12px',
             marginBottom: 8,
             borderRadius: 8,
             border: '1px solid var(--hair)',
             background: 'var(--surface-2)',
-            font: '500 11.5px var(--ui)',
-            color: 'var(--ink-2)',
-            display: 'flex',
-            alignItems: 'baseline',
-            justifyContent: 'space-between',
-            gap: 8,
           }}
         >
-          <span>Stays in Chase after all transfers</span>
-          <span
+          <div
             style={{
-              font: '600 13px var(--display)',
-              color: 'var(--ink-1)',
-              fontVariantNumeric: 'tabular-nums',
+              font: '600 10.5px var(--ui)',
+              letterSpacing: '.04em',
+              textTransform: 'uppercase',
+              color: 'var(--ink-3)',
+              marginBottom: 6,
             }}
           >
-            {fmtMoney(chaseStays, { cents: true })}
-          </span>
+            Stays in Chase after all transfers
+          </div>
+          {inflows.map((r) => (
+            <div key={r.label} style={{ ...rowStyle, color: 'var(--pos-ink)' }}>
+              <span>+ {r.label}</span>
+              <span>{fmtMoney(r.value, { cents: true })}</span>
+            </div>
+          ))}
+          {outflows.map((r) => (
+            <div
+              key={r.label}
+              style={{ ...rowStyle, color: 'var(--accent-ink)' }}
+            >
+              <span>− {r.label}</span>
+              <span>{fmtMoney(r.value, { cents: true })}</span>
+            </div>
+          ))}
+          <div
+            style={{
+              borderTop: '1px solid var(--hair)',
+              marginTop: 6,
+              paddingTop: 6,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'baseline',
+              gap: 8,
+            }}
+          >
+            <span
+              style={{
+                font: '600 11.5px var(--ui)',
+                color: 'var(--ink-2)',
+              }}
+            >
+              = Stays in Chase
+            </span>
+            <span
+              style={{
+                font: '600 14px var(--display)',
+                color: 'var(--ink-1)',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {fmtMoney(chaseBreakdown.total, { cents: true })}
+            </span>
+          </div>
         </div>
         <Textarea
           key={notes ?? ''}
