@@ -561,6 +561,7 @@ export function PaychecksTable({
                         <NotesPopover
                           notes={row.notes}
                           hasNotes={hasNotes}
+                          chaseStays={c.co + c.buffer + c.reimbursement}
                           onCommit={(v) => commit(row.id, 'notes', v)}
                         />
                       </Td>
@@ -1146,10 +1147,12 @@ function NumberCell({
 function NotesPopover({
   notes,
   hasNotes,
+  chaseStays,
   onCommit,
 }: {
   notes: string | null
   hasNotes: boolean
+  chaseStays: number
   onCommit: (v: string) => void
 }) {
   return (
@@ -1173,6 +1176,32 @@ function NotesPopover({
         />
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72">
+        <div
+          style={{
+            padding: '8px 10px',
+            marginBottom: 8,
+            borderRadius: 8,
+            border: '1px solid var(--hair)',
+            background: 'var(--surface-2)',
+            font: '500 11.5px var(--ui)',
+            color: 'var(--ink-2)',
+            display: 'flex',
+            alignItems: 'baseline',
+            justifyContent: 'space-between',
+            gap: 8,
+          }}
+        >
+          <span>Stays in Chase after all transfers</span>
+          <span
+            style={{
+              font: '600 13px var(--display)',
+              color: 'var(--ink-1)',
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {fmtMoney(chaseStays, { cents: true })}
+          </span>
+        </div>
         <Textarea
           key={notes ?? ''}
           defaultValue={notes ?? ''}
