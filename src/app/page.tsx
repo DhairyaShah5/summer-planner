@@ -260,19 +260,78 @@ export default async function DashboardPage() {
     .filter((r) => r.received)
     .reduce((s, r) => s + r.robinhood, 0);
 
+  // BofA wages tracker: each received paycheck routes floor100(OT excess)
+  // into BofA via the model's bofaOverflow field. Per diem is intentionally
+  // *excluded* from the topup math per user request, even though the model
+  // bundles it into bofaOverflow alongside the OT excess. Subtracting perDiem
+  // isolates the wage-only portion that should drive vault top-ups.
+  const wagesInBofa = computed
+    .filter((r) => r.received)
+    .reduce((s, r) => s + Math.max(0, r.bofaOverflow - r.perDiem), 0);
+  const vaultTopupSwept = transferInputs
+    .filter((t) => t.kind === "vault_topup_sweep")
+    .reduce((s, t) => s + t.amount, 0);
+  const vaultTopupReady = Math.max(0, wagesInBofa - vaultTopupSwept);
+
+  // Project future BofA→Vault sweeps into the cumulativeVault series.
+  // calc's cumulativeVault only counts scheduled per-paycheck vault transfers
+  // (vault + extraDeposit); vault_topup_sweep moves money outside that flow,
+  // so it's invisible to the base projection. We layer it in here:
+  //   - past sweeps (vaultTopupSwept) lift every row as a baseline shift
+  //   - for each future row we accumulate that row's projected wages-only
+  //     BofA inflow into a running buffer; when the buffer crosses $1,000 we
+  //     simulate a sweep (mirroring the manual banner behavior).
+  let projectedFutureSweeps = 0;
+  let projectedBofaWagesUnswept = vaultTopupReady;
+  const projectedVaultPerRow: number[] = [];
+  for (const r of computed) {
+    if (!r.received) {
+      projectedBofaWagesUnswept += Math.max(0, r.bofaOverflow - r.perDiem);
+      const baseAtRow =
+        r.cumulativeVault + vaultTopupSwept + projectedFutureSweeps;
+      const roomLeft = Math.max(0, settings.vaultCap - baseAtRow);
+      const roomFloored = Math.floor(roomLeft / 100) * 100;
+      const sweepAmount =
+        Math.floor(
+          Math.min(projectedBofaWagesUnswept, roomFloored) / 1000,
+        ) * 1000;
+      if (sweepAmount > 0) {
+        projectedFutureSweeps += sweepAmount;
+        projectedBofaWagesUnswept -= sweepAmount;
+      }
+    }
+    projectedVaultPerRow.push(
+      Math.min(
+        settings.vaultCap,
+        r.cumulativeVault + vaultTopupSwept + projectedFutureSweeps,
+      ),
+    );
+  }
+
+  const currentVaultWithSweeps = Math.min(
+    settings.vaultCap,
+    totals.currentVault + vaultTopupSwept,
+  );
+  const projectedTotalVaultWithSweeps =
+    projectedVaultPerRow[projectedVaultPerRow.length - 1] ?? totals.totalVault;
+
   const vaultPct =
     settings.vaultCap > 0
-      ? Math.min(100, (totals.currentVault / settings.vaultCap) * 100)
+      ? Math.min(100, (currentVaultWithSweeps / settings.vaultCap) * 100)
       : 0;
-  const vaultRemaining = Math.max(0, settings.vaultCap - totals.currentVault);
+  const vaultRemaining = Math.max(
+    0,
+    settings.vaultCap - currentVaultWithSweeps,
+  );
 
   // Weekly vault growth series for the AreaChart: one cumulative point per
-  // paycheck, already capped via computeRow's cumulativeVault. We show every
-  // other label to avoid axis crowding.
+  // paycheck. Uses projectedVaultPerRow so the curve reflects both past
+  // sweeps already done and future sweeps we expect from accumulated BofA
+  // wages. Show every other label to avoid axis crowding.
   const vaultGrowthSeries: VaultGrowthPoint[] = computed.map((r, i) => ({
     label:
       i % 2 === 0 ? format(new Date(String(r.payDate)), "MMM d") : "",
-    value: r.cumulativeVault,
+    value: projectedVaultPerRow[i] ?? r.cumulativeVault,
     received: r.received,
   }));
 
@@ -286,21 +345,10 @@ export default async function DashboardPage() {
 
   const todayLabel = format(now, "EEE, MMM d");
 
-  // BofA wages tracker: each received paycheck routes floor100(OT excess)
-  // into BofA via the model's bofaOverflow field. Per diem is intentionally
-  // *excluded* from the topup math per user request, even though the model
-  // bundles it into bofaOverflow alongside the OT excess. Subtracting perDiem
-  // isolates the wage-only portion that should drive vault top-ups.
-  const wagesInBofa = computed
-    .filter((r) => r.received)
-    .reduce((s, r) => s + Math.max(0, r.bofaOverflow - r.perDiem), 0);
-  const vaultTopupSwept = transferInputs
-    .filter((t) => t.kind === "vault_topup_sweep")
-    .reduce((s, t) => s + t.amount, 0);
-  const vaultTopupReady = Math.max(0, wagesInBofa - vaultTopupSwept);
   // Sweep in $1,000 chunks but never overshoot the cap. Cap-room is floored
-  // to $100 so a half-step doesn't sneak in.
-  const vaultRoom = Math.max(0, settings.vaultCap - totals.currentVault);
+  // to $100 so a half-step doesn't sneak in. Uses currentVaultWithSweeps so
+  // past sweeps count against remaining room.
+  const vaultRoom = Math.max(0, settings.vaultCap - currentVaultWithSweeps);
   const vaultRoomFloored = Math.floor(vaultRoom / 100) * 100;
   const suggestedTopup = Math.min(
     Math.floor(vaultTopupReady / 1000) * 1000,
@@ -328,8 +376,8 @@ export default async function DashboardPage() {
       <DashboardTiles
         todayLabel={todayLabel}
         vault={{
-          current: totals.currentVault,
-          projected: totals.totalVault,
+          current: currentVaultWithSweeps,
+          projected: projectedTotalVaultWithSweeps,
           cap: settings.vaultCap,
           percent: vaultPct,
           remaining: vaultRemaining,
@@ -362,7 +410,7 @@ export default async function DashboardPage() {
             : null
         }
         projected={{
-          totalVault: totals.totalVault,
+          totalVault: projectedTotalVaultWithSweeps,
           totalCO: totals.totalCO,
           totalBuffer: totals.totalBuffer,
           totalRentPaid,
