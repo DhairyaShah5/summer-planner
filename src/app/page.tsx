@@ -336,7 +336,7 @@ export default async function DashboardPage() {
   }));
 
   const allocation: AllocationDatum[] = [
-    { name: "Vault", value: totals.currentVault },
+    { name: "Vault", value: currentVaultWithSweeps },
     { name: "Rent", value: currentRentPaid },
     { name: "Robinhood", value: currentRobinhood },
     { name: "CO", value: totals.currentCO },
