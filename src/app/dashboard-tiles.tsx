@@ -20,7 +20,8 @@ import {
 } from 'lucide-react'
 
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
+import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -1407,6 +1408,10 @@ function VaultTopupBanner({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   function onSweep() {
     if (!fromAccountId || !toAccountId) {
@@ -1486,83 +1491,86 @@ function VaultTopupBanner({
         Sweep {fmtMoney(suggested)} to Vault
         <ArrowRightIcon className="size-4" />
       </Button>
-      {confirmOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          onClick={(e) => {
-            if (e.currentTarget === e.target && !pending) setConfirmOpen(false)
-          }}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'color-mix(in oklch, black 50%, transparent)',
-            display: 'grid',
-            placeItems: 'center',
-            zIndex: 100,
-          }}
-        >
+      {confirmOpen && mounted &&
+        createPortal(
           <div
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => {
+              if (e.currentTarget === e.target && !pending)
+                setConfirmOpen(false)
+            }}
             style={{
-              width: 'min(420px, calc(100vw - 32px))',
-              background: 'var(--surface)',
-              border: '1px solid var(--hair)',
-              borderRadius: 'var(--radius)',
-              padding: 22,
+              position: 'fixed',
+              inset: 0,
+              background: 'color-mix(in oklch, black 50%, transparent)',
+              display: 'grid',
+              placeItems: 'center',
+              zIndex: 100,
             }}
           >
             <div
               style={{
-                font: '600 17px var(--display)',
-                color: 'var(--ink-1)',
-                marginBottom: 6,
+                width: 'min(420px, calc(100vw - 32px))',
+                background: 'var(--surface)',
+                border: '1px solid var(--hair)',
+                borderRadius: 'var(--radius)',
+                padding: 22,
               }}
             >
-              Sweep {fmtMoney(suggested)} from BofA Checking to Vault?
-            </div>
-            <div
-              style={{
-                font: '500 13px var(--ui)',
-                color: 'var(--ink-2)',
-                marginBottom: 16,
-              }}
-            >
-              Records a one-time transfer dated today. Frees up{' '}
-              {fmtMoney(suggested)} of the BofA wages tracker so it can grow
-              toward the next top-up.
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                gap: 8,
-                justifyContent: 'flex-end',
-              }}
-            >
-              <Button
-                variant="outline"
-                onClick={() => setConfirmOpen(false)}
-                disabled={pending}
+              <div
+                style={{
+                  font: '600 17px var(--display)',
+                  color: 'var(--ink-1)',
+                  marginBottom: 6,
+                }}
               >
-                Cancel
-              </Button>
-              <Button
-                onClick={onSweep}
-                disabled={pending}
-                style={{ background: 'var(--accent)', color: 'white' }}
+                Sweep {fmtMoney(suggested)} from BofA Checking to Vault?
+              </div>
+              <div
+                style={{
+                  font: '500 13px var(--ui)',
+                  color: 'var(--ink-2)',
+                  marginBottom: 16,
+                }}
               >
-                {pending ? (
-                  <>
-                    <Loader2Icon className="size-4 animate-spin" />
-                    Sweeping...
-                  </>
-                ) : (
-                  'Confirm sweep'
-                )}
-              </Button>
+                Records a one-time transfer dated today. Frees up{' '}
+                {fmtMoney(suggested)} of the BofA wages tracker so it can grow
+                toward the next top-up.
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 8,
+                  justifyContent: 'flex-end',
+                }}
+              >
+                <Button
+                  variant="outline"
+                  onClick={() => setConfirmOpen(false)}
+                  disabled={pending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={onSweep}
+                  disabled={pending}
+                  style={{ background: 'var(--accent)', color: 'white' }}
+                >
+                  {pending ? (
+                    <>
+                      <Loader2Icon className="size-4 animate-spin" />
+                      Sweeping...
+                    </>
+                  ) : (
+                    'Confirm sweep'
+                  )}
+                </Button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
       <style>{`
         @media (max-width: 640px) {
           .vault-topup-banner { padding: 14px 16px !important; gap: 12px !important; }
