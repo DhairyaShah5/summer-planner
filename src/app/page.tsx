@@ -293,8 +293,8 @@ export default async function DashboardPage() {
       const roomFloored = Math.floor(roomLeft / 100) * 100;
       const sweepAmount =
         Math.floor(
-          Math.min(projectedBofaWagesUnswept, roomFloored) / 1000,
-        ) * 1000;
+          Math.min(projectedBofaWagesUnswept, roomFloored) / 500,
+        ) * 500;
       if (sweepAmount > 0) {
         projectedFutureSweeps += sweepAmount;
         projectedBofaWagesUnswept -= sweepAmount;
@@ -345,16 +345,16 @@ export default async function DashboardPage() {
 
   const todayLabel = format(now, "EEE, MMM d");
 
-  // Sweep in $1,000 chunks but never overshoot the cap. Cap-room is floored
+  // Sweep in $500 chunks but never overshoot the cap. Cap-room is floored
   // to $100 so a half-step doesn't sneak in. Uses currentVaultWithSweeps so
   // past sweeps count against remaining room.
   const vaultRoom = Math.max(0, settings.vaultCap - currentVaultWithSweeps);
   const vaultRoomFloored = Math.floor(vaultRoom / 100) * 100;
   const suggestedTopup = Math.min(
-    Math.floor(vaultTopupReady / 1000) * 1000,
+    Math.floor(vaultTopupReady / 500) * 500,
     vaultRoomFloored,
   );
-  const showTopupBanner = vaultTopupReady >= 1000 && suggestedTopup > 0;
+  const showTopupBanner = vaultTopupReady >= 500 && suggestedTopup > 0;
 
   // Per diem progress: cumulative received vs full-summer total. Visibility
   // only - never drives an auto-action.
