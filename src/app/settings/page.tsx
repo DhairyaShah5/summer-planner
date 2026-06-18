@@ -11,7 +11,7 @@ const DEFAULTS: SettingsFormValues = {
   usc_gross_baseline: 1760,
   ntt_hourly_rate: 30,
   usc_net_pct: 0.902088,
-  ntt_net_pct: 0.926647,
+  ntt_net_pct: 0.82,
   rent_monthly: 812.25,
   rent_months: 3,
   robinhood_weekly: 100,
