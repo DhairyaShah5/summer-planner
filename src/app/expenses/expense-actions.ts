@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { isViewMode, viewOnlyError } from '@/lib/view-mode'
 import { deriveBudgetFlags, type BudgetKind } from './budget-kind'
 
 export interface AddExpenseInput {
@@ -19,6 +20,7 @@ export interface ActionResult {
 }
 
 export async function addExpense(input: AddExpenseInput): Promise<ActionResult> {
+  if (await isViewMode()) return viewOnlyError()
   const supabase = await createClient()
 
   const {
@@ -65,6 +67,7 @@ export interface UpdateExpenseInput {
 export async function updateExpense(
   input: UpdateExpenseInput,
 ): Promise<ActionResult> {
+  if (await isViewMode()) return viewOnlyError()
   const supabase = await createClient()
   const {
     data: { user },
@@ -106,6 +109,7 @@ export async function setExpenseBudgetKind(
   expenseId: string,
   kind: BudgetKind,
 ): Promise<ActionResult> {
+  if (await isViewMode()) return viewOnlyError()
   const supabase = await createClient()
   const {
     data: { user },
@@ -131,6 +135,7 @@ export async function setExpenseBudgetKind(
 }
 
 export async function deleteExpense(expenseId: string): Promise<ActionResult> {
+  if (await isViewMode()) return viewOnlyError()
   const supabase = await createClient()
 
   const {

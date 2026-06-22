@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { isViewMode, viewOnlyError } from '@/lib/view-mode'
 
 export interface AddAccountEntryInput {
   account_id: string
@@ -25,6 +26,7 @@ export interface ActionResult {
 export async function addAccountEntry(
   input: AddAccountEntryInput,
 ): Promise<ActionResult> {
+  if (await isViewMode()) return viewOnlyError()
   const supabase = await createClient()
 
   const {
@@ -67,6 +69,7 @@ export interface UpdateAccountEntryInput {
 export async function updateAccountEntry(
   input: UpdateAccountEntryInput,
 ): Promise<ActionResult> {
+  if (await isViewMode()) return viewOnlyError()
   const supabase = await createClient()
   const {
     data: { user },
@@ -105,6 +108,7 @@ export async function updateAccountEntry(
  */
 export async function deleteAccountEntry(id: string): Promise<ActionResult> {
   if (!id) return { ok: false, error: 'Entry id required' }
+  if (await isViewMode()) return viewOnlyError()
   const supabase = await createClient()
 
   const {

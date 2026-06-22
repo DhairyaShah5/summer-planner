@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { isViewMode, viewOnlyError } from '@/lib/view-mode'
 
 export interface PayCreditCardInput {
   fromAccountId: string
@@ -19,6 +20,7 @@ export interface ActionResult {
 export async function payCreditCard(
   input: PayCreditCardInput,
 ): Promise<ActionResult> {
+  if (await isViewMode()) return viewOnlyError()
   const supabase = await createClient()
 
   const {

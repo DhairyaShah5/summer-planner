@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { createClient } from '@/lib/supabase/server';
+import { isViewMode } from '@/lib/view-mode';
 
 import { LoginForm } from './login-form';
 
@@ -17,6 +18,9 @@ export const metadata = {
 };
 
 export default async function LoginPage() {
+  if (await isViewMode()) {
+    redirect('/');
+  }
   const supabase = await createClient();
   const {
     data: { user },

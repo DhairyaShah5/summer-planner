@@ -36,6 +36,7 @@ import {
 import { classifyBudgetKind, type BudgetKind } from './budget-kind'
 import type { AccountOption } from './add-expense-form'
 import { ExpenseCharts } from './expense-charts'
+import { useViewMode } from '@/components/view-mode-context'
 import { EXPENSE_CATEGORIES, hueForCategory } from './categories'
 
 function parseLocalDate(iso: string): Date {
@@ -102,6 +103,7 @@ export function ExpenseList({
   cumSpent,
 }: Props) {
   const router = useRouter()
+  const viewMode = useViewMode()
   const [pendingDelete, setPendingDelete] = useState<Expense | null>(null)
   const [deleting, startDeleting] = useTransition()
   const [togglingId, setTogglingId] = useState<string | null>(null)
@@ -495,51 +497,55 @@ export function ExpenseList({
                           >
                             {fmtMoney(e.amount, { cents: true })}
                           </span>
-                          <Button
-                            type="button"
-                            size="icon-sm"
-                            variant="ghost"
-                            onClick={() => handleCycleBudgetKind(e)}
-                            disabled={togglingId === e.id}
-                            aria-label="Cycle budget treatment"
-                            title={
-                              kind === 'co'
-                                ? 'In CO budget · click to mark Reimbursable'
-                                : kind === 'reimbursable'
-                                  ? 'Reimbursable · click to mark Off-budget'
-                                  : 'Off-budget · click to put back in CO budget'
-                            }
-                            style={{
-                              color: isOffBudget ? 'var(--accent)' : 'var(--ink-4)',
-                            }}
-                          >
-                            {togglingId === e.id ? (
-                              <Loader2Icon className="size-4 animate-spin" />
-                            ) : (
-                              <Receipt className="size-4" />
-                            )}
-                          </Button>
-                          <Button
-                            type="button"
-                            size="icon-sm"
-                            variant="ghost"
-                            onClick={() => openEdit(e)}
-                            aria-label="Edit expense"
-                            title="Edit expense"
-                            style={{ color: 'var(--ink-3)' }}
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            size="icon-sm"
-                            variant="ghost"
-                            onClick={() => setPendingDelete(e)}
-                            aria-label="Delete expense"
-                            className="transition-colors hover:text-destructive"
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
+                          {!viewMode && (
+                            <>
+                              <Button
+                                type="button"
+                                size="icon-sm"
+                                variant="ghost"
+                                onClick={() => handleCycleBudgetKind(e)}
+                                disabled={togglingId === e.id}
+                                aria-label="Cycle budget treatment"
+                                title={
+                                  kind === 'co'
+                                    ? 'In CO budget · click to mark Reimbursable'
+                                    : kind === 'reimbursable'
+                                      ? 'Reimbursable · click to mark Off-budget'
+                                      : 'Off-budget · click to put back in CO budget'
+                                }
+                                style={{
+                                  color: isOffBudget ? 'var(--accent)' : 'var(--ink-4)',
+                                }}
+                              >
+                                {togglingId === e.id ? (
+                                  <Loader2Icon className="size-4 animate-spin" />
+                                ) : (
+                                  <Receipt className="size-4" />
+                                )}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="icon-sm"
+                                variant="ghost"
+                                onClick={() => openEdit(e)}
+                                aria-label="Edit expense"
+                                title="Edit expense"
+                                style={{ color: 'var(--ink-3)' }}
+                              >
+                                <Pencil className="size-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                size="icon-sm"
+                                variant="ghost"
+                                onClick={() => setPendingDelete(e)}
+                                aria-label="Delete expense"
+                                className="transition-colors hover:text-destructive"
+                              >
+                                <Trash2 className="size-4" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       )
                     })}

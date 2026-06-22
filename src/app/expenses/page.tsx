@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getViewerContext } from '@/lib/viewer-context'
 import {
   computeAll,
   type Settings,
@@ -17,12 +16,7 @@ import type { AccountOption } from './add-expense-form'
 export const dynamic = 'force-dynamic'
 
 export default async function ExpensesPage() {
-  const supabase = await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase } = await getViewerContext()
 
   const [settingsRes, paychecksRes, expensesRes, accountsRes] = await Promise.all([
     supabase.from('settings').select('*').maybeSingle(),

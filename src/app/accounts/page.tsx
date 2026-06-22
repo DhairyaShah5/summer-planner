@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getViewerContext } from '@/lib/viewer-context'
 import {
   computeAccountStates,
   computeAll,
@@ -24,12 +23,7 @@ import {
 export const dynamic = 'force-dynamic'
 
 export default async function AccountsPage() {
-  const supabase = await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase } = await getViewerContext()
 
   const [
     accountsRes,

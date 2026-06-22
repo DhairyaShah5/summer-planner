@@ -23,6 +23,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
+import { useViewMode } from '@/components/view-mode-context'
 
 import { Button } from '@/components/ui/button'
 import { logVaultTopupSweep } from './weekly/sweep-actions'
@@ -174,6 +175,7 @@ export function DashboardTiles(props: DashboardTilesProps) {
   const coPct = coGauge.allowed > 0 ? coGauge.spent / coGauge.allowed : 0
   const coPctClamped = Math.max(0, Math.min(1, coPct))
 
+  const viewMode = useViewMode()
   const vw = useViewportWidth()
   // Phone (<=640): smaller rings/gauges/donuts so they fit one-column tiles.
   // Tablet (<=900): slight reduction so the 2-col layout breathes.
@@ -190,7 +192,7 @@ export function DashboardTiles(props: DashboardTilesProps) {
         subtitle={`${todayLabel} · saving toward ${fmtMoney(vault.projected)} by ${deadlineLabel}`}
       />
 
-      {vaultTopup.show && (
+      {vaultTopup.show && !viewMode && (
         <Reveal>
           <VaultTopupBanner
             ready={vaultTopup.ready}

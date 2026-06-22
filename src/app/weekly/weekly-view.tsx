@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { logRolloverSweep } from './sweep-actions'
+import { useViewMode } from '@/components/view-mode-context'
 
 export type WeeklyRow = {
   index: number
@@ -197,6 +198,7 @@ export function WeeklyView({
 }: Props) {
   void _threshold
   const router = useRouter()
+  const viewMode = useViewMode()
   const summerIsUnder = summerRemaining >= 0
 
   const [sweepOpen, setSweepOpen] = useState(false)
@@ -268,7 +270,7 @@ export function WeeklyView({
         subtitle="Maximum allowed to spend (cumulative) vs actual spent · week ending Sunday."
       />
 
-      {showBanner && (
+      {showBanner && !viewMode && (
         <Reveal>
           <SweepBanner
             rolloverSurplus={rolloverSurplus}

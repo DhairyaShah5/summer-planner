@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getViewerContext } from "@/lib/viewer-context";
 import { SettingsForm, type SettingsFormValues } from "./settings-form";
 import { ImportFromXlsx } from "./import-from-xlsx";
 import { PageHeader, Reveal } from "@/components/redesign";
@@ -23,26 +22,36 @@ const DEFAULTS: SettingsFormValues = {
 };
 
 export default async function SettingsPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const { supabase, userId, viewMode } = await getViewerContext();
 
   let { data: row } = await supabase
     .from("settings")
     .select("*")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .maybeSingle();
 
-  if (!row) {
+  if (!row && !viewMode) {
     const { data: inserted, error } = await supabase
       .from("settings")
-      .insert({ user_id: user.id })
+      .insert({ user_id: userId })
       .select("*")
       .single();
     if (error) throw error;
     row = inserted;
+  }
+
+  if (!row) {
+    return (
+      <div className="settings-page mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8">
+        <PageHeader
+          title="Settings"
+          subtitle="Goal, employers, and how each paycheck cascades into buckets."
+        />
+        <p style={{ color: "var(--ink-3)", marginTop: 24 }}>
+          No settings configured yet.
+        </p>
+      </div>
+    );
   }
 
   const values: SettingsFormValues = {

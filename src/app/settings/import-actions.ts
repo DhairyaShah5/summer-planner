@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { isViewMode } from '@/lib/view-mode'
 import { parseWorkbook } from './import-parse'
 
 export type ImportResult = {
@@ -13,6 +14,14 @@ export type ImportResult = {
 
 export async function importFromXlsx(formData: FormData): Promise<ImportResult> {
   try {
+    if (await isViewMode()) {
+      return {
+        ok: false,
+        settingsImported: false,
+        paychecksImported: 0,
+        error: 'View-only mode — mutations are disabled.',
+      }
+    }
     const file = formData.get('file')
     if (!(file instanceof File)) {
       return {

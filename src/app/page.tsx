@@ -1,9 +1,8 @@
-import { redirect } from "next/navigation";
 import { format, parseISO, startOfWeek, endOfWeek } from "date-fns";
 import type { VaultGrowthPoint } from "./dashboard-tiles";
 import { todayInUserTz } from "@/lib/today";
 
-import { createClient } from "@/lib/supabase/server";
+import { getViewerContext } from "@/lib/viewer-context";
 import {
   computeAll,
   computeAccountStates,
@@ -24,23 +23,18 @@ import { DashboardTiles } from "./dashboard-tiles";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
+  const { supabase, userId, viewMode } = await getViewerContext();
 
   let { data: settingsRow } = await supabase
     .from("settings")
     .select("*")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .maybeSingle();
 
-  if (!settingsRow) {
+  if (!settingsRow && !viewMode) {
     const { data: inserted, error: insertError } = await supabase
       .from("settings")
-      .insert({ user_id: user.id })
+      .insert({ user_id: userId })
       .select("*")
       .single();
     if (insertError) {

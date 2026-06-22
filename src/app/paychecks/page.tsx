@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getViewerContext } from '@/lib/viewer-context'
 import type { Settings } from '@/lib/types'
 import { PageHeader } from '@/components/redesign'
 import { PaychecksTable, type PaycheckRow } from './paychecks-table'
@@ -7,10 +6,7 @@ import { PaychecksTable, type PaycheckRow } from './paychecks-table'
 export const dynamic = 'force-dynamic'
 
 export default async function PaychecksPage() {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { supabase } = await getViewerContext()
 
   const [settingsRes, paychecksRes] = await Promise.all([
     supabase.from('settings').select('*').maybeSingle(),

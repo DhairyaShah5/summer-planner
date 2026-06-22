@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useViewMode } from "@/components/view-mode-context";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
@@ -40,6 +41,7 @@ function isActive(pathname: string | null, href: string) {
 
 export function SiteNav() {
   const pathname = usePathname();
+  const viewMode = useViewMode();
 
   return (
     <header
@@ -170,20 +172,22 @@ export function SiteNav() {
 
         <div className="ml-auto flex flex-none items-center gap-1.5 sm:gap-2">
           <ThemeToggle />
-          <form action="/auth/signout" method="post">
-            <motion.div whileTap={{ scale: 0.96 }}>
-              <Button
-                type="submit"
-                variant="outline"
-                size="sm"
-                aria-label="Sign out"
-                className="gap-2 px-2.5 transition-colors hover:bg-muted sm:px-3"
-              >
-                <LogOut className="size-4" />
-                <span className="hidden sm:inline">Sign out</span>
-              </Button>
-            </motion.div>
-          </form>
+          {!viewMode && (
+            <form action="/auth/signout" method="post">
+              <motion.div whileTap={{ scale: 0.96 }}>
+                <Button
+                  type="submit"
+                  variant="outline"
+                  size="sm"
+                  aria-label="Sign out"
+                  className="gap-2 px-2.5 transition-colors hover:bg-muted sm:px-3"
+                >
+                  <LogOut className="size-4" />
+                  <span className="hidden sm:inline">Sign out</span>
+                </Button>
+              </motion.div>
+            </form>
+          )}
         </div>
       </div>
       <style>{`

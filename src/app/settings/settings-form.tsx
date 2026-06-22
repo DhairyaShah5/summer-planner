@@ -33,6 +33,7 @@ import {
   fmtMoney,
   fmtDate,
 } from "@/components/redesign";
+import { useViewMode } from "@/components/view-mode-context";
 
 const schema = z.object({
   vault_cap: z.number().min(0),
@@ -68,6 +69,7 @@ export function SettingsForm({
   initialValues: SettingsFormValues;
   defaults: SettingsFormValues;
 }) {
+  const viewMode = useViewMode();
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(schema),
     defaultValues: initialValues,
@@ -406,50 +408,52 @@ export function SettingsForm({
           </Card>
         </Reveal>
 
-        <Reveal delay={200}>
-          <div
-            className="settings-actions"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "flex-end",
-              gap: 8,
-              padding: "4px 4px 0",
-            }}
-          >
-            <motion.div whileTap={{ scale: 0.97 }}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setResetOpen(true)}
-                disabled={resetMutation.isPending}
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-              >
-                Reset to defaults
-              </Button>
-            </motion.div>
-            <motion.div whileTap={{ scale: 0.97 }}>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => form.reset(initialValues)}
-                disabled={mutation.isPending || !form.formState.isDirty}
-              >
-                Discard changes
-              </Button>
-            </motion.div>
-            <motion.div whileTap={{ scale: 0.97 }}>
-              <Button
-                type="submit"
-                disabled={mutation.isPending || !form.formState.isDirty}
-                className="transition-transform"
-              >
-                {mutation.isPending ? "Saving..." : "Save settings"}
-              </Button>
-            </motion.div>
-          </div>
-        </Reveal>
+        {!viewMode && (
+          <Reveal delay={200}>
+            <div
+              className="settings-actions"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "flex-end",
+                gap: 8,
+                padding: "4px 4px 0",
+              }}
+            >
+              <motion.div whileTap={{ scale: 0.97 }}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setResetOpen(true)}
+                  disabled={resetMutation.isPending}
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                >
+                  Reset to defaults
+                </Button>
+              </motion.div>
+              <motion.div whileTap={{ scale: 0.97 }}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => form.reset(initialValues)}
+                  disabled={mutation.isPending || !form.formState.isDirty}
+                >
+                  Discard changes
+                </Button>
+              </motion.div>
+              <motion.div whileTap={{ scale: 0.97 }}>
+                <Button
+                  type="submit"
+                  disabled={mutation.isPending || !form.formState.isDirty}
+                  className="transition-transform"
+                >
+                  {mutation.isPending ? "Saving..." : "Save settings"}
+                </Button>
+              </motion.div>
+            </div>
+          </Reveal>
+        )}
       </form>
 
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>

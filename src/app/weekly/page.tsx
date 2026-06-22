@@ -1,5 +1,5 @@
 import { addDays, format, isAfter, isBefore, parseISO } from 'date-fns'
-import { createClient } from '@/lib/supabase/server'
+import { getViewerContext } from '@/lib/viewer-context'
 import { computeAll, floor100 } from '@/lib/calc'
 import { dayOfWeekInUserTz, todayInUserTz } from '@/lib/today'
 import type {
@@ -48,7 +48,7 @@ function isoDate(d: Date): string {
 }
 
 export default async function WeeklyPage() {
-  const supabase = await createClient()
+  const { supabase } = await getViewerContext()
 
   const [settingsRes, paychecksRes, expensesRes, transfersRes, accountsRes] =
     await Promise.all([
