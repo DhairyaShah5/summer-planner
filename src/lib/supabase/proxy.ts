@@ -2,6 +2,9 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import type { Database } from '@/lib/database.types';
 
+const VIEW_COOKIE = 'view_mode';
+const VIEW_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -37,14 +40,32 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (
-    !user &&
-    !request.nextUrl.pathname.startsWith('/login') &&
-    !request.nextUrl.pathname.startsWith('/auth')
-  ) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    return NextResponse.redirect(url);
+  const path = request.nextUrl.pathname;
+  const isAuthRoute = path.startsWith('/login') || path.startsWith('/auth');
+
+  if (user) {
+    // Authenticated owner — ensure any stale view_mode cookie is cleared so
+    // they see the editable UI, not the viewer banner.
+    if (request.cookies.get(VIEW_COOKIE)) {
+      request.cookies.delete(VIEW_COOKIE);
+      supabaseResponse = NextResponse.next({ request });
+      supabaseResponse.cookies.delete(VIEW_COOKIE);
+    }
+    return supabaseResponse;
+  }
+
+  if (!isAuthRoute) {
+    // Anonymous visitor on a real page — drop them into read-only view mode
+    // instead of redirecting to /login. Set the cookie on BOTH the request
+    // and the response so the current render sees it via `cookies()`.
+    request.cookies.set(VIEW_COOKIE, '1');
+    supabaseResponse = NextResponse.next({ request });
+    supabaseResponse.cookies.set(VIEW_COOKIE, '1', {
+      maxAge: VIEW_COOKIE_MAX_AGE,
+      path: '/',
+      sameSite: 'lax',
+      httpOnly: true,
+    });
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is.
