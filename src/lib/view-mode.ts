@@ -14,16 +14,6 @@ export function isValidViewToken(token: string | null | undefined): boolean {
   return token === expected
 }
 
-export function getOwnerUserId(): string {
-  const id = process.env.OWNER_USER_ID
-  if (!id) {
-    throw new Error(
-      'OWNER_USER_ID is not configured — required for view mode.',
-    )
-  }
-  return id
-}
-
 export function viewOnlyError() {
   return {
     ok: false as const,
