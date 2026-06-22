@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { Eye } from 'lucide-react'
 
 export function ViewOnlyBanner() {
@@ -21,7 +22,20 @@ export function ViewOnlyBanner() {
       }}
     >
       <Eye size={14} aria-hidden />
-      <span>View-only mode — edits and actions are disabled.</span>
+      <span>
+        View only - this is a live, read-only copy.{' '}
+        <Link
+          href="/login"
+          style={{
+            color: 'var(--accent)',
+            textDecoration: 'underline',
+            textUnderlineOffset: 2,
+          }}
+        >
+          Sign in
+        </Link>{' '}
+        to make changes.
+      </span>
     </div>
   )
 }
