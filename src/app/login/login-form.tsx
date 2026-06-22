@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2Icon, MailCheckIcon } from 'lucide-react';
+import { Eye, Loader2Icon, MailCheckIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 import { signInWithPassword, signUpWithPassword } from './actions';
+import { enterViewMode } from './view-mode-action';
 
 type PasswordAction = 'sign-in' | 'sign-up';
 
@@ -146,6 +147,27 @@ export function LoginForm() {
           )}
         </Button>
       </div>
+
+      <div className="my-2 flex items-center gap-3 text-xs text-muted-foreground">
+        <span className="h-px flex-1 bg-border" />
+        <span>or</span>
+        <span className="h-px flex-1 bg-border" />
+      </div>
+
+      <Button
+        type="button"
+        variant="ghost"
+        disabled={isPending}
+        onClick={() => {
+          startTransition(async () => {
+            await enterViewMode();
+          });
+        }}
+        className="w-full gap-2"
+      >
+        <Eye className="size-4" />
+        View only (read-only demo)
+      </Button>
     </form>
   );
 }
