@@ -9,6 +9,7 @@ export interface AddAccountEntryInput {
   dated_at: string
   amount: number
   description: string
+  category?: string | null
   note?: string | null
 }
 
@@ -41,6 +42,7 @@ export async function addAccountEntry(
   const description = input.description?.trim()
   if (!description) return { ok: false, error: 'Description required' }
   const note = input.note?.trim()
+  const category = input.category?.trim()
 
   const { error: insertErr } = await supabase.from('account_entries').insert({
     user_id: user.id,
@@ -48,6 +50,7 @@ export async function addAccountEntry(
     dated_at: input.dated_at ?? new Date().toISOString().slice(0, 10),
     amount: input.amount,
     description,
+    category: category && category.length > 0 ? category : null,
     note: note && note.length > 0 ? note : null,
   })
   if (insertErr) return { ok: false, error: insertErr.message }
@@ -63,6 +66,7 @@ export interface UpdateAccountEntryInput {
   dated_at: string
   amount: number
   description: string
+  category?: string | null
   note?: string | null
 }
 
@@ -83,6 +87,7 @@ export async function updateAccountEntry(
   const description = input.description?.trim()
   if (!description) return { ok: false, error: 'Description required' }
   const note = input.note?.trim()
+  const category = input.category?.trim()
 
   const { error } = await supabase
     .from('account_entries')
@@ -90,6 +95,7 @@ export async function updateAccountEntry(
       dated_at: input.dated_at,
       amount: input.amount,
       description,
+      category: category && category.length > 0 ? category : null,
       note: note && note.length > 0 ? note : null,
     })
     .eq('id', input.id)

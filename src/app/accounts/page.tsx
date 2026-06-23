@@ -56,7 +56,7 @@ export default async function AccountsPage() {
     supabase
       .from('account_entries')
       .select(
-        'id, account_id, dated_at, amount, description, note, created_at',
+        'id, account_id, dated_at, amount, description, category, note, created_at',
       )
       .order('dated_at', { ascending: true }),
   ])
@@ -176,6 +176,7 @@ export default async function AccountsPage() {
     dated_at: e.dated_at,
     amount: Number(e.amount),
     description: e.description,
+    category: e.category ?? null,
     note: e.note,
     created_at: e.created_at,
   }))

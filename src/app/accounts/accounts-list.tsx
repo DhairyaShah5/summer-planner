@@ -63,7 +63,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { hueForCategory } from '@/app/expenses/categories'
+import { EXPENSE_CATEGORIES, hueForCategory } from '@/app/expenses/categories'
 import {
   INTERNSHIP_END,
   RH_WEEKLY_CUTOVER,
@@ -109,6 +109,7 @@ export interface LedgerEntryRow {
   dated_at: string
   amount: number
   description: string
+  category: string | null
   note: string | null
   created_at: string
 }
@@ -323,6 +324,7 @@ export function AccountsList({
   const [ledgerDirection, setLedgerDirection] = useState<'in' | 'out'>('in')
   const [ledgerAmount, setLedgerAmount] = useState<string>('')
   const [ledgerDescription, setLedgerDescription] = useState<string>('')
+  const [ledgerCategory, setLedgerCategory] = useState<string>('')
   const [ledgerNote, setLedgerNote] = useState<string>('')
   const [ledgerSaving, startLedgerTransition] = useTransition()
   const [ledgerDeletingId, setLedgerDeletingId] = useState<string | null>(null)
@@ -409,6 +411,7 @@ export function AccountsList({
     setLedgerDirection('in')
     setLedgerAmount('')
     setLedgerDescription('')
+    setLedgerCategory('')
     setLedgerNote('')
     setLedgerEditingId(null)
   }
@@ -421,6 +424,7 @@ export function AccountsList({
     setLedgerDirection(raw.amount >= 0 ? 'in' : 'out')
     setLedgerAmount(Math.abs(raw.amount).toFixed(2))
     setLedgerDescription(raw.description)
+    setLedgerCategory(raw.category ?? '')
     setLedgerNote(raw.note ?? '')
     setLedgerFormOpen(true)
   }
@@ -447,6 +451,7 @@ export function AccountsList({
             dated_at: ledgerDate,
             amount: signed,
             description: trimmedDesc,
+            category: ledgerCategory,
             note: ledgerNote,
           })
         : await addAccountEntry({
@@ -454,6 +459,7 @@ export function AccountsList({
             dated_at: ledgerDate,
             amount: signed,
             description: trimmedDesc,
+            category: ledgerCategory,
             note: ledgerNote,
           })
       if (!res.ok) {
@@ -1703,7 +1709,12 @@ export function AccountsList({
       >
         <DialogContent
           className="sm:max-w-[720px]"
-          style={{ width: '100%', maxWidth: 'min(720px, calc(100% - 2rem))' }}
+          style={{
+            width: '100%',
+            maxWidth: 'min(720px, calc(100% - 2rem))',
+            maxHeight: 'calc(100vh - 4rem)',
+            overflowY: 'auto',
+          }}
         >
           <DialogHeader>
             <DialogTitle
@@ -2237,6 +2248,32 @@ export function AccountsList({
                       placeholder="What was this entry for?"
                       disabled={ledgerSaving}
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Category (optional)</Label>
+                    <Select
+                      value={ledgerCategory || '__none'}
+                      onValueChange={(v) =>
+                        setLedgerCategory(v === '__none' ? '' : String(v))
+                      }
+                      disabled={ledgerSaving}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Pick a category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none">
+                          <span style={{ color: 'var(--ink-3)' }}>
+                            No category
+                          </span>
+                        </SelectItem>
+                        {EXPENSE_CATEGORIES.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.id}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="ledger-note">Note (optional)</Label>
