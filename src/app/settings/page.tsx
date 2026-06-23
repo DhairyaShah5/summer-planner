@@ -15,7 +15,7 @@ const DEFAULTS: SettingsFormValues = {
   rent_months: 3,
   robinhood_weekly: 100,
   usc_no_rent_vault: 1000,
-  usc_rent_vault: 600,
+  usc_rent_vault: 400,
   ntt_vault_default: 1800,
   rollover_sweep_threshold: 500,
   rollover_sweep_cushion: 250,
