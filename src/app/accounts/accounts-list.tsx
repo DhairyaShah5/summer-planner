@@ -2259,14 +2259,16 @@ export function AccountsList({
                       disabled={ledgerSaving}
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Pick a category" />
+                        <SelectValue>
+                          {(value) =>
+                            !value || value === '__none'
+                              ? 'No category'
+                              : value
+                          }
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="__none">
-                          <span style={{ color: 'var(--ink-3)' }}>
-                            No category
-                          </span>
-                        </SelectItem>
+                        <SelectItem value="__none">No category</SelectItem>
                         {EXPENSE_CATEGORIES.map((c) => (
                           <SelectItem key={c.id} value={c.id}>
                             {c.id}
