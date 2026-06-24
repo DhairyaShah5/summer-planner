@@ -132,31 +132,32 @@ function addDaysISO(iso: string, days: number): string {
   return `${yyyy}-${mm}-${dd}`
 }
 
-// First Monday on or after `iso`. Used to anchor each USC paycheck's two
-// Robinhood weeks to the calendar Mondays inside its pay period.
-function firstMondayOnOrAfterISO(iso: string): string {
+// Most recent Monday on or before `iso`. Anchors each paycheck's two RH
+// weeks to the Monday immediately preceding payday (week 1) and the Monday
+// after payday (week 2) — matches how users think about which paycheck
+// "funds" which RH transfer.
+function mondayOnOrBeforeISO(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number)
   const dt = new Date(y ?? 2026, (m ?? 1) - 1, d ?? 1)
-  const dow = dt.getDay() // 0=Sun, 1=Mon
-  const offset = dow === 1 ? 0 : (8 - dow) % 7
-  dt.setDate(dt.getDate() + offset)
+  const dow = dt.getDay() // 0=Sun, 1=Mon, ..., 6=Sat
+  const offset = dow === 0 ? 6 : dow - 1
+  dt.setDate(dt.getDate() - offset)
   const yyyy = dt.getFullYear()
   const mm = String(dt.getMonth() + 1).padStart(2, '0')
   const dd = String(dt.getDate()).padStart(2, '0')
   return `${yyyy}-${mm}-${dd}`
 }
 
-// The two Robinhood-week dates attached to a USC paycheck for tick purposes.
-// Pre-cutover paychecks ran paycheck-driven RH on payDate and payDate+7;
-// post-cutover the actual transfer is weekly Monday-driven, so we use the
-// two Mondays that fall inside the paycheck's biweekly pay period (the 14
-// days ending on payDate).
+// The two Robinhood-week dates a paycheck "funds" for tick purposes.
+// Week 1 = the Monday closest to payDate from below (often inside the pay
+// period); Week 2 = the next Monday (often AFTER payDate). Pre-cutover
+// paychecks ran paycheck-driven RH on payDate and payDate+7, so keep that
+// legacy schedule for the existing ledger rows users have already edited.
 function rhWeeksForPaycheck(payDateISO: string): [string, string] {
   if (payDateISO < RH_WEEKLY_CUTOVER) {
     return [payDateISO, addDaysISO(payDateISO, 7)]
   }
-  const periodStart = addDaysISO(payDateISO, -13)
-  const week1 = firstMondayOnOrAfterISO(periodStart)
+  const week1 = mondayOnOrBeforeISO(payDateISO)
   const week2 = addDaysISO(week1, 7)
   return [week1, week2]
 }
