@@ -448,22 +448,27 @@ export function PaychecksTable({
                   // time to physically reach its destination by `today`.
                   const vaultDate =
                     row.flow_overrides.vault ?? row.pay_date
-                  const vaultDone =
+                  const vaultTick: { filled: boolean } | null =
                     row.received && c.vault > 0 && vaultDate <= todayISO
+                      ? { filled: true }
+                      : null
                   const rentDate =
                     row.flow_overrides.rent ?? defaultRentDate(row.pay_date)
-                  const rentDone =
+                  const rentTick: { filled: boolean } | null =
                     row.received && row.rent_paid > 0 && rentDate <= todayISO
-                  const coDone = row.received && c.co > 0
+                      ? { filled: true }
+                      : null
+                  const coTick: { filled: boolean } | null =
+                    row.received && c.co > 0 ? { filled: true } : null
+                  // RH steps from hollow → filled across the two weekly
+                  // transfers, rather than rendering both at once. The
+                  // post-cutover weekly Robinhood drain happens regardless
+                  // of paycheck arrival, so we don't gate on row.received.
                   const [rhWeek1, rhWeek2] = rhWeeksForPaycheck(row.pay_date)
-                  const rhTicks: { filled: boolean }[] = []
+                  let rhTick: { filled: boolean } | null = null
                   if (c.robinhood > 0) {
-                    // Show ticks for whichever weeks have actually passed;
-                    // unreceived paychecks still tick the RH weeks because
-                    // post-cutover RH drains weekly from Chase regardless
-                    // of paycheck arrival.
-                    if (rhWeek1 <= todayISO) rhTicks.push({ filled: false })
-                    if (rhWeek2 <= todayISO) rhTicks.push({ filled: true })
+                    if (rhWeek2 <= todayISO) rhTick = { filled: true }
+                    else if (rhWeek1 <= todayISO) rhTick = { filled: false }
                   }
                   return (
                     <tr
@@ -603,22 +608,22 @@ export function PaychecksTable({
                         </span>
                       </Td>
                       <Td align="center" last={isLast}>
-                        <CellWithTicks ticks={vaultDone ? [{ filled: true }] : []}>
+                        <CellWithTicks tick={vaultTick}>
                           <MoneyCell value={c.vault} hue={HUE.vault} />
                         </CellWithTicks>
                       </Td>
                       <Td align="center" last={isLast}>
-                        <CellWithTicks ticks={rentDone ? [{ filled: true }] : []}>
+                        <CellWithTicks tick={rentTick}>
                           <MoneyCell value={row.rent_paid} hue={HUE.rent} />
                         </CellWithTicks>
                       </Td>
                       <Td align="center" last={isLast}>
-                        <CellWithTicks ticks={rhTicks}>
+                        <CellWithTicks tick={rhTick}>
                           <MoneyCell value={c.robinhood} hue={HUE.rh} />
                         </CellWithTicks>
                       </Td>
                       <Td align="center" last={isLast}>
-                        <CellWithTicks ticks={coDone ? [{ filled: true }] : []}>
+                        <CellWithTicks tick={coTick}>
                           <MoneyCell value={c.co} hue={HUE.co} />
                         </CellWithTicks>
                       </Td>
@@ -1150,9 +1155,11 @@ function ReceivedCheck({
 }
 
 // Small inline status indicator placed at the bottom-right of an allocation
-// money cell. `filled` differentiates the two RH weeks (week 1 hollow,
-// week 2 solid) so users can tell at a glance which half of the $200 has
-// drained. Single-tick cells (Vault/Rent/CO) always use the solid variant.
+// money cell. Both variants share the same green ring + green check; the
+// `filled` version adds an opaque white fill so the second milestone reads
+// as more "complete" than the first. The RH cell uses the same tick — it
+// starts hollow when only week 1 has drained and flips to filled once both
+// weeks have drained, so the cell never shows two ticks at once.
 function CompletionTick({ filled }: { filled: boolean }) {
   return (
     <span
@@ -1160,46 +1167,42 @@ function CompletionTick({ filled }: { filled: boolean }) {
       style={{
         display: 'inline-grid',
         placeItems: 'center',
-        width: 10,
-        height: 10,
+        width: 8,
+        height: 8,
         borderRadius: 999,
-        border: '1.2px solid var(--pos-ink)',
-        background: filled ? 'var(--pos-ink)' : 'transparent',
+        border: '1px solid var(--pos-ink)',
+        background: filled ? '#fff' : 'transparent',
         flex: 'none',
       }}
     >
-      <Check size={7} strokeWidth={3} color={filled ? '#fff' : 'var(--pos-ink)'} />
+      <Check size={5} strokeWidth={3.5} color="var(--pos-ink)" />
     </span>
   )
 }
 
-// Wraps a money cell so the completion ticks sit at the bottom-right of the
-// value text without disturbing the table layout. Ticks render only when
-// the corresponding allocation has actually reached its destination by the
-// user-timezone `today` boundary.
+// Wraps a money cell so the completion tick sits at the bottom-right of the
+// value text, deliberately overlapping the value's right edge so it reads
+// as a status badge attached to the number rather than a separate column.
 function CellWithTicks({
   children,
-  ticks,
+  tick,
 }: {
   children: React.ReactNode
-  ticks: { filled: boolean }[]
+  tick: { filled: boolean } | null
 }) {
   return (
     <span style={{ position: 'relative', display: 'inline-block' }}>
       {children}
-      {ticks.length > 0 && (
+      {tick && (
         <span
           style={{
             position: 'absolute',
-            right: -14,
-            bottom: -6,
+            right: -5,
+            bottom: -3,
             display: 'flex',
-            gap: 2,
           }}
         >
-          {ticks.map((t, i) => (
-            <CompletionTick key={i} filled={t.filled} />
-          ))}
+          <CompletionTick filled={tick.filled} />
         </span>
       )}
     </span>
