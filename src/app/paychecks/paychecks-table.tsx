@@ -1198,7 +1198,7 @@ function CellWithTicks({
         <span
           style={{
             position: 'absolute',
-            right: -5,
+            right: 2,
             bottom: -3,
             display: 'flex',
           }}
