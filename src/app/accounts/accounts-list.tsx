@@ -67,6 +67,7 @@ import { EXPENSE_CATEGORIES, hueForCategory } from '@/app/expenses/categories'
 import {
   INTERNSHIP_END,
   RH_WEEKLY_CUTOVER,
+  defaultRentDate,
   mondaysBetween,
 } from '@/lib/calc'
 
@@ -624,7 +625,7 @@ export function AccountsList({
           const rentOverride = p.flow_overrides.rent
           items.push({
             key: `pay-rent-${p.payNum}`,
-            date: rentOverride ?? p.payDate,
+            date: rentOverride ?? defaultRentDate(p.payDate),
             source: 'rent_payment',
             description: 'Rent paid',
             amount: -p.rentPaid,

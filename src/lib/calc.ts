@@ -51,6 +51,10 @@ export interface PaycheckInput {
   /** Optional per-row gross override (one-off non-standard pay periods). */
   grossOverride: number | null
   rentPaid: number
+  /** ISO date the rent leaves Chase. If null, defaults to the 1st of the
+   *  month following payDate. Decouples rent from paycheck date so Chase
+   *  reflects cash that's still sitting until rent is actually paid. */
+  rentDateOverride?: string | null
   received: boolean
 }
 
@@ -89,6 +93,19 @@ export const RH_WEEKLY_CUTOVER = '2026-06-08'
 
 /** Last day the weekly Robinhood schedule is generated through (internship end). */
 export const INTERNSHIP_END = '2026-08-31'
+
+/** Default rent payment date for a paycheck: 1st of the month FOLLOWING
+ *  payDate. e.g. Jun 24 paycheck → rent leaves on Jul 1.  Centralizes the
+ *  "rent doesn't actually leave Chase until next month" rule used by both
+ *  computeAccountStates and the ledger display. */
+export function defaultRentDate(payDateISO: string): string {
+  const [y, m] = payDateISO.split('-').map(Number)
+  const year = y ?? 2026
+  const month = m ?? 1
+  const nextYear = month === 12 ? year + 1 : year
+  const nextMonth = month === 12 ? 1 : month + 1
+  return `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`
+}
 
 /** Inclusive list of every Monday on/after `startISO` and on/before `endISO`,
  *  as YYYY-MM-DD strings. Parses input as local midnight so DST offsets
@@ -449,13 +466,23 @@ export function computeAccountStates(
         // existing user-edited week-1/week-2 ledger entries). Post-cutover
         // RH flows out of Chase weekly, not per check — handled below.
         const rhDrain = payDateISO < RH_WEEKLY_CUTOVER ? row.robinhood : 0
-        const autoFlow =
-          baseNet + row.perDiem - row.vault - row.rentPaid - rhDrain
+        // Rent is NOT part of the immediate cascade — it lingers in Chase
+        // until rentDate (default: 1st of month after payDate). Subtracted
+        // separately below so toDate reflects the cash physically present.
+        const autoFlow = baseNet + row.perDiem - row.vault - rhDrain
         fullSummer += autoFlow
         if (row.received) toDate += autoFlow
         // Reimbursement: invisible to allocations, but a real Chase inflow.
         fullSummer += row.reimbursement
         if (row.received) toDate += row.reimbursement
+        // Rent: outflow lands on its own date.  fullSummer counts every
+        // rent regardless; toDate only counts rents that have actually
+        // happened by `today`.
+        if (row.rentPaid > 0) {
+          const rentDate = row.rentDateOverride ?? defaultRentDate(payDateISO)
+          fullSummer -= row.rentPaid
+          if (rentDate <= today) toDate -= row.rentPaid
+        }
       }
       // Weekly Robinhood: $robinhoodWeekly drains Chase every Monday from
       // the cutover through internship end, regardless of paycheck cadence.
