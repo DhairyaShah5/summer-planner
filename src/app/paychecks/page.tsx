@@ -1,6 +1,7 @@
 import { getViewerContext } from '@/lib/viewer-context'
 import type { Settings } from '@/lib/types'
 import { PageHeader } from '@/components/redesign'
+import { todayInUserTz } from '@/lib/today'
 import { PaychecksTable, type PaycheckRow } from './paychecks-table'
 
 export const dynamic = 'force-dynamic'
@@ -65,6 +66,8 @@ export default async function PaychecksPage() {
     rent_paid: p.rent_paid,
     notes: p.notes,
     received: p.received,
+    flow_overrides:
+      (p.flow_overrides as Record<string, string> | null) ?? {},
   }))
 
   return (
@@ -73,7 +76,11 @@ export default async function PaychecksPage() {
         title="Paycheck Plan"
         subtitle="Edit hours, per diem, and actual net as paychecks arrive. Computed columns update live."
       />
-      <PaychecksTable initialRows={rows} settings={settings} />
+      <PaychecksTable
+        initialRows={rows}
+        settings={settings}
+        todayISO={todayInUserTz()}
+      />
     </div>
   )
 }

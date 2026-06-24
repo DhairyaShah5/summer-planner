@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Check, NotebookPen } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { computeAll } from '@/lib/calc'
+import { computeAll, defaultRentDate, RH_WEEKLY_CUTOVER } from '@/lib/calc'
 import type { Employer, PaycheckInput, Settings } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import {
@@ -47,6 +47,7 @@ export type PaycheckRow = {
   rent_paid: number
   notes: string | null
   received: boolean
+  flow_overrides: Record<string, string>
 }
 
 type EditableField =
@@ -119,6 +120,47 @@ function toEmployer(s: string): Employer {
   return s === 'Colorado Internship' ? 'Colorado Internship' : 'USC On-Campus'
 }
 
+// Add/subtract whole days from an ISO YYYY-MM-DD string in local time so the
+// month/year boundaries roll correctly without DST drift.
+function addDaysISO(iso: string, days: number): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const dt = new Date(y ?? 2026, (m ?? 1) - 1, d ?? 1)
+  dt.setDate(dt.getDate() + days)
+  const yyyy = dt.getFullYear()
+  const mm = String(dt.getMonth() + 1).padStart(2, '0')
+  const dd = String(dt.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+// First Monday on or after `iso`. Used to anchor each USC paycheck's two
+// Robinhood weeks to the calendar Mondays inside its pay period.
+function firstMondayOnOrAfterISO(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const dt = new Date(y ?? 2026, (m ?? 1) - 1, d ?? 1)
+  const dow = dt.getDay() // 0=Sun, 1=Mon
+  const offset = dow === 1 ? 0 : (8 - dow) % 7
+  dt.setDate(dt.getDate() + offset)
+  const yyyy = dt.getFullYear()
+  const mm = String(dt.getMonth() + 1).padStart(2, '0')
+  const dd = String(dt.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+// The two Robinhood-week dates attached to a USC paycheck for tick purposes.
+// Pre-cutover paychecks ran paycheck-driven RH on payDate and payDate+7;
+// post-cutover the actual transfer is weekly Monday-driven, so we use the
+// two Mondays that fall inside the paycheck's biweekly pay period (the 14
+// days ending on payDate).
+function rhWeeksForPaycheck(payDateISO: string): [string, string] {
+  if (payDateISO < RH_WEEKLY_CUTOVER) {
+    return [payDateISO, addDaysISO(payDateISO, 7)]
+  }
+  const periodStart = addDaysISO(payDateISO, -13)
+  const week1 = firstMondayOnOrAfterISO(periodStart)
+  const week2 = addDaysISO(week1, 7)
+  return [week1, week2]
+}
+
 function toInput(r: PaycheckRow): PaycheckInput {
   return {
     payNum: r.pay_num,
@@ -140,9 +182,11 @@ function toInput(r: PaycheckRow): PaycheckInput {
 export function PaychecksTable({
   initialRows,
   settings,
+  todayISO,
 }: {
   initialRows: PaycheckRow[]
   settings: Settings
+  todayISO: string
 }) {
   const [rows, setRows] = useState<PaycheckRow[]>(initialRows)
   const queryClient = useQueryClient()
@@ -398,6 +442,29 @@ export function PaychecksTable({
                   const rowBg = row.received
                     ? 'color-mix(in oklch, var(--mint) 6%, transparent)'
                     : 'transparent'
+
+                  // Per-cell completion state. A tick renders only if the
+                  // money has both been earned (row.received) AND has had
+                  // time to physically reach its destination by `today`.
+                  const vaultDate =
+                    row.flow_overrides.vault ?? row.pay_date
+                  const vaultDone =
+                    row.received && c.vault > 0 && vaultDate <= todayISO
+                  const rentDate =
+                    row.flow_overrides.rent ?? defaultRentDate(row.pay_date)
+                  const rentDone =
+                    row.received && row.rent_paid > 0 && rentDate <= todayISO
+                  const coDone = row.received && c.co > 0
+                  const [rhWeek1, rhWeek2] = rhWeeksForPaycheck(row.pay_date)
+                  const rhTicks: { filled: boolean }[] = []
+                  if (c.robinhood > 0) {
+                    // Show ticks for whichever weeks have actually passed;
+                    // unreceived paychecks still tick the RH weeks because
+                    // post-cutover RH drains weekly from Chase regardless
+                    // of paycheck arrival.
+                    if (rhWeek1 <= todayISO) rhTicks.push({ filled: false })
+                    if (rhWeek2 <= todayISO) rhTicks.push({ filled: true })
+                  }
                   return (
                     <tr
                       key={row.id}
@@ -536,16 +603,24 @@ export function PaychecksTable({
                         </span>
                       </Td>
                       <Td align="center" last={isLast}>
-                        <MoneyCell value={c.vault} hue={HUE.vault} />
+                        <CellWithTicks ticks={vaultDone ? [{ filled: true }] : []}>
+                          <MoneyCell value={c.vault} hue={HUE.vault} />
+                        </CellWithTicks>
                       </Td>
                       <Td align="center" last={isLast}>
-                        <MoneyCell value={row.rent_paid} hue={HUE.rent} />
+                        <CellWithTicks ticks={rentDone ? [{ filled: true }] : []}>
+                          <MoneyCell value={row.rent_paid} hue={HUE.rent} />
+                        </CellWithTicks>
                       </Td>
                       <Td align="center" last={isLast}>
-                        <MoneyCell value={c.robinhood} hue={HUE.rh} />
+                        <CellWithTicks ticks={rhTicks}>
+                          <MoneyCell value={c.robinhood} hue={HUE.rh} />
+                        </CellWithTicks>
                       </Td>
                       <Td align="center" last={isLast}>
-                        <MoneyCell value={c.co} hue={HUE.co} />
+                        <CellWithTicks ticks={coDone ? [{ filled: true }] : []}>
+                          <MoneyCell value={c.co} hue={HUE.co} />
+                        </CellWithTicks>
                       </Td>
                       <Td align="center" last={isLast}>
                         <MoneyCell value={c.bofaOverflow} hue={HUE.bofa} />
@@ -1071,6 +1146,63 @@ function ReceivedCheck({
     >
       {checked && <Check size={13} color="#fff" strokeWidth={2.6} />}
     </button>
+  )
+}
+
+// Small inline status indicator placed at the bottom-right of an allocation
+// money cell. `filled` differentiates the two RH weeks (week 1 hollow,
+// week 2 solid) so users can tell at a glance which half of the $200 has
+// drained. Single-tick cells (Vault/Rent/CO) always use the solid variant.
+function CompletionTick({ filled }: { filled: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        display: 'inline-grid',
+        placeItems: 'center',
+        width: 10,
+        height: 10,
+        borderRadius: 999,
+        border: '1.2px solid var(--pos-ink)',
+        background: filled ? 'var(--pos-ink)' : 'transparent',
+        flex: 'none',
+      }}
+    >
+      <Check size={7} strokeWidth={3} color={filled ? '#fff' : 'var(--pos-ink)'} />
+    </span>
+  )
+}
+
+// Wraps a money cell so the completion ticks sit at the bottom-right of the
+// value text without disturbing the table layout. Ticks render only when
+// the corresponding allocation has actually reached its destination by the
+// user-timezone `today` boundary.
+function CellWithTicks({
+  children,
+  ticks,
+}: {
+  children: React.ReactNode
+  ticks: { filled: boolean }[]
+}) {
+  return (
+    <span style={{ position: 'relative', display: 'inline-block' }}>
+      {children}
+      {ticks.length > 0 && (
+        <span
+          style={{
+            position: 'absolute',
+            right: -14,
+            bottom: -6,
+            display: 'flex',
+            gap: 2,
+          }}
+        >
+          {ticks.map((t, i) => (
+            <CompletionTick key={i} filled={t.filled} />
+          ))}
+        </span>
+      )}
+    </span>
   )
 }
 
