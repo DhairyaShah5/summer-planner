@@ -184,10 +184,12 @@ export function PaychecksTable({
   initialRows,
   settings,
   todayISO,
+  totalChaseToBofa,
 }: {
   initialRows: PaycheckRow[]
   settings: Settings
   todayISO: string
+  totalChaseToBofa: number
 }) {
   const [rows, setRows] = useState<PaycheckRow[]>(initialRows)
   const queryClient = useQueryClient()
@@ -196,6 +198,22 @@ export function PaychecksTable({
     () => computeAll(rows.map(toInput), settings),
     [rows, settings],
   )
+
+  // BofA tick state: a paycheck's BofA allocation is "done" once the
+  // cumulative logged Chase→BofA transfers cover this paycheck's row and
+  // all earlier received rows. Walks in pay_num order so transfers settle
+  // older paychecks first — matches user intuition that the oldest pending
+  // bucket ticks first.
+  const bofaDoneByPayNum = useMemo(() => {
+    const map = new Map<number, boolean>()
+    let cumulativeExpected = 0
+    for (const c of computed) {
+      if (!c.received || c.bofaOverflow <= 0) continue
+      cumulativeExpected += c.bofaOverflow
+      map.set(c.payNum, totalChaseToBofa >= cumulativeExpected)
+    }
+    return map
+  }, [computed, totalChaseToBofa])
 
   const totals = useMemo(() => {
     let totalVault = 0
@@ -629,7 +647,15 @@ export function PaychecksTable({
                         </CellWithTicks>
                       </Td>
                       <Td align="center" last={isLast}>
-                        <MoneyCell value={c.bofaOverflow} hue={HUE.bofa} />
+                        <CellWithTicks
+                          tick={
+                            bofaDoneByPayNum.get(row.pay_num)
+                              ? { filled: true }
+                              : null
+                          }
+                        >
+                          <MoneyCell value={c.bofaOverflow} hue={HUE.bofa} />
+                        </CellWithTicks>
                       </Td>
                       <Td align="center" last={isLast}>
                         <NotesPopover

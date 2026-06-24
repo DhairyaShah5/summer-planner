@@ -9,16 +9,24 @@ export const dynamic = 'force-dynamic'
 export default async function PaychecksPage() {
   const { supabase } = await getViewerContext()
 
-  const [settingsRes, paychecksRes] = await Promise.all([
+  const [settingsRes, paychecksRes, accountsRes, transfersRes] = await Promise.all([
     supabase.from('settings').select('*').maybeSingle(),
     supabase
       .from('paychecks')
       .select('*')
       .order('pay_num', { ascending: true }),
+    supabase
+      .from('accounts')
+      .select('id, name, is_paycheck_destination'),
+    supabase
+      .from('transfers')
+      .select('from_account_id, to_account_id, amount'),
   ])
 
   if (settingsRes.error) throw settingsRes.error
   if (paychecksRes.error) throw paychecksRes.error
+  if (accountsRes.error) throw accountsRes.error
+  if (transfersRes.error) throw transfersRes.error
 
   const s = settingsRes.data
   if (!s) {
@@ -70,6 +78,22 @@ export default async function PaychecksPage() {
       (p.flow_overrides as Record<string, string> | null) ?? {},
   }))
 
+  // Sum Chase→BofA transfers so the BofA column can tick once a paycheck's
+  // bofaOverflow has been physically moved. Heuristic uses the
+  // is_paycheck_destination flag (Chase) and the BofA account name match
+  // — same trick computeAccountStates uses internally.
+  const chase = (accountsRes.data ?? []).find((a) => a.is_paycheck_destination)
+  const bofa = (accountsRes.data ?? []).find((a) => a.name === 'BofA Checking')
+  const totalChaseToBofa =
+    chase && bofa
+      ? (transfersRes.data ?? [])
+          .filter(
+            (t) =>
+              t.from_account_id === chase.id && t.to_account_id === bofa.id,
+          )
+          .reduce((s, t) => s + Number(t.amount), 0)
+      : 0
+
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-8 sm:px-6 lg:px-8">
       <PageHeader
@@ -80,6 +104,7 @@ export default async function PaychecksPage() {
         initialRows={rows}
         settings={settings}
         todayISO={todayInUserTz()}
+        totalChaseToBofa={totalChaseToBofa}
       />
     </div>
   )
