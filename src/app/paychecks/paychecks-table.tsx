@@ -1225,7 +1225,7 @@ function CellWithTicks({
           style={{
             position: 'absolute',
             right: 2,
-            bottom: -3,
+            bottom: 1,
             display: 'flex',
           }}
         >
