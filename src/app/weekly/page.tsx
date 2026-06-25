@@ -64,7 +64,7 @@ export default async function WeeklyPage() {
       supabase
         .from('transfers')
         .select('transferred_at, amount, kind, from_account_id, to_account_id'),
-      supabase.from('accounts').select('id, name'),
+      supabase.from('accounts').select('id, name, is_vault'),
     ])
 
   const settingsRow = settingsRes.data
@@ -138,6 +138,12 @@ export default async function WeeklyPage() {
   const endDate = parseISO(INTERNSHIP_END)
   const weekBounds = buildWeeks(startDate, endDate)
 
+  // Vault account drives the weekly Vault Balance column. cumulativeVault
+  // alone only tracks scheduled per-paycheck contributions; non-paycheck
+  // inflows (BofA→Vault sweeps, manual transfers in) live in `transfers`
+  // and have to be folded in so the column matches the real HYSA balance.
+  const vaultAccountId = accountRows.find((a) => a.is_vault)?.id ?? ''
+
   const weeks: WeeklyRow[] = weekBounds.map((w, i) => {
     const weekEnd = w.end
     const weekEndISO = isoDate(weekEnd)
@@ -150,6 +156,21 @@ export default async function WeeklyPage() {
         targetCumulative += row.co
         vaultBalance = row.cumulativeVault
       }
+    }
+    // Layer in non-paycheck vault transfers up through weekEnd. Positive
+    // for inflows (e.g. BofA→Vault sweeps), negative for outflows.
+    if (vaultAccountId) {
+      for (const t of transferRows) {
+        if (t.transferred_at > weekEndISO) continue
+        if (t.to_account_id === vaultAccountId) vaultBalance += Number(t.amount)
+        if (t.from_account_id === vaultAccountId)
+          vaultBalance -= Number(t.amount)
+      }
+    }
+    // Mirror cumulativeVault's cap clamp so sweeps that brush against the
+    // ceiling don't push the displayed balance above the goal.
+    if (settings.vaultCap > 0) {
+      vaultBalance = Math.min(vaultBalance, settings.vaultCap)
     }
     let actualCumulative = 0
     for (const exp of expenseRows) {
