@@ -26,8 +26,17 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  // If a valid view-mode cookie is present, skip Supabase auth gating entirely.
-  if (request.cookies.get(VIEW_COOKIE)?.value === '1') {
+  // Short-circuit Supabase auth only for pure viewers — sessions that have
+  // the view_mode cookie AND no Supabase auth cookie. Falling through to
+  // updateSession when an `sb-*` cookie is also present lets it detect a
+  // freshly signed-in owner and clear the stale view_mode cookie; without
+  // this, signing in from a browser that previously dropped into view mode
+  // gets stuck in a redirect loop because the proxy never re-reads auth.
+  const hasViewCookie = request.cookies.get(VIEW_COOKIE)?.value === '1';
+  const hasSupabaseAuthCookie = request.cookies
+    .getAll()
+    .some((c) => c.name.startsWith('sb-'));
+  if (hasViewCookie && !hasSupabaseAuthCookie) {
     return NextResponse.next({ request });
   }
 
