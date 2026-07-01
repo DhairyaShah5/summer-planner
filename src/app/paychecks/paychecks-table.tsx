@@ -678,7 +678,7 @@ export function PaychecksTable({
                             rent: c.rentPaid,
                             robinhood: c.robinhood,
                             bofaOverflow: c.bofaOverflow,
-                            total: c.co + c.buffer + c.reimbursement,
+                            total: c.co + c.buffer,
                           }}
                         />
                       </Td>
@@ -967,7 +967,10 @@ export function PaychecksTable({
                 style={{
                   font: '600 32px/1 var(--display)',
                   letterSpacing: '-.02em',
-                  color: BUCKET_COLOR.bofa,
+                  color:
+                    totals.currentBuffer < 0
+                      ? BUCKET_COLOR.rent
+                      : BUCKET_COLOR.bofa,
                   fontVariantNumeric: 'tabular-nums',
                 }}
               >
@@ -980,8 +983,10 @@ export function PaychecksTable({
                   color: 'var(--ink-3)',
                 }}
               >
-                Sub-$100 remainder after Vault / Rent / RH / CO / BofA on each
-                received paycheck. Quietly accumulates in Chase.
+                What actually stays in Chase after every transfer clears.
+                Wages plus reimbursement, minus Vault / Rent / RH / CO / BofA.
+                Positive amounts accumulate; a negative row means the
+                paycheck's transfers exceeded the money that came in.
               </div>
 
               <BufferSparkline
@@ -1531,9 +1536,10 @@ function BufferBreakdownDialogContent({
       <DialogHeader>
         <DialogTitle>Buffer per paycheck</DialogTitle>
         <DialogDescription>
-          Each row's sub-$100 remainder after Vault / Rent / RH / CO / BofA.
+          Wages + reimbursement − Vault / Rent / RH / CO / BofA for each row.
           Received paychecks feed the current total; pending ones roll into
-          the projected total.
+          the projected total. Negative rows flag paychecks whose transfers
+          out exceeded the money coming in.
         </DialogDescription>
       </DialogHeader>
       <div style={{ maxHeight: '55vh', overflowY: 'auto', marginTop: 4 }}>
@@ -1593,7 +1599,12 @@ function BufferBreakdownDialogContent({
                     style={{
                       ...cellStyle,
                       textAlign: 'right',
-                      color: r.buffer > 0 ? BUCKET_COLOR.bofa : 'var(--ink-3)',
+                      color:
+                        r.buffer < 0
+                          ? BUCKET_COLOR.rent
+                          : r.buffer > 0
+                            ? BUCKET_COLOR.bofa
+                            : 'var(--ink-3)',
                       font: '600 13px var(--display)',
                     }}
                   >
@@ -1624,7 +1635,7 @@ function BufferBreakdownDialogContent({
                   paddingTop: 12,
                   textAlign: 'right',
                   font: '600 14px var(--display)',
-                  color: BUCKET_COLOR.bofa,
+                  color: currentBuffer < 0 ? BUCKET_COLOR.rent : BUCKET_COLOR.bofa,
                 }}
               >
                 {fmtMoney(currentBuffer, { cents: true })}

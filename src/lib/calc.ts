@@ -140,10 +140,10 @@ export function mondaysBetween(startISO: string, endISO: string): string[] {
  * Threading prevCumulative through computeAll yields the full ledger.
  *
  * NOTE on reimbursement: `reimbursement` is a tax-free pass-through inflow
- * to Chase Checking only (e.g. SAP Concur metro pass refund). It is
- * INVISIBLE to every allocation here - vault, CO, buffer, RH, BofA overflow,
- * and netPct all ignore it. Only `computeAccountStates` picks it up, as a
- * direct add to the Chase balance.
+ * to Chase Checking only (e.g. SAP Concur metro pass refund). It's invisible
+ * to vault, CO, RH, BofA overflow, and netPct, but it DOES land in `buffer`
+ * so the Chase remainder accounts for it (and can go negative when transfers
+ * out exceed wages + reimbursement).
  */
 export function computeRow(
   prevCumulative: number,
@@ -157,6 +157,7 @@ export function computeRow(
     actualNetWages,
     perDiem,
     extraDeposit,
+    reimbursement,
     vaultOverride,
     grossOverride,
     rentPaid,
@@ -256,13 +257,14 @@ export function computeRow(
   //     hits.
   const bofaOverflow = floor100(excess) + perDiem
 
-  // 16. Buffer - sub-$100 wage remainder that didn't fit into any bucket,
-  //     stays in Chase. Per diem nets to zero here (added to total income
-  //     above, fully removed via bofaOverflow).
-  const buffer = Math.max(
-    0,
-    baseNet + perDiem - vault - rentPaid - robinhood - co - bofaOverflow,
-  )
+  // 16. Buffer - what actually stays in Chase from this paycheck once all
+  //     transfers clear. Per diem nets to zero (added as income, fully
+  //     removed via bofaOverflow). Reimbursement lands here as a pass-through
+  //     inflow. Can go negative when vault/RH/BofA together exceed the
+  //     paycheck's inflows - that surfaces an over-allocated check instead
+  //     of silently clamping the shortfall to zero.
+  const buffer =
+    baseNet + perDiem + reimbursement - vault - rentPaid - robinhood - co - bofaOverflow
 
   // 17. Status - driven by the explicit `received` flag only.
   const status: 'Received' | 'Pending' = received ? 'Received' : 'Pending'
