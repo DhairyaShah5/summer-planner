@@ -6,13 +6,21 @@ import { toast } from 'sonner'
 import { Check, NotebookPen } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { computeAll, defaultRentDate, RH_WEEKLY_CUTOVER } from '@/lib/calc'
-import type { Employer, PaycheckInput, Settings } from '@/lib/types'
+import type { Employer, PaycheckComputed, PaycheckInput, Settings } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import {
   Tooltip,
   TooltipContent,
@@ -897,97 +905,115 @@ export function PaychecksTable({
         </Reveal>
 
         <Reveal delay={150}>
-          <div
-            className="card fx-card paychecks-summary-card"
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--hair)',
-              borderRadius: 'var(--radius)',
-              padding: 22,
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 16,
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 10,
-              }}
+          <Dialog>
+            <DialogTrigger
+              render={
+                <button
+                  type="button"
+                  aria-label="See per-paycheck buffer contribution"
+                  className="card fx-card paychecks-summary-card paychecks-buffer-card"
+                  style={{
+                    background: 'var(--surface)',
+                    border: '1px solid var(--hair)',
+                    borderRadius: 'var(--radius)',
+                    padding: 22,
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 16,
+                    textAlign: 'left',
+                    width: '100%',
+                    font: 'inherit',
+                    color: 'inherit',
+                    cursor: 'pointer',
+                  }}
+                />
+              }
             >
-              <span
+              <div
                 style={{
-                  font: '600 12px var(--ui)',
-                  letterSpacing: '.04em',
-                  textTransform: 'uppercase',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 10,
+                }}
+              >
+                <span
+                  style={{
+                    font: '600 12px var(--ui)',
+                    letterSpacing: '.04em',
+                    textTransform: 'uppercase',
+                    color: 'var(--ink-3)',
+                  }}
+                >
+                  Total Buffer
+                </span>
+                <span
+                  style={{
+                    font: '600 10px var(--ui)',
+                    letterSpacing: '.06em',
+                    textTransform: 'uppercase',
+                    color: 'var(--ink-4)',
+                    border: '1px solid var(--hair)',
+                    borderRadius: 6,
+                    padding: '2px 7px',
+                  }}
+                >
+                  Current
+                </span>
+              </div>
+
+              <div
+                style={{
+                  font: '600 32px/1 var(--display)',
+                  letterSpacing: '-.02em',
+                  color: BUCKET_COLOR.bofa,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {fmtMoney(totals.currentBuffer, { cents: true })}
+              </div>
+
+              <div
+                style={{
+                  font: '500 12px/1.45 var(--ui)',
                   color: 'var(--ink-3)',
                 }}
               >
-                Total Buffer
-              </span>
-              <span
+                Sub-$100 remainder after Vault / Rent / RH / CO / BofA on each
+                received paycheck. Quietly accumulates in Chase.
+              </div>
+
+              <BufferSparkline
+                series={bufferSeries}
+                receivedCount={receivedCount}
+                color={BUCKET_COLOR.bofa}
+                height={56}
+              />
+
+              <div
                 style={{
-                  font: '600 10px var(--ui)',
-                  letterSpacing: '.06em',
-                  textTransform: 'uppercase',
-                  color: 'var(--ink-4)',
-                  border: '1px solid var(--hair)',
-                  borderRadius: 6,
-                  padding: '2px 7px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'baseline',
+                  font: '500 11.5px var(--ui)',
+                  color: 'var(--ink-3)',
+                  fontVariantNumeric: 'tabular-nums',
+                  marginTop: 'auto',
                 }}
               >
-                Current
-              </span>
-            </div>
-
-            <div
-              style={{
-                font: '600 32px/1 var(--display)',
-                letterSpacing: '-.02em',
-                color: BUCKET_COLOR.bofa,
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
-              {fmtMoney(totals.currentBuffer, { cents: true })}
-            </div>
-
-            <div
-              style={{
-                font: '500 12px/1.45 var(--ui)',
-                color: 'var(--ink-3)',
-              }}
-            >
-              Sub-$100 remainder after Vault / Rent / RH / CO / BofA on each
-              received paycheck. Quietly accumulates in Chase.
-            </div>
-
-            <BufferSparkline
-              series={bufferSeries}
-              receivedCount={receivedCount}
-              color={BUCKET_COLOR.bofa}
-              height={56}
+                <span>
+                  {receivedCount} of {computed.length} paychecks received
+                </span>
+                <span>Projected {fmtMoney(totals.totalBuffer)}</span>
+              </div>
+            </DialogTrigger>
+            <BufferBreakdownDialogContent
+              rows={computed}
+              currentBuffer={totals.currentBuffer}
+              projectedBuffer={totals.totalBuffer}
             />
-
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'baseline',
-                font: '500 11.5px var(--ui)',
-                color: 'var(--ink-3)',
-                fontVariantNumeric: 'tabular-nums',
-                marginTop: 'auto',
-              }}
-            >
-              <span>
-                {receivedCount} of {computed.length} paychecks received
-              </span>
-              <span>Projected {fmtMoney(totals.totalBuffer)}</span>
-            </div>
-          </div>
+          </Dialog>
         </Reveal>
 
         <Reveal from="right" delay={160}>
@@ -1059,6 +1085,16 @@ export function PaychecksTable({
       <style>{`
         .paychecks-alloc-inner {
           min-width: 0;
+        }
+        .paychecks-buffer-card {
+          transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+        }
+        .paychecks-buffer-card:hover {
+          border-color: var(--accent) !important;
+        }
+        .paychecks-buffer-card:focus-visible {
+          outline: 2px solid var(--accent);
+          outline-offset: 2px;
         }
         @media (max-width: 640px) {
           .paychecks-alloc-card {
@@ -1465,6 +1501,163 @@ function NotesPopover({
         </div>
       </PopoverContent>
     </Popover>
+  )
+}
+
+function BufferBreakdownDialogContent({
+  rows,
+  currentBuffer,
+  projectedBuffer,
+}: {
+  rows: PaycheckComputed[]
+  currentBuffer: number
+  projectedBuffer: number
+}) {
+  const cellStyle: React.CSSProperties = {
+    padding: '8px 10px',
+    fontVariantNumeric: 'tabular-nums',
+  }
+  const headStyle: React.CSSProperties = {
+    ...cellStyle,
+    font: '600 10.5px var(--ui)',
+    letterSpacing: '.04em',
+    textTransform: 'uppercase',
+    color: 'var(--ink-3)',
+    textAlign: 'left',
+    borderBottom: '1px solid var(--hair)',
+  }
+  return (
+    <DialogContent className="sm:max-w-md">
+      <DialogHeader>
+        <DialogTitle>Buffer per paycheck</DialogTitle>
+        <DialogDescription>
+          Each row's sub-$100 remainder after Vault / Rent / RH / CO / BofA.
+          Received paychecks feed the current total; pending ones roll into
+          the projected total.
+        </DialogDescription>
+      </DialogHeader>
+      <div style={{ maxHeight: '55vh', overflowY: 'auto', marginTop: 4 }}>
+        <table
+          style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            font: '500 12.5px var(--ui)',
+            color: 'var(--ink-2)',
+          }}
+        >
+          <thead>
+            <tr>
+              <th style={{ ...headStyle, width: 32 }}>#</th>
+              <th style={headStyle}>Date</th>
+              <th style={{ ...headStyle, width: 56 }}>Emp.</th>
+              <th style={{ ...headStyle, textAlign: 'right' }}>Buffer</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const payDateStr =
+                typeof r.payDate === 'string'
+                  ? r.payDate
+                  : r.payDate.toISOString().slice(0, 10)
+              const emp = r.employer === 'USC On-Campus' ? 'USC' : 'NTT'
+              const empHue = emp === 'USC' ? USC_HUE : NTT_HUE
+              return (
+                <tr
+                  key={r.payNum}
+                  style={{
+                    borderBottom: '1px solid var(--hair)',
+                    opacity: r.received ? 1 : 0.55,
+                  }}
+                >
+                  <td style={{ ...cellStyle, color: 'var(--ink-3)' }}>
+                    {r.payNum}
+                  </td>
+                  <td style={{ ...cellStyle, color: 'var(--ink-1)' }}>
+                    {fmtDate(payDateStr, 'short')}
+                  </td>
+                  <td style={cellStyle}>
+                    <span
+                      style={{
+                        font: '600 10.5px var(--ui)',
+                        letterSpacing: '.04em',
+                        padding: '2px 6px',
+                        borderRadius: 6,
+                        border: `1px solid oklch(0.55 0.14 ${empHue} / 0.35)`,
+                        color: `oklch(0.7 0.18 ${empHue})`,
+                      }}
+                    >
+                      {emp}
+                    </span>
+                  </td>
+                  <td
+                    style={{
+                      ...cellStyle,
+                      textAlign: 'right',
+                      color: r.buffer > 0 ? BUCKET_COLOR.bofa : 'var(--ink-3)',
+                      font: '600 13px var(--display)',
+                    }}
+                  >
+                    {fmtMoney(r.buffer, { cents: true })}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td
+                colSpan={3}
+                style={{
+                  ...cellStyle,
+                  paddingTop: 12,
+                  font: '600 11px var(--ui)',
+                  letterSpacing: '.04em',
+                  textTransform: 'uppercase',
+                  color: 'var(--ink-3)',
+                }}
+              >
+                Current (received)
+              </td>
+              <td
+                style={{
+                  ...cellStyle,
+                  paddingTop: 12,
+                  textAlign: 'right',
+                  font: '600 14px var(--display)',
+                  color: BUCKET_COLOR.bofa,
+                }}
+              >
+                {fmtMoney(currentBuffer, { cents: true })}
+              </td>
+            </tr>
+            <tr>
+              <td
+                colSpan={3}
+                style={{
+                  ...cellStyle,
+                  font: '600 11px var(--ui)',
+                  letterSpacing: '.04em',
+                  textTransform: 'uppercase',
+                  color: 'var(--ink-3)',
+                }}
+              >
+                Projected (all paychecks)
+              </td>
+              <td
+                style={{
+                  ...cellStyle,
+                  textAlign: 'right',
+                  font: '600 14px var(--display)',
+                  color: 'var(--ink-1)',
+                }}
+              >
+                {fmtMoney(projectedBuffer, { cents: true })}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </DialogContent>
   )
 }
 
