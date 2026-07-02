@@ -111,21 +111,32 @@ export default async function WeeklyPage() {
     nttVaultDefault: settingsRow.ntt_vault_default,
   }
 
-  const paycheckInputs: PaycheckInput[] = paycheckRows.map((p) => ({
-    payNum: p.pay_num,
-    payDate: p.pay_date,
-    employer: p.employer as Employer,
-    hoursWorked: p.hours_worked,
-    otHours: p.ot_hours,
-    actualNetWages: p.actual_net_wages,
-    perDiem: p.per_diem,
-    extraDeposit: p.extra_deposit,
-    reimbursement: p.reimbursement ?? 0,
-    vaultOverride: p.vault_override,
-    grossOverride: p.gross_override,
-    rentPaid: p.rent_paid,
-    received: p.received,
-  }))
+  const paycheckInputs: PaycheckInput[] = paycheckRows.map((p) => {
+    const overrides =
+      (p.flow_overrides as Record<string, string> | null) ?? {}
+    return {
+      payNum: p.pay_num,
+      payDate: p.pay_date,
+      employer: p.employer as Employer,
+      hoursWorked: p.hours_worked,
+      otHours: p.ot_hours,
+      actualNetWages: p.actual_net_wages,
+      perDiem: p.per_diem,
+      extraDeposit: p.extra_deposit,
+      reimbursement: p.reimbursement ?? 0,
+      vaultOverride: p.vault_override,
+      grossOverride: p.gross_override,
+      rentPaid: p.rent_paid,
+      rentDateOverride: overrides.rent ?? null,
+      coOverride:
+        overrides.co_amount != null ? Number(overrides.co_amount) : null,
+      bofaOverride:
+        overrides.bofa_overflow != null
+          ? Number(overrides.bofa_overflow)
+          : null,
+      received: p.received,
+    }
+  })
 
   const computed = computeAll(paycheckInputs, settings)
 

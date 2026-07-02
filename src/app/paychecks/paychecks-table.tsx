@@ -171,6 +171,7 @@ function rhWeeksForPaycheck(payDateISO: string): [string, string] {
 }
 
 function toInput(r: PaycheckRow): PaycheckInput {
+  const overrides = r.flow_overrides ?? {}
   return {
     payNum: r.pay_num,
     payDate: r.pay_date,
@@ -184,6 +185,13 @@ function toInput(r: PaycheckRow): PaycheckInput {
     vaultOverride: r.vault_override,
     grossOverride: r.gross_override,
     rentPaid: r.rent_paid,
+    rentDateOverride: overrides.rent ?? null,
+    coOverride:
+      overrides.co_amount != null ? Number(overrides.co_amount) : null,
+    bofaOverride:
+      overrides.bofa_overflow != null
+        ? Number(overrides.bofa_overflow)
+        : null,
     received: r.received,
   }
 }

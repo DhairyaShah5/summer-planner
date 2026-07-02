@@ -55,6 +55,17 @@ export interface PaycheckInput {
    *  month following payDate. Decouples rent from paycheck date so Chase
    *  reflects cash that's still sitting until rent is actually paid. */
   rentDateOverride?: string | null
+  /** Locks this row's CO Spend allocation to a fixed dollar amount, ignoring
+   *  the netPct-derived formula. Any residual (from wages that would have
+   *  landed in CO but didn't) falls into buffer / stays in Chase. Used to
+   *  freeze CO budgets after a W-2/netPct change so future setting shifts
+   *  don't retroactively move planned CO amounts. Null = derive as before. */
+  coOverride?: number | null
+  /** Locks this row's total BofA overflow transfer amount (wage excess +
+   *  per-diem passthrough combined) to a fixed dollar figure. Used when the
+   *  actual transfer already happened at a value that differs from what the
+   *  current settings would recompute. Null = derive as before. */
+  bofaOverride?: number | null
   received: boolean
 }
 
@@ -161,6 +172,8 @@ export function computeRow(
     vaultOverride,
     grossOverride,
     rentPaid,
+    coOverride,
+    bofaOverride,
     received,
   } = input
 
@@ -245,17 +258,24 @@ export function computeRow(
 
   // 14. CO Spend - what's left of usableNet after vault/rent/RH, floored
   //     to $100. Per diem is NOT included here - it's pure savings overflow,
-  //     not a CO budget booster (see step 15).
-  const co = floor100(
-    Math.max(0, usableNet - vault - rentPaid - robinhood),
-  )
+  //     not a CO budget booster (see step 15). coOverride locks the amount
+  //     when set (freezes the CO plan against future netPct drift).
+  const co =
+    coOverride != null
+      ? Math.max(0, coOverride)
+      : floor100(Math.max(0, usableNet - vault - rentPaid - robinhood))
 
   // 15. BofA overflow - OT-driven excess (floored to $100) plus the full
   //     per diem amount (untouched, since per diem lands as a clean
   //     daily-rate multiple and isn't subject to the $100 wage rounding).
   //     Both pass through Chase and land in BofA the same day the paycheck
-  //     hits.
-  const bofaOverflow = floor100(excess) + perDiem
+  //     hits. bofaOverride locks the total transfer amount when set - useful
+  //     when the actual sweep happened before a settings change would have
+  //     recomputed a different figure.
+  const bofaOverflow =
+    bofaOverride != null
+      ? Math.max(0, bofaOverride)
+      : floor100(excess) + perDiem
 
   // 16. Buffer - what actually stays in Chase from this paycheck once all
   //     transfers clear. Per diem nets to zero (added as income, fully
