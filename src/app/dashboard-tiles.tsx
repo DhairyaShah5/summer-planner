@@ -26,7 +26,7 @@ import { toast } from 'sonner'
 import { useViewMode } from '@/components/view-mode-context'
 
 import { Button } from '@/components/ui/button'
-import { logVaultTopupSweep } from './weekly/sweep-actions'
+import { logBufferSweep, logVaultTopupSweep } from './weekly/sweep-actions'
 import type { Expense } from '@/lib/types'
 import type { AllocationDatum } from '@/components/allocation-breakdown'
 import {
@@ -108,6 +108,14 @@ export interface DashboardTilesProps {
     fromAccountId: string
     toAccountId: string
   }
+  bufferSweep: {
+    show: boolean
+    surplus: number
+    suggested: number
+    cushion: number
+    fromAccountId: string
+    toAccountId: string
+  }
   perDiem: {
     received: number
     expected: number
@@ -168,6 +176,7 @@ export function DashboardTiles(props: DashboardTilesProps) {
     vaultGrowth,
     coGauge,
     vaultTopup,
+    bufferSweep,
     perDiem,
   } = props
 
@@ -200,6 +209,18 @@ export function DashboardTiles(props: DashboardTilesProps) {
             fromAccountId={vaultTopup.fromAccountId}
             toAccountId={vaultTopup.toAccountId}
             vaultRoom={Math.max(0, vault.cap - vault.current)}
+          />
+        </Reveal>
+      )}
+
+      {bufferSweep.show && !viewMode && (
+        <Reveal>
+          <BufferSweepBanner
+            surplus={bufferSweep.surplus}
+            suggested={bufferSweep.suggested}
+            cushion={bufferSweep.cushion}
+            fromAccountId={bufferSweep.fromAccountId}
+            toAccountId={bufferSweep.toAccountId}
           />
         </Reveal>
       )}
@@ -1578,6 +1599,199 @@ function VaultTopupBanner({
           .vault-topup-banner { padding: 14px 16px !important; gap: 12px !important; }
           .vault-topup-headline { font-size: 17px !important; }
           .vault-topup-btn { width: 100% !important; }
+        }
+      `}</style>
+    </div>
+  )
+}
+
+function BufferSweepBanner({
+  surplus,
+  suggested,
+  cushion,
+  fromAccountId,
+  toAccountId,
+}: {
+  surplus: number
+  suggested: number
+  cushion: number
+  fromAccountId: string
+  toAccountId: string
+}) {
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  function onSweep() {
+    if (!fromAccountId || !toAccountId) {
+      toast.error('Missing Chase or Marcus account')
+      return
+    }
+    if (suggested <= 0) {
+      toast.error('Nothing to sweep')
+      return
+    }
+    startTransition(async () => {
+      const res = await logBufferSweep({
+        fromAccountId,
+        toAccountId,
+        amount: suggested,
+      })
+      if (!res.ok) {
+        toast.error(res.error ?? 'Could not record sweep')
+        return
+      }
+      toast.success(`${fmtMoney(suggested, { cents: true })} swept to Marcus`)
+      setConfirmOpen(false)
+      router.refresh()
+    })
+  }
+
+  // Uses the same violet hue family the Vault bucket uses across the app
+  // (BUCKET_HUE.Vault = 285) so the banner reads as "money heading to
+  // Vault" without competing with the accent-colored top-up banner above.
+  const violet = 'oklch(0.7 0.18 285)'
+
+  return (
+    <div
+      className="fx-card buffer-sweep-banner"
+      style={{
+        padding: '16px 20px',
+        marginBottom: 14,
+        borderRadius: 'var(--radius)',
+        border: `1px solid color-mix(in oklch, ${violet} 30%, var(--hair))`,
+        borderLeft: `4px solid ${violet}`,
+        background: `color-mix(in oklch, ${violet} 8%, var(--surface))`,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 18,
+        flexWrap: 'wrap',
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          className="buffer-sweep-headline"
+          style={{
+            font: '600 20px/1.15 var(--display)',
+            letterSpacing: '-.02em',
+            color: 'var(--ink-1)',
+          }}
+        >
+          {fmtMoney(surplus, { cents: true })} sitting in the Chase buffer
+        </div>
+        <div
+          style={{
+            font: '500 13px var(--ui)',
+            color: 'var(--ink-2)',
+            marginTop: 4,
+          }}
+        >
+          Sweep {fmtMoney(suggested)} to Marcus? Keeps a {fmtMoney(cushion)}{' '}
+          cushion in Chase.
+        </div>
+      </div>
+      <Button
+        type="button"
+        onClick={() => setConfirmOpen(true)}
+        className="buffer-sweep-btn"
+        disabled={pending}
+        style={{
+          background: violet,
+          color: 'white',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        Sweep {fmtMoney(suggested)} to Marcus
+        <ArrowRightIcon className="size-4" />
+      </Button>
+      {confirmOpen && mounted &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => {
+              if (e.currentTarget === e.target && !pending)
+                setConfirmOpen(false)
+            }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'color-mix(in oklch, black 50%, transparent)',
+              display: 'grid',
+              placeItems: 'center',
+              zIndex: 100,
+            }}
+          >
+            <div
+              style={{
+                width: 'min(420px, calc(100vw - 32px))',
+                background: 'var(--surface)',
+                border: '1px solid var(--hair)',
+                borderRadius: 'var(--radius)',
+                padding: 22,
+              }}
+            >
+              <div
+                style={{
+                  font: '600 17px var(--display)',
+                  color: 'var(--ink-1)',
+                  marginBottom: 6,
+                }}
+              >
+                Sweep {fmtMoney(suggested)} from Chase Checking to Marcus HYSA?
+              </div>
+              <div
+                style={{
+                  font: '500 13px var(--ui)',
+                  color: 'var(--ink-2)',
+                  marginBottom: 16,
+                }}
+              >
+                Records a one-time transfer dated today. Reversible — delete it
+                from the Accounts page if you change your mind.
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 8,
+                  justifyContent: 'flex-end',
+                }}
+              >
+                <Button
+                  variant="outline"
+                  onClick={() => setConfirmOpen(false)}
+                  disabled={pending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={onSweep}
+                  disabled={pending}
+                  style={{ background: violet, color: 'white' }}
+                >
+                  {pending ? (
+                    <>
+                      <Loader2Icon className="size-4 animate-spin" />
+                      Sweeping...
+                    </>
+                  ) : (
+                    'Confirm sweep'
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+      <style>{`
+        @media (max-width: 640px) {
+          .buffer-sweep-banner { padding: 14px 16px !important; gap: 12px !important; }
+          .buffer-sweep-headline { font-size: 17px !important; }
+          .buffer-sweep-btn { width: 100% !important; }
         }
       `}</style>
     </div>

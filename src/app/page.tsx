@@ -357,13 +357,28 @@ export default async function DashboardPage() {
   );
   const showTopupBanner = vaultTopupReady >= 500 && suggestedTopup > 0;
 
-  // Per diem progress: cumulative received vs full-summer total. Visibility
-  // only - never drives an auto-action.
-  const perDiemExpected = computed.reduce((s, r) => s + r.perDiem, 0);
-  const perDiemReceived = computed
+  // Buffer sweep (Chase → Marcus): mirrors the vault-topup banner but on the
+  // Chase side. The received-row buffer sum is the sub-$100 wage remainder
+  // that quietly accumulates in Chase after every allocation clears; when it
+  // grows past the threshold we offer to sweep the excess to Marcus, keeping
+  // a cushion in Chase so a negative-buffer row (transfers > inflow) can't
+  // silently drain the buffer.
+  const currentBufferReceived = computed
     .filter((r) => r.received)
-    .reduce((s, r) => s + r.perDiem, 0);
-
+    .reduce((s, r) => s + r.buffer, 0);
+  const bufferSwept = transferInputs
+    .filter((t) => t.kind === "buffer_sweep")
+    .reduce((s, t) => s + t.amount, 0);
+  const bufferSurplus = currentBufferReceived - bufferSwept;
+  const bufferThreshold = Number(settingsRow?.buffer_sweep_threshold ?? 500);
+  const bufferCushion = Number(settingsRow?.buffer_sweep_cushion ?? 200);
+  const suggestedBufferSweep = Math.max(
+    0,
+    Math.floor((bufferSurplus - bufferCushion) / 100) * 100,
+  );
+  const chaseCheckingAccount = accountInputs.find(
+    (a) => a.is_paycheck_destination,
+  );
   const bofaCheckingAccount = accountInputs.find(
     (a) =>
       a.type === "checking" &&
@@ -371,6 +386,18 @@ export default async function DashboardPage() {
         a.name.toLowerCase().includes("bank of america")),
   );
   const vaultAccount = accountInputs.find((a) => a.is_vault);
+  const showBufferBanner =
+    bufferSurplus >= bufferThreshold &&
+    suggestedBufferSweep > 0 &&
+    !!chaseCheckingAccount &&
+    !!vaultAccount;
+
+  // Per diem progress: cumulative received vs full-summer total. Visibility
+  // only - never drives an auto-action.
+  const perDiemExpected = computed.reduce((s, r) => s + r.perDiem, 0);
+  const perDiemReceived = computed
+    .filter((r) => r.received)
+    .reduce((s, r) => s + r.perDiem, 0);
 
   return (
     <div className="container mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -433,6 +460,14 @@ export default async function DashboardPage() {
           ready: vaultTopupReady,
           suggested: suggestedTopup,
           fromAccountId: bofaCheckingAccount?.id ?? "",
+          toAccountId: vaultAccount?.id ?? "",
+        }}
+        bufferSweep={{
+          show: showBufferBanner,
+          surplus: bufferSurplus,
+          suggested: suggestedBufferSweep,
+          cushion: bufferCushion,
+          fromAccountId: chaseCheckingAccount?.id ?? "",
           toAccountId: vaultAccount?.id ?? "",
         }}
         perDiem={{

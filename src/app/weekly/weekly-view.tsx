@@ -22,7 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { logBufferSweep, logRolloverSweep } from './sweep-actions'
+import { logRolloverSweep } from './sweep-actions'
 import { useViewMode } from '@/components/view-mode-context'
 
 export type WeeklyRow = {
@@ -50,11 +50,6 @@ type Props = {
   showBanner: boolean
   chaseAccountId: string
   bofaAccountId: string
-  bufferSurplus: number
-  suggestedBufferSweep: number
-  bufferCushion: number
-  showBufferBanner: boolean
-  vaultAccountId: string
 }
 
 const POS = 'var(--pos)'
@@ -116,76 +111,6 @@ type SweepBannerProps = {
   suggestedSweep: number
   cushion: number
   onSweep: () => void
-}
-
-type BufferSweepBannerProps = {
-  bufferSurplus: number
-  suggestedBufferSweep: number
-  bufferCushion: number
-  onSweep: () => void
-}
-
-function BufferSweepBanner({
-  bufferSurplus,
-  suggestedBufferSweep,
-  bufferCushion,
-  onSweep,
-}: BufferSweepBannerProps) {
-  return (
-    <div
-      className="fx-card sweep-banner"
-      style={{
-        padding: '16px 20px',
-        marginBottom: 18,
-        borderRadius: 'var(--radius)',
-        border: '1px solid color-mix(in oklch, oklch(0.7 0.18 285) 35%, var(--hair))',
-        borderLeft: '4px solid oklch(0.7 0.18 285)',
-        background:
-          'color-mix(in oklch, oklch(0.7 0.18 285) 8%, var(--surface))',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 18,
-        flexWrap: 'wrap',
-      }}
-    >
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          className="sweep-banner-headline"
-          style={{
-            font: '600 22px/1.15 var(--display)',
-            letterSpacing: '-.02em',
-            color: 'var(--ink-1)',
-          }}
-        >
-          <Money value={bufferSurplus} cents dur={900} /> buffered in Chase
-        </div>
-        <div
-          style={{
-            font: '500 13.5px var(--ui)',
-            color: 'var(--ink-2)',
-            marginTop: 4,
-          }}
-        >
-          Sweep {fmtMoney(suggestedBufferSweep, { cents: true })} to Marcus
-          HYSA? Keeps a {fmtMoney(bufferCushion, { cents: true })} cushion in
-          Chase.
-        </div>
-      </div>
-      <Button
-        type="button"
-        onClick={onSweep}
-        className="sweep-banner-btn"
-        style={{
-          background: 'oklch(0.7 0.18 285)',
-          color: 'white',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        Sweep {fmtMoney(suggestedBufferSweep, { cents: true })} to Marcus
-        <ArrowRightIcon className="size-4" />
-      </Button>
-    </div>
-  )
 }
 
 function SweepBanner({
@@ -270,11 +195,6 @@ export function WeeklyView({
   showBanner,
   chaseAccountId,
   bofaAccountId,
-  bufferSurplus,
-  suggestedBufferSweep,
-  bufferCushion,
-  showBufferBanner,
-  vaultAccountId,
 }: Props) {
   void _threshold
   const router = useRouter()
@@ -282,7 +202,6 @@ export function WeeklyView({
   const summerIsUnder = summerRemaining >= 0
 
   const [sweepOpen, setSweepOpen] = useState(false)
-  const [bufferSweepOpen, setBufferSweepOpen] = useState(false)
   const [pending, startTransition] = useTransition()
 
   const sweepDate = todayISO()
@@ -311,34 +230,6 @@ export function WeeklyView({
         `${fmtMoney(suggestedSweep, { cents: true })} swept to BofA`,
       )
       setSweepOpen(false)
-      router.refresh()
-    })
-  }
-
-  function handleConfirmBufferSweep() {
-    if (!chaseAccountId || !vaultAccountId) {
-      toast.error('Missing Chase or Marcus account')
-      return
-    }
-    if (suggestedBufferSweep <= 0) {
-      toast.error('Nothing to sweep')
-      return
-    }
-    startTransition(async () => {
-      const res = await logBufferSweep({
-        fromAccountId: chaseAccountId,
-        toAccountId: vaultAccountId,
-        amount: suggestedBufferSweep,
-        transferredAt: sweepDate,
-      })
-      if (!res.ok) {
-        toast.error(res.error ?? 'Could not record sweep')
-        return
-      }
-      toast.success(
-        `${fmtMoney(suggestedBufferSweep, { cents: true })} swept to Marcus`,
-      )
-      setBufferSweepOpen(false)
       router.refresh()
     })
   }
@@ -386,17 +277,6 @@ export function WeeklyView({
             suggestedSweep={suggestedSweep}
             cushion={cushion}
             onSweep={() => setSweepOpen(true)}
-          />
-        </Reveal>
-      )}
-
-      {showBufferBanner && !viewMode && (
-        <Reveal>
-          <BufferSweepBanner
-            bufferSurplus={bufferSurplus}
-            suggestedBufferSweep={suggestedBufferSweep}
-            bufferCushion={bufferCushion}
-            onSweep={() => setBufferSweepOpen(true)}
           />
         </Reveal>
       )}
@@ -855,144 +735,6 @@ export function WeeklyView({
         </DialogContent>
       </Dialog>
 
-      {/* Buffer sweep confirmation dialog */}
-      <Dialog
-        open={bufferSweepOpen}
-        onOpenChange={(open) => {
-          if (!pending) setBufferSweepOpen(open)
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Sweep {fmtMoney(suggestedBufferSweep, { cents: true })} to Marcus
-              HYSA?
-            </DialogTitle>
-            <DialogDescription>
-              This records a Chase → Marcus transfer dated today, marked as a
-              buffer sweep. Chase drops by{' '}
-              {fmtMoney(suggestedBufferSweep, { cents: true })}; Marcus grows
-              by the same. Reversible — delete the transfer from the Accounts
-              page if you change your mind.
-            </DialogDescription>
-          </DialogHeader>
-          <div
-            style={{
-              padding: '14px 16px',
-              borderRadius: 12,
-              background: 'var(--surface-2)',
-              border: '1px solid var(--hair)',
-              display: 'grid',
-              gridTemplateColumns: '1fr auto 1fr',
-              gap: 10,
-              alignItems: 'center',
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  font: '600 10.5px var(--ui)',
-                  letterSpacing: '.05em',
-                  textTransform: 'uppercase',
-                  color: 'var(--ink-3)',
-                }}
-              >
-                From
-              </div>
-              <div
-                style={{
-                  font: '600 14px var(--ui)',
-                  color: 'var(--ink-1)',
-                  marginTop: 2,
-                }}
-              >
-                Chase Checking
-              </div>
-            </div>
-            <ArrowRightIcon
-              className="size-4"
-              style={{ color: 'var(--ink-3)' }}
-            />
-            <div>
-              <div
-                style={{
-                  font: '600 10.5px var(--ui)',
-                  letterSpacing: '.05em',
-                  textTransform: 'uppercase',
-                  color: 'var(--ink-3)',
-                }}
-              >
-                To
-              </div>
-              <div
-                style={{
-                  font: '600 14px var(--ui)',
-                  color: 'var(--ink-1)',
-                  marginTop: 2,
-                }}
-              >
-                Marcus HYSA
-              </div>
-            </div>
-            <div
-              style={{
-                gridColumn: '1 / -1',
-                display: 'flex',
-                justifyContent: 'space-between',
-                paddingTop: 10,
-                marginTop: 4,
-                borderTop: '1px solid var(--hair)',
-                font: '500 12.5px var(--ui)',
-                color: 'var(--ink-2)',
-              }}
-            >
-              <span>
-                Amount:{' '}
-                <span
-                  style={{
-                    font: '600 13.5px var(--display)',
-                    color: 'var(--ink-1)',
-                    fontVariantNumeric: 'tabular-nums',
-                  }}
-                >
-                  {fmtMoney(suggestedBufferSweep, { cents: true })}
-                </span>
-              </span>
-              <span>
-                Date:{' '}
-                <span
-                  style={{
-                    font: '600 13.5px var(--display)',
-                    color: 'var(--ink-1)',
-                    fontVariantNumeric: 'tabular-nums',
-                  }}
-                >
-                  {sweepDate}
-                </span>
-              </span>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="destructive"
-              onClick={() => setBufferSweepOpen(false)}
-              disabled={pending}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleConfirmBufferSweep} disabled={pending}>
-              {pending ? (
-                <>
-                  <Loader2Icon className="size-4 animate-spin" />
-                  Sweeping...
-                </>
-              ) : (
-                'Confirm sweep'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
       <style>{`
         @media (max-width: 640px) {
           .weekly-page { padding-left: 12px !important; padding-right: 12px !important; padding-top: 16px !important; padding-bottom: 24px !important; }
