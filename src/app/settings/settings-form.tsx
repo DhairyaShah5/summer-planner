@@ -49,6 +49,8 @@ const schema = z.object({
   ntt_vault_default: z.number().min(0),
   rollover_sweep_threshold: z.number().min(0),
   rollover_sweep_cushion: z.number().min(0),
+  buffer_sweep_threshold: z.number().min(0),
+  buffer_sweep_cushion: z.number().min(0),
 });
 
 export type SettingsFormValues = z.infer<typeof schema>;
@@ -336,6 +338,42 @@ export function SettingsForm({
               When unspent CO from earlier weeks reaches the threshold, the
               Weekly Tracker offers to sweep the excess (minus the cushion) to
               BofA.
+            </p>
+          </Card>
+        </Reveal>
+
+        <Reveal delay={135}>
+          <Card>
+            <SectionLabel>Buffer sweep</SectionLabel>
+            <div
+              className="s-2col"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 12,
+              }}
+            >
+              <MoneyField
+                form={form}
+                name="buffer_sweep_threshold"
+                label="Threshold"
+              />
+              <MoneyField
+                form={form}
+                name="buffer_sweep_cushion"
+                label="Cushion"
+              />
+            </div>
+            <p
+              style={{
+                marginTop: 10,
+                font: "400 12px/1.5 var(--ui)",
+                color: "var(--ink-3)",
+              }}
+            >
+              When the Chase buffer (sub-$100 wage remainders that quietly
+              accumulate) crosses the threshold, the Weekly Tracker offers to
+              sweep the excess (minus the cushion) to Marcus HYSA.
             </p>
           </Card>
         </Reveal>

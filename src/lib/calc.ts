@@ -389,6 +389,7 @@ export interface TransferInput {
     | 'per_diem_to_bofa'
     | 'ot_to_bofa'
     | 'vault_topup_sweep'
+    | 'buffer_sweep'
 }
 
 export interface AccountEntryInput {

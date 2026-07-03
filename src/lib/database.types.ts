@@ -261,6 +261,8 @@ export type Database = {
           robinhood_weekly: number
           rollover_sweep_cushion: number
           rollover_sweep_threshold: number
+          buffer_sweep_cushion: number
+          buffer_sweep_threshold: number
           updated_at: string
           usc_gross_baseline: number
           usc_net_pct: number
@@ -280,6 +282,8 @@ export type Database = {
           robinhood_weekly?: number
           rollover_sweep_cushion?: number
           rollover_sweep_threshold?: number
+          buffer_sweep_cushion?: number
+          buffer_sweep_threshold?: number
           updated_at?: string
           usc_gross_baseline?: number
           usc_net_pct?: number
@@ -299,6 +303,8 @@ export type Database = {
           robinhood_weekly?: number
           rollover_sweep_cushion?: number
           rollover_sweep_threshold?: number
+          buffer_sweep_cushion?: number
+          buffer_sweep_threshold?: number
           updated_at?: string
           usc_gross_baseline?: number
           usc_net_pct?: number
@@ -317,7 +323,7 @@ export type Database = {
           from_account_id: string
           to_account_id: string
           amount: number
-          kind: 'manual' | 'rollover_sweep' | 'per_diem_to_bofa' | 'ot_to_bofa' | 'vault_topup_sweep'
+          kind: 'manual' | 'rollover_sweep' | 'per_diem_to_bofa' | 'ot_to_bofa' | 'vault_topup_sweep' | 'buffer_sweep'
           note: string | null
           created_at: string
         }
@@ -328,7 +334,7 @@ export type Database = {
           from_account_id: string
           to_account_id: string
           amount: number
-          kind?: 'manual' | 'rollover_sweep' | 'per_diem_to_bofa' | 'ot_to_bofa' | 'vault_topup_sweep'
+          kind?: 'manual' | 'rollover_sweep' | 'per_diem_to_bofa' | 'ot_to_bofa' | 'vault_topup_sweep' | 'buffer_sweep'
           note?: string | null
           created_at?: string
         }
@@ -339,7 +345,7 @@ export type Database = {
           from_account_id?: string
           to_account_id?: string
           amount?: number
-          kind?: 'manual' | 'rollover_sweep' | 'per_diem_to_bofa' | 'ot_to_bofa' | 'vault_topup_sweep'
+          kind?: 'manual' | 'rollover_sweep' | 'per_diem_to_bofa' | 'ot_to_bofa' | 'vault_topup_sweep' | 'buffer_sweep'
           note?: string | null
           created_at?: string
         }

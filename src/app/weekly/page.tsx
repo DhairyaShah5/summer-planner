@@ -270,10 +270,37 @@ export default async function WeeklyPage() {
   const suggestedSweep = Math.max(0, floor100(rolloverSurplus - cushion))
   const showBanner = rolloverSurplus >= threshold && suggestedSweep > 0
 
+  // --- Buffer sweep computation ---
+  // Mirror of the rollover sweep, but sweeping Chase → Marcus HYSA whenever
+  // the accumulated buffer (sub-$100 wage remainders from received rows)
+  // grows past the threshold. `sweptBuffer` counts prior 'buffer_sweep'
+  // transfers so re-firing the banner requires the buffer to grow again.
+  let accumulatedBuffer = 0
+  for (const row of computed) {
+    if (row.received) accumulatedBuffer += row.buffer
+  }
+  let sweptBuffer = 0
+  for (const t of transferRows) {
+    if (t.kind === 'buffer_sweep' && t.transferred_at <= todayISOStr) {
+      sweptBuffer += Number(t.amount)
+    }
+  }
+  const bufferSurplus = accumulatedBuffer - sweptBuffer
+  const bufferThreshold = Number(settingsRow.buffer_sweep_threshold ?? 0)
+  const bufferCushion = Number(settingsRow.buffer_sweep_cushion ?? 0)
+  const suggestedBufferSweep = Math.max(
+    0,
+    floor100(bufferSurplus - bufferCushion),
+  )
+  const showBufferBanner =
+    bufferSurplus >= bufferThreshold && suggestedBufferSweep > 0
+
   const chaseAccount = accountRows.find((a) => a.name === 'Chase Checking')
   const bofaAccount = accountRows.find((a) => a.name === 'BofA Checking')
+  const vaultAccount = accountRows.find((a) => a.is_vault)
   const chaseAccountId = chaseAccount?.id ?? ''
   const bofaAccountId = bofaAccount?.id ?? ''
+  const vaultAccountIdForBuffer = vaultAccount?.id ?? ''
 
   return (
     <WeeklyView
@@ -288,6 +315,13 @@ export default async function WeeklyPage() {
       showBanner={showBanner && !!chaseAccountId && !!bofaAccountId}
       chaseAccountId={chaseAccountId}
       bofaAccountId={bofaAccountId}
+      bufferSurplus={Math.round(bufferSurplus * 100) / 100}
+      suggestedBufferSweep={suggestedBufferSweep}
+      bufferCushion={bufferCushion}
+      showBufferBanner={
+        showBufferBanner && !!chaseAccountId && !!vaultAccountIdForBuffer
+      }
+      vaultAccountId={vaultAccountIdForBuffer}
     />
   )
 }

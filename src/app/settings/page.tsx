@@ -19,6 +19,8 @@ const DEFAULTS: SettingsFormValues = {
   ntt_vault_default: 1800,
   rollover_sweep_threshold: 500,
   rollover_sweep_cushion: 250,
+  buffer_sweep_threshold: 500,
+  buffer_sweep_cushion: 200,
 };
 
 export default async function SettingsPage() {
@@ -68,6 +70,8 @@ export default async function SettingsPage() {
     ntt_vault_default: Number(row.ntt_vault_default),
     rollover_sweep_threshold: Number(row.rollover_sweep_threshold),
     rollover_sweep_cushion: Number(row.rollover_sweep_cushion),
+    buffer_sweep_threshold: Number(row.buffer_sweep_threshold ?? 500),
+    buffer_sweep_cushion: Number(row.buffer_sweep_cushion ?? 200),
   };
 
   return (

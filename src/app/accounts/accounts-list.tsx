@@ -79,6 +79,7 @@ export type TransferKind =
   | 'per_diem_to_bofa'
   | 'ot_to_bofa'
   | 'vault_topup_sweep'
+  | 'buffer_sweep'
 
 export interface AccountStateRow {
   id: string
@@ -252,6 +253,8 @@ function transferKindLabel(k: TransferKind): string {
       return 'Overtime'
     case 'vault_topup_sweep':
       return 'Vault top-up'
+    case 'buffer_sweep':
+      return 'Buffer sweep'
   }
 }
 
