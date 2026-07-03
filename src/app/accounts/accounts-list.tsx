@@ -48,7 +48,7 @@ import {
   fmtMoney,
 } from '@/components/redesign'
 import { payCreditCard } from './cc-payment-actions'
-import { logTransfer } from './transfer-actions'
+import { deleteTransfer, logTransfer, updateTransfer } from './transfer-actions'
 import { updateNetWorthInclusion } from './net-worth-actions'
 import {
   addAccountEntry,
@@ -308,6 +308,18 @@ export function AccountsList({
   const [transferAmount, setTransferAmount] = useState<string>('')
   const [transferDate, setTransferDate] = useState<string>(todayISO())
   const [transferNote, setTransferNote] = useState<string>('')
+  // When set, the transfer dialog runs in "edit" mode and calls
+  // updateTransfer instead of logTransfer. Kind is preserved (not editable)
+  // so a rollover_sweep row stays a rollover_sweep even if the amount or
+  // accounts get corrected.
+  const [transferEditingId, setTransferEditingId] = useState<string | null>(
+    null,
+  )
+  const [transferDeleting, setTransferDeleting] = useState<TransferRow | null>(
+    null,
+  )
+  const [transferDeletePending, startTransferDeleteTransition] =
+    useTransition()
   const [transferPending, startTransferTransition] = useTransition()
 
   // Net-worth customization dialog state. Draft holds the in-flight toggles
@@ -832,6 +844,7 @@ export function AccountsList({
   ])
 
   function openTransferDialog() {
+    setTransferEditingId(null)
     setTransferFromId(defaultTransferFromId)
     setTransferToId(defaultTransferToId)
     setTransferAmount('')
@@ -840,8 +853,19 @@ export function AccountsList({
     setTransferOpen(true)
   }
 
+  function openTransferEditDialog(t: TransferRow) {
+    setTransferEditingId(t.id)
+    setTransferFromId(t.from_account_id)
+    setTransferToId(t.to_account_id)
+    setTransferAmount(String(t.amount))
+    setTransferDate(t.transferred_at)
+    setTransferNote(t.note ?? '')
+    setTransferOpen(true)
+  }
+
   function closeTransferDialog() {
     setTransferOpen(false)
+    setTransferEditingId(null)
   }
 
   function handleTransferSubmit() {
@@ -858,20 +882,48 @@ export function AccountsList({
       toast.error('From and to must differ')
       return
     }
+    const editingId = transferEditingId
     startTransferTransition(async () => {
-      const res = await logTransfer({
-        fromAccountId: transferFromId,
-        toAccountId: transferToId,
-        amount,
-        transferredAt: transferDate,
-        note: transferNote,
-      })
+      const res = editingId
+        ? await updateTransfer({
+            id: editingId,
+            fromAccountId: transferFromId,
+            toAccountId: transferToId,
+            amount,
+            transferredAt: transferDate,
+            note: transferNote,
+          })
+        : await logTransfer({
+            fromAccountId: transferFromId,
+            toAccountId: transferToId,
+            amount,
+            transferredAt: transferDate,
+            note: transferNote,
+          })
       if (!res.ok) {
-        toast.error(res.error ?? 'Could not log transfer')
+        toast.error(
+          res.error ?? (editingId ? 'Could not update transfer' : 'Could not log transfer'),
+        )
         return
       }
-      toast.success('Transfer logged')
+      toast.success(editingId ? 'Transfer updated' : 'Transfer logged')
       setTransferOpen(false)
+      setTransferEditingId(null)
+      router.refresh()
+    })
+  }
+
+  function handleTransferDelete() {
+    const target = transferDeleting
+    if (!target) return
+    startTransferDeleteTransition(async () => {
+      const res = await deleteTransfer(target.id)
+      if (!res.ok) {
+        toast.error(res.error ?? 'Could not delete transfer')
+        return
+      }
+      toast.success('Transfer deleted')
+      setTransferDeleting(null)
       router.refresh()
     })
   }
@@ -1262,6 +1314,43 @@ export function AccountsList({
                   >
                     {fmtMoney(t.amount, { cents: true })}
                   </span>
+                  {!viewMode && (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 2,
+                        flex: 'none',
+                      }}
+                    >
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        aria-label="Edit transfer"
+                        onClick={() => openTransferEditDialog(t)}
+                      >
+                        <PencilIcon
+                          className="size-3.5"
+                          style={{ color: 'var(--ink-3)' }}
+                        />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        aria-label="Delete transfer"
+                        onClick={() => setTransferDeleting(t)}
+                      >
+                        <Trash2Icon
+                          className="size-3.5"
+                          style={{ color: 'var(--ink-3)' }}
+                        />
+                      </Button>
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -1269,7 +1358,7 @@ export function AccountsList({
         </Reveal>
       )}
 
-      {/* Log a transfer dialog */}
+      {/* Log / edit transfer dialog */}
       <Dialog
         open={transferOpen}
         onOpenChange={(open) => {
@@ -1278,9 +1367,13 @@ export function AccountsList({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Log a transfer</DialogTitle>
+            <DialogTitle>
+              {transferEditingId ? 'Edit transfer' : 'Log a transfer'}
+            </DialogTitle>
             <DialogDescription>
-              Record a manual transfer you already made between two accounts.
+              {transferEditingId
+                ? 'Update the details of this transfer. The kind (manual, sweep, etc.) is preserved.'
+                : 'Record a manual transfer you already made between two accounts.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1399,10 +1492,64 @@ export function AccountsList({
               {transferPending ? (
                 <>
                   <Loader2Icon className="size-4 animate-spin" />
-                  Logging...
+                  {transferEditingId ? 'Saving...' : 'Logging...'}
                 </>
+              ) : transferEditingId ? (
+                'Save changes'
               ) : (
                 'Log transfer'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete transfer confirmation dialog */}
+      <Dialog
+        open={transferDeleting !== null}
+        onOpenChange={(open) => {
+          if (!open && !transferDeletePending) setTransferDeleting(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this transfer?</DialogTitle>
+            <DialogDescription>
+              {transferDeleting ? (
+                <>
+                  Removes the {fmtMoney(transferDeleting.amount, { cents: true })}{' '}
+                  {transferKindLabel(transferDeleting.kind).toLowerCase()} from{' '}
+                  {accountNameById.get(transferDeleting.from_account_id) ??
+                    'Account'}{' '}
+                  →{' '}
+                  {accountNameById.get(transferDeleting.to_account_id) ??
+                    'Account'}{' '}
+                  dated {fmtDate(transferDeleting.transferred_at, 'short')}.
+                  Account balances will recompute accordingly.
+                </>
+              ) : null}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setTransferDeleting(null)}
+              disabled={transferDeletePending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleTransferDelete}
+              disabled={transferDeletePending}
+            >
+              {transferDeletePending ? (
+                <>
+                  <Loader2Icon className="size-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
               )}
             </Button>
           </DialogFooter>
