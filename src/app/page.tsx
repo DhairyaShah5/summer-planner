@@ -273,6 +273,14 @@ export default async function DashboardPage() {
     .filter((t) => t.kind === "vault_topup_sweep")
     .reduce((s, t) => s + t.amount, 0);
   const vaultTopupReady = Math.max(0, wagesInBofa - vaultTopupSwept);
+  // buffer_sweep transfers move Chase → Marcus outside the scheduled
+  // per-paycheck vault flow, same as vault_topup_sweep. Fold both into
+  // the vault balance and vault-growth projection below so a completed
+  // buffer sweep actually lifts Marcus and drops the buffer.
+  const bufferSweptSoFar = transferInputs
+    .filter((t) => t.kind === "buffer_sweep")
+    .reduce((s, t) => s + t.amount, 0);
+  const externalVaultSweeps = vaultTopupSwept + bufferSweptSoFar;
 
   // Project future BofA→Vault sweeps into the cumulativeVault series.
   // calc's cumulativeVault only counts scheduled per-paycheck vault transfers
@@ -289,7 +297,7 @@ export default async function DashboardPage() {
     if (!r.received) {
       projectedBofaWagesUnswept += Math.max(0, r.bofaOverflow - r.perDiem);
       const baseAtRow =
-        r.cumulativeVault + vaultTopupSwept + projectedFutureSweeps;
+        r.cumulativeVault + externalVaultSweeps + projectedFutureSweeps;
       const roomLeft = Math.max(0, settings.vaultCap - baseAtRow);
       const roomFloored = Math.floor(roomLeft / 100) * 100;
       const sweepAmount =
@@ -304,14 +312,14 @@ export default async function DashboardPage() {
     projectedVaultPerRow.push(
       Math.min(
         settings.vaultCap,
-        r.cumulativeVault + vaultTopupSwept + projectedFutureSweeps,
+        r.cumulativeVault + externalVaultSweeps + projectedFutureSweeps,
       ),
     );
   }
 
   const currentVaultWithSweeps = Math.min(
     settings.vaultCap,
-    totals.currentVault + vaultTopupSwept,
+    totals.currentVault + externalVaultSweeps,
   );
   const projectedTotalVaultWithSweeps =
     projectedVaultPerRow[projectedVaultPerRow.length - 1] ?? totals.totalVault;
@@ -341,7 +349,7 @@ export default async function DashboardPage() {
     { name: "Rent", value: currentRentPaid },
     { name: "Robinhood", value: currentRobinhood },
     { name: "CO", value: totals.currentCO },
-    { name: "Buffer", value: totals.currentBuffer },
+    { name: "Buffer", value: totals.currentBuffer - bufferSweptSoFar },
   ].filter((d) => d.value > 0) as AllocationDatum[];
 
   const todayLabel = format(now, "EEE, MMM d");
@@ -366,10 +374,7 @@ export default async function DashboardPage() {
   const currentBufferReceived = computed
     .filter((r) => r.received)
     .reduce((s, r) => s + r.buffer, 0);
-  const bufferSwept = transferInputs
-    .filter((t) => t.kind === "buffer_sweep")
-    .reduce((s, t) => s + t.amount, 0);
-  const bufferSurplus = currentBufferReceived - bufferSwept;
+  const bufferSurplus = currentBufferReceived - bufferSweptSoFar;
   const bufferThreshold = Number(settingsRow?.buffer_sweep_threshold ?? 500);
   const bufferCushion = Number(settingsRow?.buffer_sweep_cushion ?? 200);
   const suggestedBufferSweep = Math.max(

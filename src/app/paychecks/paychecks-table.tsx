@@ -201,11 +201,13 @@ export function PaychecksTable({
   settings,
   todayISO,
   totalChaseToBofa,
+  totalBufferSwept,
 }: {
   initialRows: PaycheckRow[]
   settings: Settings
   todayISO: string
   totalChaseToBofa: number
+  totalBufferSwept: number
 }) {
   const [rows, setRows] = useState<PaycheckRow[]>(initialRows)
   const queryClient = useQueryClient()
@@ -251,6 +253,12 @@ export function PaychecksTable({
     if (settings.vaultCap > 0) {
       currentVault = Math.min(currentVault, settings.vaultCap)
     }
+    // A `buffer_sweep` transfer physically drains Chase into Marcus, so the
+    // "current" figure has to subtract what's already been swept out.
+    // Projected buffer stays gross because the sweep is a one-time event
+    // — the projection curve shows what future paychecks will add.
+    currentBuffer -= totalBufferSwept
+    totalBuffer -= totalBufferSwept
     const cumulative = computed.length
       ? computed[computed.length - 1].cumulativeVault
       : 0
@@ -263,7 +271,7 @@ export function PaychecksTable({
       currentCO,
       currentBuffer,
     }
-  }, [computed, settings.vaultCap])
+  }, [computed, settings.vaultCap, totalBufferSwept])
 
   const mutation = useMutation({
     mutationFn: async ({ id, patch }: UpdatePayload) => {

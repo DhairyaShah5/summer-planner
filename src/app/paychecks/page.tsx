@@ -20,7 +20,7 @@ export default async function PaychecksPage() {
       .select('id, name, is_paycheck_destination'),
     supabase
       .from('transfers')
-      .select('from_account_id, to_account_id, amount'),
+      .select('from_account_id, to_account_id, amount, kind'),
   ])
 
   if (settingsRes.error) throw settingsRes.error
@@ -94,6 +94,14 @@ export default async function PaychecksPage() {
           .reduce((s, t) => s + Number(t.amount), 0)
       : 0
 
+  // Buffer swept out of Chase (Chase → Marcus). The paycheck table's
+  // currentBuffer is a sum of per-received-row `r.buffer`; sweeps live in
+  // `transfers`, so the table has to subtract them to reflect what's
+  // actually left in Chase.
+  const totalBufferSwept = (transfersRes.data ?? [])
+    .filter((t) => t.kind === 'buffer_sweep')
+    .reduce((s, t) => s + Number(t.amount), 0)
+
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-8 sm:px-6 lg:px-8">
       <PageHeader
@@ -105,6 +113,7 @@ export default async function PaychecksPage() {
         settings={settings}
         todayISO={todayInUserTz()}
         totalChaseToBofa={totalChaseToBofa}
+        totalBufferSwept={totalBufferSwept}
       />
     </div>
   )
