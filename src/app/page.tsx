@@ -269,18 +269,61 @@ export default async function DashboardPage() {
   const wagesInBofa = computed
     .filter((r) => r.received)
     .reduce((s, r) => s + Math.max(0, r.bofaOverflow - r.perDiem), 0);
-  const vaultTopupSwept = transferInputs
-    .filter((t) => t.kind === "vault_topup_sweep")
-    .reduce((s, t) => s + t.amount, 0);
-  const vaultTopupReady = Math.max(0, wagesInBofa - vaultTopupSwept);
-  // buffer_sweep transfers move Chase → Marcus outside the scheduled
-  // per-paycheck vault flow, same as vault_topup_sweep. Fold both into
-  // the vault balance and vault-growth projection below so a completed
-  // buffer sweep actually lifts Marcus and drops the buffer.
-  const bufferSweptSoFar = transferInputs
-    .filter((t) => t.kind === "buffer_sweep")
-    .reduce((s, t) => s + t.amount, 0);
-  const externalVaultSweeps = vaultTopupSwept + bufferSweptSoFar;
+  // Look up the vault + source-account ids once so the sweep/buffer math
+  // below can be kind-agnostic. `is_vault` marks Marcus; the paycheck
+  // destination is Chase; BofA falls back to a name match (same trick
+  // computeAccountStates uses).
+  const vaultAccount = accountInputs.find((a) => a.is_vault);
+  const chaseCheckingAccount = accountInputs.find(
+    (a) => a.is_paycheck_destination,
+  );
+  const bofaCheckingAccount = accountInputs.find(
+    (a) =>
+      a.type === "checking" &&
+      (a.name.toLowerCase().includes("bofa") ||
+        a.name.toLowerCase().includes("bank of america")),
+  );
+  const vaultAccountId = vaultAccount?.id;
+  const chaseAccountId = chaseCheckingAccount?.id;
+  const bofaAccountId = bofaCheckingAccount?.id;
+
+  // Any BofA → Vault transfer drains the "wages waiting in BofA" pool the
+  // top-up banner tracks, regardless of whether it was tagged as a
+  // vault_topup_sweep or logged as a plain manual transfer.
+  const bofaToVault = vaultAccountId && bofaAccountId
+    ? transferInputs
+        .filter(
+          (t) =>
+            t.from_account_id === bofaAccountId &&
+            t.to_account_id === vaultAccountId,
+        )
+        .reduce((s, t) => s + t.amount, 0)
+    : 0;
+  const vaultTopupReady = Math.max(0, wagesInBofa - bofaToVault);
+  // Any Chase → Vault transfer drains the buffer (residual sub-$100 wage
+  // remainder that sits in Chase). Kind-agnostic so a manual Chase →
+  // Marcus transfer behaves identically to a buffer_sweep.
+  const bufferSweptSoFar = vaultAccountId && chaseAccountId
+    ? transferInputs
+        .filter(
+          (t) =>
+            t.from_account_id === chaseAccountId &&
+            t.to_account_id === vaultAccountId,
+        )
+        .reduce((s, t) => s + t.amount, 0)
+    : 0;
+  // externalVaultSweeps = every non-scheduled dollar landing on Vault,
+  // minus any dollars leaving. Includes vault_topup_sweep, buffer_sweep,
+  // AND manual transfers to Marcus — anything the paycheck-vault schedule
+  // doesn't already account for. Scheduled per-paycheck vault flows never
+  // touch the `transfers` table so they can't double-count.
+  let externalVaultSweeps = 0;
+  if (vaultAccountId) {
+    for (const t of transferInputs) {
+      if (t.to_account_id === vaultAccountId) externalVaultSweeps += t.amount;
+      if (t.from_account_id === vaultAccountId) externalVaultSweeps -= t.amount;
+    }
+  }
 
   // Project future BofA→Vault sweeps into the cumulativeVault series.
   // calc's cumulativeVault only counts scheduled per-paycheck vault transfers
@@ -381,16 +424,6 @@ export default async function DashboardPage() {
     0,
     Math.floor((bufferSurplus - bufferCushion) / 100) * 100,
   );
-  const chaseCheckingAccount = accountInputs.find(
-    (a) => a.is_paycheck_destination,
-  );
-  const bofaCheckingAccount = accountInputs.find(
-    (a) =>
-      a.type === "checking" &&
-      (a.name.toLowerCase().includes("bofa") ||
-        a.name.toLowerCase().includes("bank of america")),
-  );
-  const vaultAccount = accountInputs.find((a) => a.is_vault);
   const showBufferBanner =
     bufferSurplus >= bufferThreshold &&
     suggestedBufferSweep > 0 &&
