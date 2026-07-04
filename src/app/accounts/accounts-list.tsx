@@ -811,6 +811,7 @@ export function AccountsList({
         description: entry.description,
         amount: entry.amount,
         manualId: entry.id,
+        category: entry.category ?? undefined,
       })
     }
 

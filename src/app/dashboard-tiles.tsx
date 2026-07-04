@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/button'
 import { logBufferSweep, logVaultTopupSweep } from './weekly/sweep-actions'
 import type { Expense } from '@/lib/types'
 import type { AllocationDatum } from '@/components/allocation-breakdown'
+import { hueForCategory } from '@/app/expenses/categories'
 import {
   PageHeader,
   Money,
@@ -130,14 +131,6 @@ const BUCKET_HUE: Record<string, number> = {
   Robinhood: 150,
   CO: 220,
   Buffer: 330,
-}
-
-const CATEGORY_HUE: Record<string, number> = {
-  Food: 35,
-  Transit: 220,
-  Entertainment: 285,
-  Groceries: 150,
-  Other: 250,
 }
 
 const EMPLOYER_HUE: Record<string, number> = {
@@ -1174,7 +1167,7 @@ function RecentExpensesTile({ expenses }: { expenses: Expense[] }) {
       {expenses.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
           {expenses.map((e, i) => {
-            const hue = CATEGORY_HUE[e.category] ?? 250
+            const hue = hueForCategory(e.category)
             return (
               <div
                 key={e.id}
