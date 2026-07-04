@@ -217,9 +217,22 @@ export default async function AccountsPage() {
     })
   }
 
+  // Seed prevCumulative with net Vault-account transfers so per-paycheck
+  // vault contributions shrink from the end after any manual/sweep top-up.
+  const vaultAcctForSeed = accounts.find((a) => a.is_vault)
+  let initialVaultSeed = 0
+  if (vaultAcctForSeed) {
+    for (const t of transfers) {
+      if (t.to_account_id === vaultAcctForSeed.id)
+        initialVaultSeed += t.amount
+      if (t.from_account_id === vaultAcctForSeed.id)
+        initialVaultSeed -= t.amount
+    }
+  }
+
   // Compute paycheck rows once so the ledger modal can derive per-paycheck
   // inflows/outflows without redoing the allocation math client-side.
-  const paycheckRows = computeAll(paychecks, settings).map((r) => {
+  const paycheckRows = computeAll(paychecks, settings, initialVaultSeed).map((r) => {
     const meta = paycheckMetaByPayNum.get(r.payNum)
     return {
       id: meta?.id ?? '',

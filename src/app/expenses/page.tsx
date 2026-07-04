@@ -18,24 +18,32 @@ export const dynamic = 'force-dynamic'
 export default async function ExpensesPage() {
   const { supabase } = await getViewerContext()
 
-  const [settingsRes, paychecksRes, expensesRes, accountsRes] = await Promise.all([
-    supabase.from('settings').select('*').maybeSingle(),
-    supabase.from('paychecks').select('*').order('pay_num', { ascending: true }),
-    supabase
-      .from('expenses')
-      .select('*')
-      .order('expense_date', { ascending: false })
-      .limit(200),
-    supabase
-      .from('accounts')
-      .select('id, name, type')
-      .order('display_order', { ascending: true }),
-  ])
+  const [settingsRes, paychecksRes, expensesRes, accountsRes, transfersRes] =
+    await Promise.all([
+      supabase.from('settings').select('*').maybeSingle(),
+      supabase
+        .from('paychecks')
+        .select('*')
+        .order('pay_num', { ascending: true }),
+      supabase
+        .from('expenses')
+        .select('*')
+        .order('expense_date', { ascending: false })
+        .limit(200),
+      supabase
+        .from('accounts')
+        .select('id, name, type, is_vault')
+        .order('display_order', { ascending: true }),
+      supabase
+        .from('transfers')
+        .select('from_account_id, to_account_id, amount'),
+    ])
 
   if (settingsRes.error) throw settingsRes.error
   if (paychecksRes.error) throw paychecksRes.error
   if (expensesRes.error) throw expensesRes.error
   if (accountsRes.error) throw accountsRes.error
+  if (transfersRes.error) throw transfersRes.error
 
   const expenses: Expense[] = (expensesRes.data ?? []).map((e) => ({
     id: e.id,
@@ -113,7 +121,21 @@ export default async function ExpensesPage() {
       }
     })
 
-    const computed = computeAll(inputs, settings)
+    // Seed prevCumulative with any external Vault flows so per-paycheck
+    // vault contributions shrink from the end after a manual/sweep top-up.
+    // CO Spend (which this page's cumMaxAllowed sums) depends on the vault
+    // allocation, so this keeps late-summer CO honest.
+    const vaultAcct = (accountsRes.data ?? []).find((a) => a.is_vault)
+    let initialVault = 0
+    if (vaultAcct) {
+      for (const t of transfersRes.data ?? []) {
+        if (t.to_account_id === vaultAcct.id) initialVault += Number(t.amount)
+        if (t.from_account_id === vaultAcct.id)
+          initialVault -= Number(t.amount)
+      }
+    }
+
+    const computed = computeAll(inputs, settings, initialVault)
 
     // User-timezone today + "this Sunday" so the week boundary doesn't
     // shift around the user's local midnight (server runs in UTC).

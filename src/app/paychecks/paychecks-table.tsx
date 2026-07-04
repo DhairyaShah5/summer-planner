@@ -202,19 +202,21 @@ export function PaychecksTable({
   todayISO,
   totalChaseToBofa,
   totalBufferSwept,
+  initialCumulativeVault,
 }: {
   initialRows: PaycheckRow[]
   settings: Settings
   todayISO: string
   totalChaseToBofa: number
   totalBufferSwept: number
+  initialCumulativeVault: number
 }) {
   const [rows, setRows] = useState<PaycheckRow[]>(initialRows)
   const queryClient = useQueryClient()
 
   const computed = useMemo(
-    () => computeAll(rows.map(toInput), settings),
-    [rows, settings],
+    () => computeAll(rows.map(toInput), settings, initialCumulativeVault),
+    [rows, settings, initialCumulativeVault],
   )
 
   // BofA tick state: a paycheck's BofA allocation is "done" once the

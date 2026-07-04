@@ -109,6 +109,17 @@ export default async function PaychecksPage() {
           )
           .reduce((s, t) => s + Number(t.amount), 0)
       : 0
+  // Net Vault-account flow across ALL transfer kinds. Passed to computeAll
+  // via `initialCumulativeVault` so pre-loading Marcus (sweep OR manual)
+  // shrinks scheduled per-paycheck vault contributions from the end.
+  let externalVaultSweeps = 0
+  if (vault) {
+    for (const t of transfersRes.data ?? []) {
+      if (t.to_account_id === vault.id) externalVaultSweeps += Number(t.amount)
+      if (t.from_account_id === vault.id)
+        externalVaultSweeps -= Number(t.amount)
+    }
+  }
 
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-8 sm:px-6 lg:px-8">
@@ -122,6 +133,7 @@ export default async function PaychecksPage() {
         todayISO={todayInUserTz()}
         totalChaseToBofa={totalChaseToBofa}
         totalBufferSwept={totalBufferSwept}
+        initialCumulativeVault={externalVaultSweeps}
       />
     </div>
   )

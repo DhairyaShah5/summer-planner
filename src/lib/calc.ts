@@ -314,12 +314,20 @@ export function computeRow(
 /**
  * Compute every paycheck in order, threading the cumulative vault forward.
  */
+/**
+ * @param initialCumulativeVault external Vault balance (net of manual +
+ * sweep transfers touching the Vault account) that seeds `prevCumulative`
+ * for the first row. Ensures per-paycheck vault contributions shrink from
+ * the end when the user pre-fills Marcus via a manual/sweep transfer,
+ * instead of blindly scheduling contributions that would overshoot the cap.
+ */
 export function computeAll(
   inputs: PaycheckInput[],
   settings: Settings,
+  initialCumulativeVault: number = 0,
 ): PaycheckComputed[] {
   const out: PaycheckComputed[] = []
-  let prevCumulative = 0
+  let prevCumulative = Math.max(0, initialCumulativeVault)
   for (const input of inputs) {
     const row = computeRow(prevCumulative, input, settings)
     out.push(row)
@@ -428,7 +436,18 @@ export function computeAccountStates(
   accountEntries: AccountEntryInput[] = [],
   todayISO?: string,
 ): AccountState[] {
-  const computed = computeAll(paychecks, settings)
+  // Manual/sweep transfers touching the vault account bump the initial
+  // cumulative so future per-paycheck vault contributions shrink from the
+  // end (won't overshoot the cap). Any Vault account outflow (rare) drops it.
+  const vaultAccountForSeed = accounts.find((a) => a.is_vault)
+  let initialVault = 0
+  if (vaultAccountForSeed) {
+    for (const t of transfers) {
+      if (t.to_account_id === vaultAccountForSeed.id) initialVault += t.amount
+      if (t.from_account_id === vaultAccountForSeed.id) initialVault -= t.amount
+    }
+  }
+  const computed = computeAll(paychecks, settings, initialVault)
   // Caller passes the user-timezone today (YYYY-MM-DD) when available so
   // a Sunday 11pm local edit doesn't flip the week. Falls back to UTC for
   // legacy callers / client-side use.

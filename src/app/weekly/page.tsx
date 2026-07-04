@@ -138,7 +138,21 @@ export default async function WeeklyPage() {
     }
   })
 
-  const computed = computeAll(paycheckInputs, settings)
+  // Net any Vault-account transfer (any kind) so pre-loading Marcus via a
+  // sweep or manual transfer shrinks per-paycheck vault contributions from
+  // the end. Both the Weekly page's Vault Balance column and CO figures
+  // read this reduced schedule.
+  const vaultAcct = accountRows.find((a) => a.is_vault)
+  let externalVaultSeed = 0
+  if (vaultAcct) {
+    for (const t of transferRows) {
+      if (t.to_account_id === vaultAcct.id) externalVaultSeed += Number(t.amount)
+      if (t.from_account_id === vaultAcct.id)
+        externalVaultSeed -= Number(t.amount)
+    }
+  }
+
+  const computed = computeAll(paycheckInputs, settings, externalVaultSeed)
 
   // User-timezone "today" (YYYY-MM-DD). Server runs in UTC so calling
   // `new Date()` directly would flip the date around the user's local
@@ -168,8 +182,14 @@ export default async function WeeklyPage() {
         vaultBalance = row.cumulativeVault
       }
     }
-    // Layer in non-paycheck vault transfers up through weekEnd. Positive
-    // for inflows (e.g. BofA→Vault sweeps), negative for outflows.
+    // cumulativeVault now includes `externalVaultSeed` (all vault-account
+    // transfers pre-loaded onto row 1) so the paycheck plan can shrink
+    // vault contributions from the end. But that treats every transfer as
+    // if it happened at t=0, which is wrong for the weekly balance column
+    // that has to be time-accurate. Undo the seed first, then layer in the
+    // real dated transfers so the weekly balance reflects what's actually
+    // in Marcus by that week's Sunday.
+    vaultBalance -= externalVaultSeed
     if (vaultAccountId) {
       for (const t of transferRows) {
         if (t.transferred_at > weekEndISO) continue

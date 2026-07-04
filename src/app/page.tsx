@@ -91,9 +91,6 @@ export default async function DashboardPage() {
     };
   });
 
-  const computed = computeAll(inputs, settings);
-  const totals = summarize(computed, settings);
-
   // User-timezone today/week boundaries so the server's UTC clock
   // doesn't shift the week one day early around local midnight.
   const todayISO = todayInUserTz();
@@ -200,6 +197,36 @@ export default async function DashboardPage() {
     kind: t.kind as TransferInput['kind'],
   }));
 
+  // Account lookups + externalVaultSweeps ready BEFORE computeAll so the
+  // seed (net Vault-account flows across ALL kinds — vault_topup_sweep,
+  // buffer_sweep, manual transfers to Marcus) can shrink scheduled
+  // per-paycheck vault contributions from the end instead of overshooting
+  // the cap.
+  const vaultAccount = accountInputs.find((a) => a.is_vault);
+  const chaseCheckingAccount = accountInputs.find(
+    (a) => a.is_paycheck_destination,
+  );
+  const bofaCheckingAccount = accountInputs.find(
+    (a) =>
+      a.type === "checking" &&
+      (a.name.toLowerCase().includes("bofa") ||
+        a.name.toLowerCase().includes("bank of america")),
+  );
+  const vaultAccountId = vaultAccount?.id;
+  const chaseAccountId = chaseCheckingAccount?.id;
+  const bofaAccountId = bofaCheckingAccount?.id;
+
+  let externalVaultSweeps = 0;
+  if (vaultAccountId) {
+    for (const t of transferInputs) {
+      if (t.to_account_id === vaultAccountId) externalVaultSweeps += t.amount;
+      if (t.from_account_id === vaultAccountId) externalVaultSweeps -= t.amount;
+    }
+  }
+
+  const computed = computeAll(inputs, settings, externalVaultSweeps);
+  const totals = summarize(computed, settings);
+
   const accountEntryInputs: AccountEntryInput[] = (
     accountEntriesRes.data ?? []
   ).map((e) => ({
@@ -269,24 +296,6 @@ export default async function DashboardPage() {
   const wagesInBofa = computed
     .filter((r) => r.received)
     .reduce((s, r) => s + Math.max(0, r.bofaOverflow - r.perDiem), 0);
-  // Look up the vault + source-account ids once so the sweep/buffer math
-  // below can be kind-agnostic. `is_vault` marks Marcus; the paycheck
-  // destination is Chase; BofA falls back to a name match (same trick
-  // computeAccountStates uses).
-  const vaultAccount = accountInputs.find((a) => a.is_vault);
-  const chaseCheckingAccount = accountInputs.find(
-    (a) => a.is_paycheck_destination,
-  );
-  const bofaCheckingAccount = accountInputs.find(
-    (a) =>
-      a.type === "checking" &&
-      (a.name.toLowerCase().includes("bofa") ||
-        a.name.toLowerCase().includes("bank of america")),
-  );
-  const vaultAccountId = vaultAccount?.id;
-  const chaseAccountId = chaseCheckingAccount?.id;
-  const bofaAccountId = bofaCheckingAccount?.id;
-
   // Any BofA → Vault transfer drains the "wages waiting in BofA" pool the
   // top-up banner tracks, regardless of whether it was tagged as a
   // vault_topup_sweep or logged as a plain manual transfer.
@@ -312,18 +321,6 @@ export default async function DashboardPage() {
         )
         .reduce((s, t) => s + t.amount, 0)
     : 0;
-  // externalVaultSweeps = every non-scheduled dollar landing on Vault,
-  // minus any dollars leaving. Includes vault_topup_sweep, buffer_sweep,
-  // AND manual transfers to Marcus — anything the paycheck-vault schedule
-  // doesn't already account for. Scheduled per-paycheck vault flows never
-  // touch the `transfers` table so they can't double-count.
-  let externalVaultSweeps = 0;
-  if (vaultAccountId) {
-    for (const t of transferInputs) {
-      if (t.to_account_id === vaultAccountId) externalVaultSweeps += t.amount;
-      if (t.from_account_id === vaultAccountId) externalVaultSweeps -= t.amount;
-    }
-  }
 
   // Project future BofA→Vault sweeps into the cumulativeVault series.
   // calc's cumulativeVault only counts scheduled per-paycheck vault transfers
@@ -339,8 +336,10 @@ export default async function DashboardPage() {
   for (const r of computed) {
     if (!r.received) {
       projectedBofaWagesUnswept += Math.max(0, r.bofaOverflow - r.perDiem);
-      const baseAtRow =
-        r.cumulativeVault + externalVaultSweeps + projectedFutureSweeps;
+      // r.cumulativeVault already includes externalVaultSweeps (seeded into
+      // computeAll via prevCumulative), so it only needs the running
+      // projected-sweep tally added on top.
+      const baseAtRow = r.cumulativeVault + projectedFutureSweeps;
       const roomLeft = Math.max(0, settings.vaultCap - baseAtRow);
       const roomFloored = Math.floor(roomLeft / 100) * 100;
       const sweepAmount =
@@ -355,7 +354,7 @@ export default async function DashboardPage() {
     projectedVaultPerRow.push(
       Math.min(
         settings.vaultCap,
-        r.cumulativeVault + externalVaultSweeps + projectedFutureSweeps,
+        r.cumulativeVault + projectedFutureSweeps,
       ),
     );
   }
@@ -427,8 +426,8 @@ export default async function DashboardPage() {
   const showBufferBanner =
     bufferSurplus >= bufferThreshold &&
     suggestedBufferSweep > 0 &&
-    !!chaseCheckingAccount &&
-    !!vaultAccount;
+    !!chaseAccountId &&
+    !!vaultAccountId;
 
   // Per diem progress: cumulative received vs full-summer total. Visibility
   // only - never drives an auto-action.
@@ -497,16 +496,16 @@ export default async function DashboardPage() {
           show: showTopupBanner,
           ready: vaultTopupReady,
           suggested: suggestedTopup,
-          fromAccountId: bofaCheckingAccount?.id ?? "",
-          toAccountId: vaultAccount?.id ?? "",
+          fromAccountId: bofaAccountId ?? "",
+          toAccountId: vaultAccountId ?? "",
         }}
         bufferSweep={{
           show: showBufferBanner,
           surplus: bufferSurplus,
           suggested: suggestedBufferSweep,
           cushion: bufferCushion,
-          fromAccountId: chaseCheckingAccount?.id ?? "",
-          toAccountId: vaultAccount?.id ?? "",
+          fromAccountId: chaseAccountId ?? "",
+          toAccountId: vaultAccountId ?? "",
         }}
         perDiem={{
           received: perDiemReceived,
