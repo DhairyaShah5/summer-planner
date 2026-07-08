@@ -1035,6 +1035,7 @@ export function PaychecksTable({
               rows={computed}
               currentBuffer={totals.currentBuffer}
               projectedBuffer={totals.totalBuffer}
+              totalBufferSwept={totalBufferSwept}
             />
           </Dialog>
         </Reveal>
@@ -1531,10 +1532,12 @@ function BufferBreakdownDialogContent({
   rows,
   currentBuffer,
   projectedBuffer,
+  totalBufferSwept,
 }: {
   rows: PaycheckComputed[]
   currentBuffer: number
   projectedBuffer: number
+  totalBufferSwept: number
 }) {
   const cellStyle: React.CSSProperties = {
     padding: '8px 10px',
@@ -1556,8 +1559,10 @@ function BufferBreakdownDialogContent({
         <DialogDescription>
           Wages + reimbursement − Vault / Rent / RH / CO / BofA for each row.
           Received paychecks feed the current total; pending ones roll into
-          the projected total. Negative rows flag paychecks whose transfers
-          out exceeded the money coming in.
+          the projected total. Any Chase → Marcus sweeps are subtracted at
+          the bottom so the totals reflect what actually stays in Chase.
+          Negative rows flag paychecks whose transfers out exceeded the
+          money coming in.
         </DialogDescription>
       </DialogHeader>
       <div style={{ maxHeight: '55vh', overflowY: 'auto', marginTop: 4 }}>
@@ -1633,12 +1638,40 @@ function BufferBreakdownDialogContent({
             })}
           </tbody>
           <tfoot>
+            {totalBufferSwept > 0 && (
+              <tr>
+                <td
+                  colSpan={3}
+                  style={{
+                    ...cellStyle,
+                    paddingTop: 12,
+                    font: '600 11px var(--ui)',
+                    letterSpacing: '.04em',
+                    textTransform: 'uppercase',
+                    color: 'var(--ink-3)',
+                  }}
+                >
+                  Chase → Marcus sweep
+                </td>
+                <td
+                  style={{
+                    ...cellStyle,
+                    paddingTop: 12,
+                    textAlign: 'right',
+                    font: '600 13px var(--display)',
+                    color: BUCKET_COLOR.rent,
+                  }}
+                >
+                  −{fmtMoney(totalBufferSwept, { cents: true })}
+                </td>
+              </tr>
+            )}
             <tr>
               <td
                 colSpan={3}
                 style={{
                   ...cellStyle,
-                  paddingTop: 12,
+                  paddingTop: totalBufferSwept > 0 ? 4 : 12,
                   font: '600 11px var(--ui)',
                   letterSpacing: '.04em',
                   textTransform: 'uppercase',
@@ -1650,7 +1683,7 @@ function BufferBreakdownDialogContent({
               <td
                 style={{
                   ...cellStyle,
-                  paddingTop: 12,
+                  paddingTop: totalBufferSwept > 0 ? 4 : 12,
                   textAlign: 'right',
                   font: '600 14px var(--display)',
                   color: currentBuffer < 0 ? BUCKET_COLOR.rent : BUCKET_COLOR.bofa,
