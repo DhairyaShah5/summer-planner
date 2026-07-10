@@ -121,6 +121,11 @@ export interface DashboardTilesProps {
     received: number
     expected: number
   }
+  bofaExtra: {
+    current: number
+    deposited: number
+    sweptToVault: number
+  }
 }
 
 // Bucket / category hue palette - mirrors the design handoff palette so the
@@ -171,6 +176,7 @@ export function DashboardTiles(props: DashboardTilesProps) {
     vaultTopup,
     bufferSweep,
     perDiem,
+    bofaExtra,
   } = props
 
   const vaultPctFrac = Math.min(1, vault.percent / 100)
@@ -274,6 +280,14 @@ export function DashboardTiles(props: DashboardTilesProps) {
           <PerDiemStrip
             received={perDiem.received}
             expected={perDiem.expected}
+          />
+        </Reveal>
+
+        <Reveal delay={170} style={{ gridColumn: '1 / -1' }}>
+          <BofaExtraStrip
+            current={bofaExtra.current}
+            deposited={bofaExtra.deposited}
+            sweptToVault={bofaExtra.sweptToVault}
           />
         </Reveal>
 
@@ -1856,6 +1870,83 @@ function PerDiemStrip({
             width: `${pct}%`,
             height: '100%',
             background: 'color-mix(in oklch, var(--accent) 80%, white)',
+            transition: 'width 240ms ease',
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function BofaExtraStrip({
+  current,
+  deposited,
+  sweptToVault,
+}: {
+  current: number
+  deposited: number
+  sweptToVault: number
+}) {
+  if (deposited <= 0 && current <= 0) return null
+  const pct = deposited > 0 ? Math.min(100, (sweptToVault / deposited) * 100) : 0
+  const hue = 330
+  const accent = `oklch(0.7 0.18 ${hue})`
+  return (
+    <div
+      className="fx-card per-diem-strip"
+      style={{
+        padding: '12px 18px',
+        borderRadius: 'var(--radius)',
+        border: '1px solid var(--hair)',
+        background: 'var(--surface)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 18,
+        flexWrap: 'wrap',
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            font: '600 11.5px var(--ui)',
+            letterSpacing: '.06em',
+            textTransform: 'uppercase',
+            color: 'var(--ink-3)',
+            marginBottom: 4,
+          }}
+        >
+          Extra in BofA (apart from per diem)
+        </div>
+        <div
+          style={{
+            font: '600 16px var(--display)',
+            color: 'var(--ink-1)',
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {fmtMoney(current)}{' '}
+          <span style={{ font: '500 13px var(--ui)', color: 'var(--ink-3)' }}>
+            of {fmtMoney(deposited)} deposited · {fmtMoney(sweptToVault)} swept
+            to Marcus
+          </span>
+        </div>
+      </div>
+      <div
+        aria-hidden="true"
+        style={{
+          flex: '0 1 220px',
+          minWidth: 140,
+          height: 6,
+          borderRadius: 999,
+          background: 'var(--surface-2)',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            width: `${pct}%`,
+            height: '100%',
+            background: accent,
             transition: 'width 240ms ease',
           }}
         />

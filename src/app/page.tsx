@@ -511,6 +511,11 @@ export default async function DashboardPage() {
           received: perDiemReceived,
           expected: perDiemExpected,
         }}
+        bofaExtra={{
+          current: vaultTopupReady,
+          deposited: wagesInBofa,
+          sweptToVault: bofaToVault,
+        }}
       />
     </div>
   );
