@@ -297,23 +297,11 @@ export default async function DashboardPage() {
   const wagesInBofa = computed
     .filter((r) => r.received)
     .reduce((s, r) => s + Math.max(0, r.bofaOverflow - r.perDiem), 0);
-  // Any BofA → Vault transfer drains the "wages waiting in BofA" pool the
-  // top-up banner tracks, regardless of whether it was tagged as a
-  // vault_topup_sweep or logged as a plain manual transfer.
-  const bofaToVault = vaultAccountId && bofaAccountId
-    ? transferInputs
-        .filter(
-          (t) =>
-            t.from_account_id === bofaAccountId &&
-            t.to_account_id === vaultAccountId,
-        )
-        .reduce((s, t) => s + t.amount, 0)
-    : 0;
-  const vaultTopupReady = Math.max(0, wagesInBofa - bofaToVault);
   // Wage-clearing BofA sweeps only — vault_topup_sweep kind = banner-driven
   // moves that specifically drain wage overflow. Manual BofA→Marcus transfers
   // are excluded because they usually move arrival-balance or per-diem savings,
-  // not the wage-overflow pool this counter is tracking.
+  // not the wage-overflow pool this counter is tracking. Both the "Extra in
+  // BofA" strip and the vault-topup banner read off this metric so they agree.
   const bofaWageSweeps = vaultAccountId && bofaAccountId
     ? transferInputs
         .filter(
@@ -347,7 +335,7 @@ export default async function DashboardPage() {
   //     BofA inflow into a running buffer; when the buffer crosses $1,000 we
   //     simulate a sweep (mirroring the manual banner behavior).
   let projectedFutureSweeps = 0;
-  let projectedBofaWagesUnswept = vaultTopupReady;
+  let projectedBofaWagesUnswept = Math.max(0, bofaExtraCurrent);
   const projectedVaultPerRow: number[] = [];
   for (const r of computed) {
     if (!r.received) {
@@ -418,10 +406,10 @@ export default async function DashboardPage() {
   const vaultRoom = Math.max(0, settings.vaultCap - currentVaultWithSweeps);
   const vaultRoomFloored = Math.floor(vaultRoom / 100) * 100;
   const suggestedTopup = Math.min(
-    Math.floor(vaultTopupReady / 500) * 500,
+    Math.floor(Math.max(0, bofaExtraCurrent) / 500) * 500,
     vaultRoomFloored,
   );
-  const showTopupBanner = vaultTopupReady >= 500 && suggestedTopup > 0;
+  const showTopupBanner = bofaExtraCurrent >= 500 && suggestedTopup > 0;
 
   // Buffer sweep (Chase → Marcus): mirrors the vault-topup banner but on the
   // Chase side. The received-row buffer sum is the sub-$100 wage remainder
@@ -510,7 +498,7 @@ export default async function DashboardPage() {
         deadlineLabel={format(new Date("2026-08-28T12:00:00"), "MMM d")}
         vaultTopup={{
           show: showTopupBanner,
-          ready: vaultTopupReady,
+          ready: Math.max(0, bofaExtraCurrent),
           suggested: suggestedTopup,
           fromAccountId: bofaAccountId ?? "",
           toAccountId: vaultAccountId ?? "",
