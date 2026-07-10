@@ -255,6 +255,10 @@ export default async function DashboardPage() {
     current_balance: s.current,
   }));
 
+  const bofaBalanceNow = bofaAccountId
+    ? accountStates.find((s) => s.account.id === bofaAccountId)?.current ?? 0
+    : 0;
+
   // Cumulative spend across the summer through today. Off-budget expenses
   // (count_in_co_budget === false) are excluded from the CO budget tile.
   const cumSpent = (cumExpensesRes.data ?? [])
@@ -512,9 +516,8 @@ export default async function DashboardPage() {
           expected: perDiemExpected,
         }}
         bofaExtra={{
-          current: vaultTopupReady,
-          deposited: wagesInBofa,
-          sweptToVault: bofaToVault,
+          bofaBalance: bofaBalanceNow,
+          perDiemReceived,
         }}
       />
     </div>

@@ -122,9 +122,8 @@ export interface DashboardTilesProps {
     expected: number
   }
   bofaExtra: {
-    current: number
-    deposited: number
-    sweptToVault: number
+    bofaBalance: number
+    perDiemReceived: number
   }
 }
 
@@ -285,9 +284,8 @@ export function DashboardTiles(props: DashboardTilesProps) {
 
         <Reveal delay={170} style={{ gridColumn: '1 / -1' }}>
           <BofaExtraStrip
-            current={bofaExtra.current}
-            deposited={bofaExtra.deposited}
-            sweptToVault={bofaExtra.sweptToVault}
+            bofaBalance={bofaExtra.bofaBalance}
+            perDiemReceived={bofaExtra.perDiemReceived}
           />
         </Reveal>
 
@@ -1879,18 +1877,24 @@ function PerDiemStrip({
 }
 
 function BofaExtraStrip({
-  current,
-  deposited,
-  sweptToVault,
+  bofaBalance,
+  perDiemReceived,
 }: {
-  current: number
-  deposited: number
-  sweptToVault: number
+  bofaBalance: number
+  perDiemReceived: number
 }) {
-  if (deposited <= 0 && current <= 0) return null
-  const pct = deposited > 0 ? Math.min(100, (sweptToVault / deposited) * 100) : 0
+  if (bofaBalance <= 0 && perDiemReceived <= 0) return null
+  const extra = bofaBalance - perDiemReceived
+  const pct =
+    bofaBalance > 0
+      ? Math.max(0, Math.min(100, (extra / bofaBalance) * 100))
+      : 0
   const hue = 330
   const accent = `oklch(0.7 0.18 ${hue})`
+  const extraColor =
+    extra < 0
+      ? 'oklch(0.65 0.18 25)'
+      : 'var(--ink-1)'
   return (
     <div
       className="fx-card per-diem-strip"
@@ -1920,14 +1924,14 @@ function BofaExtraStrip({
         <div
           style={{
             font: '600 16px var(--display)',
-            color: 'var(--ink-1)',
+            color: extraColor,
             fontVariantNumeric: 'tabular-nums',
           }}
         >
-          {fmtMoney(current)}{' '}
+          {fmtMoney(extra)}{' '}
           <span style={{ font: '500 13px var(--ui)', color: 'var(--ink-3)' }}>
-            of {fmtMoney(deposited)} deposited · {fmtMoney(sweptToVault)} swept
-            to Marcus
+            · BofA {fmtMoney(bofaBalance)} − Per diem received{' '}
+            {fmtMoney(perDiemReceived)}
           </span>
         </div>
       </div>
