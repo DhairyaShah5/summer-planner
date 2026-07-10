@@ -122,8 +122,9 @@ export interface DashboardTilesProps {
     expected: number
   }
   bofaExtra: {
-    bofaBalance: number
-    perDiemReceived: number
+    extra: number
+    wagesDeposited: number
+    wageSweeps: number
   }
 }
 
@@ -284,8 +285,9 @@ export function DashboardTiles(props: DashboardTilesProps) {
 
         <Reveal delay={170} style={{ gridColumn: '1 / -1' }}>
           <BofaExtraStrip
-            bofaBalance={bofaExtra.bofaBalance}
-            perDiemReceived={bofaExtra.perDiemReceived}
+            extra={bofaExtra.extra}
+            wagesDeposited={bofaExtra.wagesDeposited}
+            wageSweeps={bofaExtra.wageSweeps}
           />
         </Reveal>
 
@@ -1877,24 +1879,22 @@ function PerDiemStrip({
 }
 
 function BofaExtraStrip({
-  bofaBalance,
-  perDiemReceived,
+  extra,
+  wagesDeposited,
+  wageSweeps,
 }: {
-  bofaBalance: number
-  perDiemReceived: number
+  extra: number
+  wagesDeposited: number
+  wageSweeps: number
 }) {
-  if (bofaBalance <= 0 && perDiemReceived <= 0) return null
-  const extra = bofaBalance - perDiemReceived
+  if (wagesDeposited <= 0 && extra === 0) return null
   const pct =
-    bofaBalance > 0
-      ? Math.max(0, Math.min(100, (extra / bofaBalance) * 100))
+    wagesDeposited > 0
+      ? Math.max(0, Math.min(100, (wageSweeps / wagesDeposited) * 100))
       : 0
   const hue = 330
   const accent = `oklch(0.7 0.18 ${hue})`
-  const extraColor =
-    extra < 0
-      ? 'oklch(0.65 0.18 25)'
-      : 'var(--ink-1)'
+  const extraColor = extra < 0 ? 'oklch(0.65 0.18 25)' : 'var(--ink-1)'
   return (
     <div
       className="fx-card per-diem-strip"
@@ -1919,7 +1919,7 @@ function BofaExtraStrip({
             marginBottom: 4,
           }}
         >
-          Extra in BofA (apart from per diem)
+          Extra in BofA (OT wages − sweeps)
         </div>
         <div
           style={{
@@ -1930,8 +1930,8 @@ function BofaExtraStrip({
         >
           {fmtMoney(extra)}{' '}
           <span style={{ font: '500 13px var(--ui)', color: 'var(--ink-3)' }}>
-            · BofA {fmtMoney(bofaBalance)} − Per diem received{' '}
-            {fmtMoney(perDiemReceived)}
+            · {fmtMoney(wagesDeposited)} OT deposited −{' '}
+            {fmtMoney(wageSweeps)} swept to Marcus
           </span>
         </div>
       </div>

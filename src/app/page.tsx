@@ -255,9 +255,6 @@ export default async function DashboardPage() {
     current_balance: s.current,
   }));
 
-  const bofaBalanceNow = bofaAccountId
-    ? accountStates.find((s) => s.account.id === bofaAccountId)?.current ?? 0
-    : 0;
 
   // Cumulative spend across the summer through today. Off-budget expenses
   // (count_in_co_budget === false) are excluded from the CO budget tile.
@@ -313,6 +310,21 @@ export default async function DashboardPage() {
         .reduce((s, t) => s + t.amount, 0)
     : 0;
   const vaultTopupReady = Math.max(0, wagesInBofa - bofaToVault);
+  // Wage-clearing BofA sweeps only — vault_topup_sweep kind = banner-driven
+  // moves that specifically drain wage overflow. Manual BofA→Marcus transfers
+  // are excluded because they usually move arrival-balance or per-diem savings,
+  // not the wage-overflow pool this counter is tracking.
+  const bofaWageSweeps = vaultAccountId && bofaAccountId
+    ? transferInputs
+        .filter(
+          (t) =>
+            t.from_account_id === bofaAccountId &&
+            t.to_account_id === vaultAccountId &&
+            t.kind === 'vault_topup_sweep',
+        )
+        .reduce((s, t) => s + t.amount, 0)
+    : 0;
+  const bofaExtraCurrent = wagesInBofa - bofaWageSweeps;
   // Any Chase → Vault transfer drains the buffer (residual sub-$100 wage
   // remainder that sits in Chase). Kind-agnostic so a manual Chase →
   // Marcus transfer behaves identically to a buffer_sweep.
@@ -516,8 +528,9 @@ export default async function DashboardPage() {
           expected: perDiemExpected,
         }}
         bofaExtra={{
-          bofaBalance: bofaBalanceNow,
-          perDiemReceived,
+          extra: bofaExtraCurrent,
+          wagesDeposited: wagesInBofa,
+          wageSweeps: bofaWageSweeps,
         }}
       />
     </div>
