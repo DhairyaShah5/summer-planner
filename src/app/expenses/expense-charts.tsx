@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { Expense } from '@/lib/types'
 import {
   BarChart,
@@ -12,6 +12,8 @@ import {
 } from '@/components/redesign'
 import { Card, CardContent } from '@/components/ui/card'
 import { hueForCategory } from './categories'
+
+const WEEK_WINDOW = 4
 
 function mondayKey(iso: string) {
   const [y, m, d] = iso.split('-').map(Number)
@@ -66,6 +68,13 @@ export function ExpenseCharts({ expenses }: Props) {
         color: 'var(--accent)',
       }))
   }, [budgetedExpenses])
+
+  const maxPageStart = Math.max(0, bars.length - WEEK_WINDOW)
+  const [pageStart, setPageStart] = useState(maxPageStart)
+  const clampedStart = Math.min(pageStart, maxPageStart)
+  const visibleBars = bars.slice(clampedStart, clampedStart + WEEK_WINDOW)
+  const canGoLeft = clampedStart > 0
+  const canGoRight = clampedStart < maxPageStart
 
   if (byCat.length === 0) return null
 
@@ -188,20 +197,52 @@ export function ExpenseCharts({ expenses }: Props) {
           <CardContent style={{ padding: 0 }}>
             <SectionLabel
               right={
-                <span
+                <div
                   style={{
-                    font: '500 12px var(--ui)',
-                    color: 'var(--ink-3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
                   }}
                 >
-                  per week
-                </span>
+                  <WeekArrowButton
+                    direction="left"
+                    disabled={!canGoLeft}
+                    onClick={() =>
+                      setPageStart(Math.max(0, clampedStart - WEEK_WINDOW))
+                    }
+                  />
+                  <span
+                    style={{
+                      font: '500 12px var(--ui)',
+                      color: 'var(--ink-3)',
+                      minWidth: 52,
+                      textAlign: 'center',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {bars.length > 0
+                      ? `${clampedStart + 1}–${Math.min(
+                          bars.length,
+                          clampedStart + WEEK_WINDOW,
+                        )} / ${bars.length}`
+                      : 'per week'}
+                  </span>
+                  <WeekArrowButton
+                    direction="right"
+                    disabled={!canGoRight}
+                    onClick={() =>
+                      setPageStart(
+                        Math.min(maxPageStart, clampedStart + WEEK_WINDOW),
+                      )
+                    }
+                  />
+                </div>
               }
             >
               Spending by week
             </SectionLabel>
             <BarChart
-              bars={bars}
+              bars={visibleBars}
               height={190}
               formatTop={(v) => '$' + v.toFixed(0)}
             />
@@ -209,5 +250,56 @@ export function ExpenseCharts({ expenses }: Props) {
         </Card>
       </Reveal>
     </div>
+  )
+}
+
+function WeekArrowButton({
+  direction,
+  disabled,
+  onClick,
+}: {
+  direction: 'left' | 'right'
+  disabled: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={direction === 'left' ? 'Previous weeks' : 'Next weeks'}
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        width: 26,
+        height: 26,
+        display: 'grid',
+        placeItems: 'center',
+        borderRadius: 6,
+        border: '1px solid var(--hair)',
+        background: 'var(--surface-2)',
+        color: disabled ? 'var(--ink-4)' : 'var(--ink-2)',
+        cursor: disabled ? 'default' : 'pointer',
+        opacity: disabled ? 0.4 : 1,
+        transition: 'background 140ms ease',
+        padding: 0,
+      }}
+    >
+      <svg
+        width="12"
+        height="12"
+        viewBox="0 0 12 12"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        {direction === 'left' ? (
+          <polyline points="7.5 2.5 3.5 6 7.5 9.5" />
+        ) : (
+          <polyline points="4.5 2.5 8.5 6 4.5 9.5" />
+        )}
+      </svg>
+    </button>
   )
 }
