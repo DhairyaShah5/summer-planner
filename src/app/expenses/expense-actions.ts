@@ -12,6 +12,7 @@ export interface AddExpenseInput {
   category: string
   account_id: string
   budget_kind?: BudgetKind
+  refund_expected?: number | null
 }
 
 export interface ActionResult {
@@ -36,6 +37,12 @@ export async function addExpense(input: AddExpenseInput): Promise<ActionResult> 
   if (!input.account_id) return { ok: false, error: 'Account required' }
 
   const flags = deriveBudgetFlags(input.budget_kind ?? 'co')
+  const refund =
+    input.refund_expected != null &&
+    Number.isFinite(input.refund_expected) &&
+    input.refund_expected > 0
+      ? input.refund_expected
+      : null
   const { error: insertErr } = await supabase.from('expenses').insert({
     user_id: user.id,
     expense_date: input.expense_date,
@@ -45,6 +52,8 @@ export async function addExpense(input: AddExpenseInput): Promise<ActionResult> 
     account_id: input.account_id,
     count_in_co_budget: flags.count_in_co_budget,
     is_personal: flags.is_personal,
+    refund_expected: refund,
+    refund_settled: false,
   })
   if (insertErr) return { ok: false, error: insertErr.message }
 
@@ -62,6 +71,8 @@ export interface UpdateExpenseInput {
   category: string
   account_id: string
   budget_kind: BudgetKind
+  refund_expected?: number | null
+  refund_settled?: boolean
 }
 
 export async function updateExpense(
@@ -83,6 +94,12 @@ export async function updateExpense(
   if (!input.account_id) return { ok: false, error: 'Account required' }
 
   const flags = deriveBudgetFlags(input.budget_kind)
+  const refund =
+    input.refund_expected != null &&
+    Number.isFinite(input.refund_expected) &&
+    input.refund_expected > 0
+      ? input.refund_expected
+      : null
   const { error } = await supabase
     .from('expenses')
     .update({
@@ -93,6 +110,8 @@ export async function updateExpense(
       account_id: input.account_id,
       count_in_co_budget: flags.count_in_co_budget,
       is_personal: flags.is_personal,
+      refund_expected: refund,
+      refund_settled: refund != null ? (input.refund_settled ?? false) : false,
     })
     .eq('id', input.id)
     .eq('user_id', user.id)
@@ -123,6 +142,31 @@ export async function setExpenseBudgetKind(
       count_in_co_budget: flags.count_in_co_budget,
       is_personal: flags.is_personal,
     })
+    .eq('id', expenseId)
+    .eq('user_id', user.id)
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/expenses')
+  revalidatePath('/')
+  revalidatePath('/accounts')
+  revalidatePath('/weekly')
+  return { ok: true }
+}
+
+export async function setExpenseRefundSettled(
+  expenseId: string,
+  settled: boolean,
+): Promise<ActionResult> {
+  if (await isViewMode()) return viewOnlyError()
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Not signed in' }
+
+  const { error } = await supabase
+    .from('expenses')
+    .update({ refund_settled: settled })
     .eq('id', expenseId)
     .eq('user_id', user.id)
   if (error) return { ok: false, error: error.message }

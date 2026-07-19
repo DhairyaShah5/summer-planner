@@ -54,6 +54,9 @@ export default async function ExpensesPage() {
     account_id: e.account_id ?? null,
     count_in_co_budget: e.count_in_co_budget ?? true,
     is_personal: e.is_personal ?? false,
+    refund_expected:
+      e.refund_expected != null ? Number(e.refund_expected) : null,
+    refund_settled: e.refund_settled ?? false,
     created_at: e.created_at,
   }))
 
@@ -152,8 +155,18 @@ export default async function ExpensesPage() {
 
     cumSpent = expenses
       .filter((e) => e.expense_date <= todayISO && e.count_in_co_budget !== false)
-      .reduce((acc, e) => acc + e.amount, 0)
+      .reduce(
+        (acc, e) => acc + (e.amount - (e.refund_expected ?? 0)),
+        0,
+      )
   }
+
+  const pendingRefundTotal = expenses
+    .filter((e) => (e.refund_expected ?? 0) > 0 && !e.refund_settled)
+    .reduce((s, e) => s + (e.refund_expected ?? 0), 0)
+  const settledRefundTotal = expenses
+    .filter((e) => (e.refund_expected ?? 0) > 0 && e.refund_settled)
+    .reduce((s, e) => s + (e.refund_expected ?? 0), 0)
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
@@ -174,6 +187,8 @@ export default async function ExpensesPage() {
         accounts={accounts}
         cumMaxAllowed={cumMaxAllowed}
         cumSpent={cumSpent}
+        pendingRefundTotal={pendingRefundTotal}
+        settledRefundTotal={settledRefundTotal}
       />
     </div>
   )

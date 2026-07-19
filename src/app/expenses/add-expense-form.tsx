@@ -58,6 +58,7 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
   const [category, setCategory] = useState<string>(EXPENSE_CATEGORIES[0].id)
   const [accountId, setAccountId] = useState<string>(defaultAccountId ?? '')
   const [budgetKind, setBudgetKind] = useState<'co' | 'reimbursable' | 'personal'>('co')
+  const [refundExpected, setRefundExpected] = useState('')
 
   useEffect(() => {
     descriptionRef.current?.focus()
@@ -82,6 +83,17 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
       return
     }
 
+    const refundRaw = refundExpected.trim()
+    const refundNum = refundRaw ? parseFloat(refundRaw) : null
+    if (refundNum != null && (!Number.isFinite(refundNum) || refundNum < 0)) {
+      toast.error('Invalid refund amount')
+      return
+    }
+    if (refundNum != null && refundNum > amt) {
+      toast.error('Refund cannot exceed the expense amount')
+      return
+    }
+
     startTransition(async () => {
       const res = await addExpense({
         expense_date: date,
@@ -90,6 +102,7 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
         category: category.trim(),
         account_id: accountId,
         budget_kind: budgetKind,
+        refund_expected: refundNum && refundNum > 0 ? refundNum : null,
       })
       if (!res.ok) {
         toast.error(res.error ?? 'Could not add expense')
@@ -98,6 +111,7 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
       toast.success(`Added $${amt.toFixed(2)} · ${category}`)
       setDescription('')
       setAmount('')
+      setRefundExpected('')
       descriptionRef.current?.focus()
       router.refresh()
     })
@@ -334,6 +348,49 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
                 )
               })}
             </div>
+          </div>
+
+          <div style={{ marginBottom: 18 }}>
+            <label
+              style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
+            >
+              <span style={fieldLabel}>Partial refund expected (optional)</span>
+              <div style={{ position: 'relative', maxWidth: 220 }}>
+                <span
+                  style={{
+                    position: 'absolute',
+                    left: 13,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: 'var(--ink-3)',
+                    font: '600 15px var(--display)',
+                    pointerEvents: 'none',
+                    zIndex: 1,
+                  }}
+                >
+                  $
+                </span>
+                <Input
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  value={refundExpected}
+                  onChange={(e) =>
+                    setRefundExpected(e.target.value.replace(/[^0-9.]/g, ''))
+                  }
+                  disabled={pending}
+                  style={{ paddingLeft: 25 }}
+                />
+              </div>
+              <span
+                style={{
+                  font: '400 11.5px var(--ui)',
+                  color: 'var(--ink-3)',
+                }}
+              >
+                For statement credits, card refunds, or store returns. The
+                refunded amount is excluded from CO budget.
+              </span>
+            </label>
           </div>
 
           <Button

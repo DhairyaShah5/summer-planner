@@ -44,7 +44,8 @@ export function ExpenseCharts({ expenses }: Props) {
     const totals = new Map<string, number>()
     for (const e of budgetedExpenses) {
       const key = (e.category || 'Other').trim() || 'Other'
-      totals.set(key, (totals.get(key) ?? 0) + e.amount)
+      const net = e.amount - (e.refund_expected ?? 0)
+      totals.set(key, (totals.get(key) ?? 0) + net)
     }
     return Array.from(totals.entries())
       .map(([label, total]) => ({ label, total, hue: hueForCategory(label) }))
@@ -58,7 +59,8 @@ export function ExpenseCharts({ expenses }: Props) {
     const wk = new Map<string, number>()
     for (const e of budgetedExpenses) {
       const k = mondayKey(e.expense_date)
-      wk.set(k, (wk.get(k) ?? 0) + e.amount)
+      const net = e.amount - (e.refund_expected ?? 0)
+      wk.set(k, (wk.get(k) ?? 0) + net)
     }
     return Array.from(wk.entries())
       .sort(([a], [b]) => a.localeCompare(b))

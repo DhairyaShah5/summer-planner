@@ -121,7 +121,7 @@ export default async function DashboardPage() {
       .limit(5),
     supabase
       .from("expenses")
-      .select("amount, count_in_co_budget")
+      .select("amount, count_in_co_budget, refund_expected")
       .lte("expense_date", todayISO),
     supabase
       .from("accounts")
@@ -154,6 +154,9 @@ export default async function DashboardPage() {
     account_id: e.account_id ?? null,
     count_in_co_budget: e.count_in_co_budget,
     is_personal: e.is_personal ?? false,
+    refund_expected:
+      e.refund_expected != null ? Number(e.refund_expected) : null,
+    refund_settled: e.refund_settled ?? false,
     created_at: e.created_at,
   }));
 
@@ -260,7 +263,11 @@ export default async function DashboardPage() {
   // (count_in_co_budget === false) are excluded from the CO budget tile.
   const cumSpent = (cumExpensesRes.data ?? [])
     .filter((e) => e.count_in_co_budget !== false)
-    .reduce((s, e) => s + (e.amount ?? 0), 0);
+    .reduce(
+      (s, e) =>
+        s + ((e.amount ?? 0) - (e.refund_expected ? Number(e.refund_expected) : 0)),
+      0,
+    );
 
   // Cumulative CO maximum allowed = sum of CO from every paycheck whose
   // pay_date <= this Sunday (end of current week). Unspent CO from prior

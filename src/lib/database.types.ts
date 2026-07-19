@@ -147,6 +147,8 @@ export type Database = {
           expense_date: string
           id: string
           is_personal: boolean
+          refund_expected: number | null
+          refund_settled: boolean
           user_id: string
         }
         Insert: {
@@ -159,6 +161,8 @@ export type Database = {
           expense_date: string
           id?: string
           is_personal?: boolean
+          refund_expected?: number | null
+          refund_settled?: boolean
           user_id: string
         }
         Update: {
@@ -171,6 +175,8 @@ export type Database = {
           expense_date?: string
           id?: string
           is_personal?: boolean
+          refund_expected?: number | null
+          refund_settled?: boolean
           user_id?: string
         }
         Relationships: [

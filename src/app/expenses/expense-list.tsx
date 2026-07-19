@@ -3,7 +3,15 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { format, endOfWeek, startOfWeek } from 'date-fns'
-import { Loader2Icon, Pencil, Receipt, Sparkles, Trash2 } from 'lucide-react'
+import {
+  Check,
+  CircleDashed,
+  Loader2Icon,
+  Pencil,
+  Receipt,
+  Sparkles,
+  Trash2,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import type { Expense } from '@/lib/types'
@@ -31,6 +39,7 @@ import {
 import {
   deleteExpense,
   setExpenseBudgetKind,
+  setExpenseRefundSettled,
   updateExpense,
 } from './expense-actions'
 import { classifyBudgetKind, type BudgetKind } from './budget-kind'
@@ -94,6 +103,8 @@ interface Props {
   accounts: AccountOption[]
   cumMaxAllowed: number
   cumSpent: number
+  pendingRefundTotal: number
+  settledRefundTotal: number
 }
 
 export function ExpenseList({
@@ -101,6 +112,8 @@ export function ExpenseList({
   accounts,
   cumMaxAllowed,
   cumSpent,
+  pendingRefundTotal,
+  settledRefundTotal,
 }: Props) {
   const router = useRouter()
   const viewMode = useViewMode()
@@ -117,7 +130,10 @@ export function ExpenseList({
   const [editCategory, setEditCategory] = useState('')
   const [editAccountId, setEditAccountId] = useState('')
   const [editBudgetKind, setEditBudgetKind] = useState<BudgetKind>('co')
+  const [editRefundExpected, setEditRefundExpected] = useState('')
+  const [editRefundSettled, setEditRefundSettled] = useState(false)
   const [editPending, startEditTransition] = useTransition()
+  const [refundTogglingId, setRefundTogglingId] = useState<string | null>(null)
 
   function openEdit(e: Expense) {
     setEditing(e)
@@ -127,6 +143,10 @@ export function ExpenseList({
     setEditCategory(e.category || EXPENSE_CATEGORIES[0].id)
     setEditAccountId(e.account_id ?? '')
     setEditBudgetKind(classifyBudgetKind(e))
+    setEditRefundExpected(
+      e.refund_expected != null ? String(e.refund_expected) : '',
+    )
+    setEditRefundSettled(e.refund_settled ?? false)
   }
 
   function handleSaveEdit() {
@@ -145,6 +165,16 @@ export function ExpenseList({
       return
     }
     const id = editing.id
+    const refundRaw = editRefundExpected.trim()
+    const refundNum = refundRaw ? parseFloat(refundRaw) : null
+    if (refundNum != null && (!Number.isFinite(refundNum) || refundNum < 0)) {
+      toast.error('Invalid refund amount')
+      return
+    }
+    if (refundNum != null && refundNum > amt) {
+      toast.error('Refund cannot exceed the expense amount')
+      return
+    }
     startEditTransition(async () => {
       const res = await updateExpense({
         id,
@@ -154,6 +184,8 @@ export function ExpenseList({
         category: editCategory,
         account_id: editAccountId,
         budget_kind: editBudgetKind,
+        refund_expected: refundNum && refundNum > 0 ? refundNum : null,
+        refund_settled: refundNum && refundNum > 0 ? editRefundSettled : false,
       })
       if (!res.ok) {
         toast.error(res.error ?? 'Could not update')
@@ -163,6 +195,21 @@ export function ExpenseList({
       setEditing(null)
       router.refresh()
     })
+  }
+
+  async function handleToggleRefundSettled(e: Expense) {
+    if ((e.refund_expected ?? 0) <= 0) return
+    setRefundTogglingId(e.id)
+    const res = await setExpenseRefundSettled(e.id, !e.refund_settled)
+    setRefundTogglingId(null)
+    if (!res.ok) {
+      toast.error(res.error ?? 'Could not update refund')
+      return
+    }
+    toast.success(
+      !e.refund_settled ? 'Refund marked received' : 'Refund marked pending',
+    )
+    router.refresh()
   }
 
   async function handleCycleBudgetKind(e: Expense) {
@@ -300,6 +347,64 @@ export function ExpenseList({
           </CardContent>
         </Card>
       </Reveal>
+
+      {(pendingRefundTotal > 0 || settledRefundTotal > 0) && (
+        <Reveal delay={70}>
+          <Card
+            className="mb-4"
+            style={{
+              padding: '12px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              flexWrap: 'wrap',
+            }}
+          >
+            <CardContent
+              style={{
+                padding: 0,
+                width: '100%',
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: 14,
+                flexWrap: 'wrap',
+              }}
+            >
+              <span
+                style={{
+                  font: '600 11.5px var(--ui)',
+                  letterSpacing: '.06em',
+                  textTransform: 'uppercase',
+                  color: 'var(--ink-3)',
+                }}
+              >
+                Pending card refunds
+              </span>
+              <span
+                style={{
+                  font: '600 18px var(--display)',
+                  color: 'var(--ink-1)',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {fmtMoney(pendingRefundTotal, { cents: true })}
+              </span>
+              {settledRefundTotal > 0 && (
+                <span
+                  style={{
+                    font: '500 12px var(--ui)',
+                    color: 'var(--ink-3)',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  · {fmtMoney(settledRefundTotal, { cents: true })} already
+                  received
+                </span>
+              )}
+            </CardContent>
+          </Card>
+        </Reveal>
+      )}
 
       <Reveal delay={80}>
         <ExpenseCharts expenses={expenses} />
@@ -472,6 +577,30 @@ export function ExpenseList({
                                     : 'Off-budget'}
                                 </span>
                               )}
+                              {(e.refund_expected ?? 0) > 0 && (
+                                <span
+                                  style={{
+                                    font: '600 11px var(--ui)',
+                                    padding: '2px 8px',
+                                    borderRadius: 6,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    background: e.refund_settled
+                                      ? 'color-mix(in oklch, var(--pos) 22%, transparent)'
+                                      : 'color-mix(in oklch, var(--accent) 20%, transparent)',
+                                    color: e.refund_settled
+                                      ? 'var(--pos-ink)'
+                                      : 'var(--accent-ink)',
+                                  }}
+                                >
+                                  {fmtMoney(e.refund_expected!, {
+                                    cents: true,
+                                  })}{' '}
+                                  refund{' '}
+                                  {e.refund_settled ? 'received' : 'pending'}
+                                </span>
+                              )}
                               {acct && (
                                 <span
                                   style={{
@@ -499,6 +628,38 @@ export function ExpenseList({
                           </span>
                           {!viewMode && (
                             <>
+                              {(e.refund_expected ?? 0) > 0 && (
+                                <Button
+                                  type="button"
+                                  size="icon-sm"
+                                  variant="ghost"
+                                  onClick={() => handleToggleRefundSettled(e)}
+                                  disabled={refundTogglingId === e.id}
+                                  aria-label={
+                                    e.refund_settled
+                                      ? 'Mark refund pending'
+                                      : 'Mark refund received'
+                                  }
+                                  title={
+                                    e.refund_settled
+                                      ? 'Refund received · click to mark pending'
+                                      : 'Refund pending · click to mark received'
+                                  }
+                                  style={{
+                                    color: e.refund_settled
+                                      ? 'var(--pos-ink)'
+                                      : 'var(--ink-4)',
+                                  }}
+                                >
+                                  {refundTogglingId === e.id ? (
+                                    <Loader2Icon className="size-4 animate-spin" />
+                                  ) : e.refund_settled ? (
+                                    <Check className="size-4" />
+                                  ) : (
+                                    <CircleDashed className="size-4" />
+                                  )}
+                                </Button>
+                              )}
                               <Button
                                 type="button"
                                 size="icon-sm"
@@ -786,6 +947,63 @@ export function ExpenseList({
                   )
                 })}
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-refund">Partial refund expected</Label>
+              <div style={{ position: 'relative', maxWidth: 220 }}>
+                <span
+                  style={{
+                    position: 'absolute',
+                    left: 12,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: 'var(--ink-3)',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  $
+                </span>
+                <Input
+                  id="edit-refund"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  value={editRefundExpected}
+                  onChange={(e) => setEditRefundExpected(e.target.value)}
+                  disabled={editPending}
+                  style={{ paddingLeft: 24 }}
+                  placeholder="0.00"
+                />
+              </div>
+              {editRefundExpected.trim() &&
+                parseFloat(editRefundExpected) > 0 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      marginTop: 4,
+                    }}
+                  >
+                    <Checkbox
+                      id="edit-refund-settled"
+                      checked={editRefundSettled}
+                      onCheckedChange={(v) => setEditRefundSettled(v === true)}
+                      disabled={editPending}
+                    />
+                    <label
+                      htmlFor="edit-refund-settled"
+                      style={{
+                        font: '500 12.5px var(--ui)',
+                        color: 'var(--ink-2)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Refund received
+                    </label>
+                  </div>
+                )}
             </div>
           </div>
           <DialogFooter>

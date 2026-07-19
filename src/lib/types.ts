@@ -25,5 +25,7 @@ export interface Expense {
   account_id: string | null
   count_in_co_budget: boolean
   is_personal: boolean
+  refund_expected: number | null
+  refund_settled: boolean
   created_at: string
 }

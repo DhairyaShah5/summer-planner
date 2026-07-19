@@ -209,7 +209,8 @@ export default async function WeeklyPage() {
       if (exp.count_in_co_budget === false) continue
       const ed = parseISO(exp.expense_date)
       if (!isAfter(ed, weekEnd)) {
-        actualCumulative += exp.amount
+        actualCumulative +=
+          exp.amount - (exp.refund_expected ? Number(exp.refund_expected) : 0)
       }
     }
     const variance = targetCumulative - actualCumulative
@@ -241,7 +242,11 @@ export default async function WeeklyPage() {
   // expenses (count_in_co_budget === false) are excluded.
   const totalActualToDate = expenseRows
     .filter((e) => e.count_in_co_budget !== false)
-    .reduce((sum, e) => sum + (e.amount ?? 0), 0)
+    .reduce(
+      (sum, e) =>
+        sum + ((e.amount ?? 0) - (e.refund_expected ? Number(e.refund_expected) : 0)),
+      0,
+    )
   const summerRemaining = totalSummerCO - totalActualToDate
 
   // --- Rollover sweep computation ---
@@ -272,7 +277,9 @@ export default async function WeeklyPage() {
     // Off-budget expenses don't enter the rollover-sweep math.
     if (exp.count_in_co_budget === false) continue
     if (exp.expense_date <= lastSundayISO) {
-      cumSpentThroughLastSunday += exp.amount ?? 0
+      cumSpentThroughLastSunday +=
+        (exp.amount ?? 0) -
+        (exp.refund_expected ? Number(exp.refund_expected) : 0)
     }
   }
 
