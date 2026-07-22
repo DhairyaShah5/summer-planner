@@ -696,7 +696,7 @@ export function PaychecksTable({
                             rent: c.rentPaid,
                             robinhood: c.robinhood,
                             bofaOverflow: c.bofaOverflow,
-                            total: c.co + c.buffer,
+                            total: c.co + c.buffer + c.reimbursement,
                           }}
                         />
                       </Td>
@@ -1001,10 +1001,11 @@ export function PaychecksTable({
                   color: 'var(--ink-3)',
                 }}
               >
-                What actually stays in Chase after every transfer clears.
-                Wages plus reimbursement, minus Vault / Rent / RH / CO / BofA.
-                Positive amounts accumulate; a negative row means the
-                paycheck's transfers exceeded the money that came in.
+                Wage-only leftover per paycheck — what stays in Chase after
+                Vault / Rent / RH / CO / BofA clear. Reimbursements are
+                excluded (they're earmarked to offset a fronted expense, not
+                sweep-eligible). A negative row means transfers out exceeded
+                that check's wages.
               </div>
 
               <BufferSparkline
@@ -1557,12 +1558,13 @@ function BufferBreakdownDialogContent({
       <DialogHeader>
         <DialogTitle>Buffer per paycheck</DialogTitle>
         <DialogDescription>
-          Wages + reimbursement − Vault / Rent / RH / CO / BofA for each row.
-          Received paychecks feed the current total; pending ones roll into
-          the projected total. Any Chase → Marcus sweeps are subtracted at
-          the bottom so the totals reflect what actually stays in Chase.
-          Negative rows flag paychecks whose transfers out exceeded the
-          money coming in.
+          Wages − Vault / Rent / RH / CO / BofA for each row. Reimbursements
+          are excluded (they're earmarked to offset a fronted expense, not
+          sweep-eligible surplus). Received paychecks feed the current total;
+          pending ones roll into the projected total. Any Chase → Marcus
+          sweeps are subtracted at the bottom so the totals reflect what
+          actually stays in Chase as wage buffer. Negative rows flag
+          paychecks whose transfers out exceeded the wages coming in.
         </DialogDescription>
       </DialogHeader>
       <div style={{ maxHeight: '55vh', overflowY: 'auto', marginTop: 4 }}>

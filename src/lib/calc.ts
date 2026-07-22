@@ -152,9 +152,10 @@ export function mondaysBetween(startISO: string, endISO: string): string[] {
  *
  * NOTE on reimbursement: `reimbursement` is a tax-free pass-through inflow
  * to Chase Checking only (e.g. SAP Concur metro pass refund). It's invisible
- * to vault, CO, RH, BofA overflow, and netPct, but it DOES land in `buffer`
- * so the Chase remainder accounts for it (and can go negative when transfers
- * out exceed wages + reimbursement).
+ * to vault, CO, RH, BofA overflow, netPct, AND `buffer` — reimbursement money
+ * is earmarked to offset the fronted expense, not sweep-eligible surplus.
+ * It still lands in Chase (see computeAccountStates), just doesn't inflate
+ * the wage-buffer that drives the Chase → Marcus sweep suggestion.
  */
 export function computeRow(
   prevCumulative: number,
@@ -277,14 +278,17 @@ export function computeRow(
       ? Math.max(0, bofaOverride)
       : floor100(excess) + perDiem
 
-  // 16. Buffer - what actually stays in Chase from this paycheck once all
-  //     transfers clear. Per diem nets to zero (added as income, fully
-  //     removed via bofaOverflow). Reimbursement lands here as a pass-through
-  //     inflow. Can go negative when vault/RH/BofA together exceed the
-  //     paycheck's inflows - that surfaces an over-allocated check instead
-  //     of silently clamping the shortfall to zero.
+  // 16. Buffer - the sub-$100 wage remainder that stays in Chase from this
+  //     paycheck once all planned transfers clear. Per diem nets to zero
+  //     (added as income, fully removed via bofaOverflow). Reimbursement is
+  //     EXCLUDED — it's a pass-through inflow earmarked for the fronted
+  //     expense, not sweep-eligible surplus. See computeAccountStates for
+  //     the true Chase balance (which does include reimbursement).
+  //     Can go negative when vault/RH/BofA together exceed the paycheck's
+  //     wage inflows - surfaces an over-allocated check instead of silently
+  //     clamping the shortfall to zero.
   const buffer =
-    baseNet + perDiem + reimbursement - vault - rentPaid - robinhood - co - bofaOverflow
+    baseNet + perDiem - vault - rentPaid - robinhood - co - bofaOverflow
 
   // 17. Status - driven by the explicit `received` flag only.
   const status: 'Received' | 'Pending' = received ? 'Received' : 'Pending'
