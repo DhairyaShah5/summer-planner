@@ -42,7 +42,9 @@ export default async function AccountsPage() {
     supabase.from('paychecks').select('*').order('pay_num', { ascending: true }),
     supabase
       .from('expenses')
-      .select('id, expense_date, amount, account_id, description, category'),
+      .select(
+        'id, expense_date, amount, account_id, description, category, refund_expected, refund_settled',
+      ),
     supabase
       .from('cc_payments')
       .select('*')
@@ -140,6 +142,9 @@ export default async function AccountsPage() {
     expense_date: e.expense_date,
     amount: Number(e.amount),
     account_id: e.account_id,
+    refund_expected:
+      e.refund_expected != null ? Number(e.refund_expected) : null,
+    refund_settled: e.refund_settled ?? false,
   }))
 
   const ccPayments: CCPaymentInput[] = (ccPaymentsRes.data ?? []).map((p) => ({
@@ -262,6 +267,9 @@ export default async function AccountsPage() {
     account_id: e.account_id ?? null,
     description: e.description ?? '',
     category: e.category ?? '',
+    refund_expected:
+      e.refund_expected != null ? Number(e.refund_expected) : null,
+    refund_settled: e.refund_settled ?? false,
   }))
 
   const ledgerCCPaymentRows = ccPayments.map((p) => ({

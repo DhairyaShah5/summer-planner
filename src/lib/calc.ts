@@ -372,6 +372,11 @@ export interface ExpenseInput {
   expense_date: string
   amount: number
   account_id: string | null
+  /** Partial refund tracker: when `refund_settled` flips true, the effective
+   *  dollar impact on the account is `amount - refund_expected` (money returned
+   *  to the CC / checking). While pending, the full amount stands. */
+  refund_expected?: number | null
+  refund_settled?: boolean
 }
 
 export type CCPaymentKind = 'payment' | 'refund_claim'
@@ -571,7 +576,14 @@ export function computeAccountStates(
     // --- Expense flows ---
     for (const exp of expenses) {
       if (exp.account_id !== account.id) continue
-      const delta = account.type === 'credit_card' ? exp.amount : -exp.amount
+      // Settled partial refunds shrink the net dollar impact: on a CC that's
+      // a statement credit; on checking it's an ACH return. Pending refunds
+      // don't move real money yet, so they stay at full amount here.
+      const settledRefund = exp.refund_settled
+        ? Number(exp.refund_expected ?? 0)
+        : 0
+      const netAmount = exp.amount - settledRefund
+      const delta = account.type === 'credit_card' ? netAmount : -netAmount
       fullSummer += delta
       // No projected (future-dated) expenses are tracked separately yet, so
       // to-date matches full-summer for any expense already in the system.

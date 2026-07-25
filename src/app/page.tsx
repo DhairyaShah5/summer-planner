@@ -131,7 +131,9 @@ export default async function DashboardPage() {
       .order("display_order", { ascending: true }),
     supabase
       .from("expenses")
-      .select("id, expense_date, amount, account_id"),
+      .select(
+        "id, expense_date, amount, account_id, refund_expected, refund_settled",
+      ),
     supabase
       .from("cc_payments")
       .select("id, paid_at, from_account_id, to_account_id, amount, kind"),
@@ -178,6 +180,9 @@ export default async function DashboardPage() {
     expense_date: e.expense_date,
     amount: Number(e.amount),
     account_id: e.account_id ?? null,
+    refund_expected:
+      e.refund_expected != null ? Number(e.refund_expected) : null,
+    refund_settled: e.refund_settled ?? false,
   }));
 
   const ccPaymentInputs: CCPaymentInput[] = (ccPaymentsRes.data ?? []).map(

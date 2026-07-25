@@ -124,6 +124,8 @@ export interface LedgerExpenseRow {
   account_id: string | null
   description: string
   category: string
+  refund_expected?: number | null
+  refund_settled?: boolean
 }
 
 /** Slimmed CC payment row used to derive ledger entries on both sides. */
@@ -741,6 +743,21 @@ export function AccountsList({
         amount,
         category: e.category,
       })
+      // Companion row when a partial refund has been marked received: on a
+      // CC it posts as a statement credit; on checking it's an ACH return.
+      // Dated same as the expense (we don't track refund-posted-on yet).
+      const refundAmt = Number(e.refund_expected ?? 0)
+      if (e.refund_settled && refundAmt > 0) {
+        const refundDelta = acctType === 'credit_card' ? -refundAmt : +refundAmt
+        items.push({
+          key: `exp-refund-${e.id}`,
+          date: e.expense_date,
+          source: 'expense',
+          description: `Refund — ${e.description || 'Expense'}`,
+          amount: refundDelta,
+          category: e.category,
+        })
+      }
     }
 
     // 4. CC payments touching this account. Default 'payment' flows checking
