@@ -501,8 +501,14 @@ export function PaychecksTable({
                       : null
                   const rentDate =
                     row.flow_overrides.rent ?? defaultRentDate(row.pay_date)
+                  // Chase-only rent outflow override (set from the accounts
+                  // ledger). Falls back to rent_paid when unset. Only the
+                  // outflow shifts; rent_paid still drives the allocator.
+                  const rentAmountRaw = row.flow_overrides.rent_amount
+                  const effectiveRent =
+                    rentAmountRaw != null ? Number(rentAmountRaw) : row.rent_paid
                   const rentTick: { filled: boolean } | null =
-                    row.received && row.rent_paid > 0 && rentDate <= todayISO
+                    row.received && effectiveRent > 0 && rentDate <= todayISO
                       ? { filled: true }
                       : null
                   const coTick: { filled: boolean } | null =
@@ -548,7 +554,11 @@ export function PaychecksTable({
                               <KV label="Net %" v={pct.format(c.netPct)} />
                               <KV
                                 label="Rent Paid"
-                                v={fmtMoney(row.rent_paid, { cents: true })}
+                                v={
+                                  effectiveRent !== row.rent_paid
+                                    ? `${fmtMoney(effectiveRent, { cents: true })} (of ${fmtMoney(row.rent_paid, { cents: true })})`
+                                    : fmtMoney(row.rent_paid, { cents: true })
+                                }
                               />
                               <KV
                                 label="Buffer"
@@ -661,7 +671,7 @@ export function PaychecksTable({
                       </Td>
                       <Td align="center" last={isLast}>
                         <CellWithTicks tick={rentTick}>
-                          <MoneyCell value={row.rent_paid} hue={HUE.rent} />
+                          <MoneyCell value={effectiveRent} hue={HUE.rent} />
                         </CellWithTicks>
                       </Td>
                       <Td align="center" last={isLast}>
@@ -686,21 +696,40 @@ export function PaychecksTable({
                         </CellWithTicks>
                       </Td>
                       <Td align="center" last={isLast}>
-                        <NotesPopover
-                          chaseBreakdown={{
-                            wages:
-                              c.received && c.actualNetWages != null
-                                ? c.actualNetWages
-                                : c.estimatedNet,
-                            perDiem: c.perDiem,
-                            reimbursement: c.reimbursement,
-                            vault: c.vault,
-                            rent: c.rentPaid,
-                            robinhood: c.robinhood,
-                            bofaOverflow: c.bofaOverflow,
-                            total: c.co + c.buffer + c.reimbursement,
-                          }}
-                        />
+                        {(() => {
+                          // Effective rent outflow honors the Chase-only
+                          // override set via the accounts ledger. `rentPaid`
+                          // remains the allocator input (so vault/CO/BofA
+                          // don't shift); any positive delta stays in Chase
+                          // and must be added back to the "Stays in Chase"
+                          // total so the popover matches the account ledger.
+                          const effectiveRent =
+                            c.rentAmountOverride != null
+                              ? c.rentAmountOverride
+                              : c.rentPaid
+                          const rentRetained = c.rentPaid - effectiveRent
+                          return (
+                            <NotesPopover
+                              chaseBreakdown={{
+                                wages:
+                                  c.received && c.actualNetWages != null
+                                    ? c.actualNetWages
+                                    : c.estimatedNet,
+                                perDiem: c.perDiem,
+                                reimbursement: c.reimbursement,
+                                vault: c.vault,
+                                rent: effectiveRent,
+                                robinhood: c.robinhood,
+                                bofaOverflow: c.bofaOverflow,
+                                total:
+                                  c.co +
+                                  c.buffer +
+                                  c.reimbursement +
+                                  rentRetained,
+                              }}
+                            />
+                          )
+                        })()}
                       </Td>
                     </tr>
                   )
