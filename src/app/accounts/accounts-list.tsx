@@ -55,7 +55,11 @@ import {
   deleteAccountEntry,
   updateAccountEntry,
 } from './account-entry-actions'
-import { setFlowOverride, type FlowKind } from './flow-override-actions'
+import {
+  setFlowOverride,
+  setPaycheckRentAmount,
+  type FlowKind,
+} from './flow-override-actions'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useViewMode } from '@/components/view-mode-context'
 import {
@@ -355,6 +359,7 @@ export function AccountsList({
     null,
   )
   const [overrideDateDraft, setOverrideDateDraft] = useState<string>('')
+  const [overrideAmountDraft, setOverrideAmountDraft] = useState<string>('')
   const [overrideSavingKey, setOverrideSavingKey] = useState<string | null>(
     null,
   )
@@ -396,6 +401,26 @@ export function AccountsList({
           return
         }
         toast.success('Reset to paycheck date')
+        setOverridePopoverKey(null)
+        router.refresh()
+      })
+      .finally(() => setOverrideSavingKey(null))
+  }
+
+  function handleSaveRentAmount(
+    rowKey: string,
+    paycheckId: string,
+    amount: number | null,
+    successMsg: string,
+  ) {
+    setOverrideSavingKey(rowKey)
+    setPaycheckRentAmount(paycheckId, amount)
+      .then((res) => {
+        if (!res.ok) {
+          toast.error(res.error ?? 'Could not update rent')
+          return
+        }
+        toast.success(successMsg)
         setOverridePopoverKey(null)
         router.refresh()
       })
@@ -640,15 +665,25 @@ export function AccountsList({
         }
         if (p.rentPaid > 0) {
           const rentOverride = p.flow_overrides.rent
+          const rentAmountRaw = p.flow_overrides.rent_amount
+          const hasAmountOverride = rentAmountRaw != null
+          const rentOutflow = hasAmountOverride
+            ? Number(rentAmountRaw)
+            : p.rentPaid
+          const removed = hasAmountOverride && rentOutflow === 0
           items.push({
             key: `pay-rent-${p.payNum}`,
             date: rentOverride ?? defaultRentDate(p.payDate),
             source: 'rent_payment',
-            description: 'Rent paid',
-            amount: -p.rentPaid,
+            description: removed
+              ? 'Rent paid (removed — stays in Chase)'
+              : hasAmountOverride
+                ? `Rent paid (edited from ${moneyFmt.format(p.rentPaid)})`
+                : 'Rent paid',
+            amount: -rentOutflow,
             paycheckId: p.id,
             overrideKind: 'rent',
-            hasOverride: Boolean(rentOverride),
+            hasOverride: Boolean(rentOverride) || hasAmountOverride,
           })
         }
         if (p.robinhood > 0) {
@@ -2131,6 +2166,9 @@ export function AccountsList({
                                   if (open) {
                                     setOverridePopoverKey(row.key)
                                     setOverrideDateDraft(row.date)
+                                    setOverrideAmountDraft(
+                                      Math.abs(row.amount).toFixed(2),
+                                    )
                                   } else if (!overrideSavingThis) {
                                     setOverridePopoverKey(null)
                                   }
@@ -2142,7 +2180,7 @@ export function AccountsList({
                                       type="button"
                                       variant="ghost"
                                       size="icon-sm"
-                                      aria-label="Edit date"
+                                      aria-label="Edit entry"
                                       disabled={overrideSavingThis}
                                     />
                                   }
@@ -2155,7 +2193,7 @@ export function AccountsList({
                                 </PopoverTrigger>
                                 <PopoverContent
                                   align="end"
-                                  className="w-64"
+                                  className="w-72"
                                 >
                                   <div
                                     style={{
@@ -2165,7 +2203,9 @@ export function AccountsList({
                                       color: 'var(--ink-3)',
                                     }}
                                   >
-                                    Move this entry
+                                    {row.source === 'rent_payment'
+                                      ? 'Edit rent'
+                                      : 'Move this entry'}
                                   </div>
                                   <div className="space-y-2">
                                     <Label
@@ -2183,46 +2223,147 @@ export function AccountsList({
                                       disabled={overrideSavingThis}
                                     />
                                   </div>
+                                  {row.source === 'rent_payment' && (
+                                    <div className="space-y-2">
+                                      <Label
+                                        htmlFor={`override-amount-${row.key}`}
+                                      >
+                                        Amount
+                                      </Label>
+                                      <Input
+                                        id={`override-amount-${row.key}`}
+                                        type="number"
+                                        inputMode="decimal"
+                                        min="0"
+                                        step="0.01"
+                                        value={overrideAmountDraft}
+                                        onChange={(e) =>
+                                          setOverrideAmountDraft(e.target.value)
+                                        }
+                                        disabled={overrideSavingThis}
+                                      />
+                                      <p
+                                        style={{
+                                          font: '400 11px var(--ui)',
+                                          color: 'var(--ink-3)',
+                                          margin: 0,
+                                        }}
+                                      >
+                                        Trims only the outflow — vault / CO /
+                                        BofA don't shift, the difference just
+                                        stays in Chase.
+                                      </p>
+                                    </div>
+                                  )}
                                   <div
                                     style={{
                                       display: 'flex',
                                       gap: 6,
                                       justifyContent: 'space-between',
                                       marginTop: 4,
+                                      flexWrap: 'wrap',
                                     }}
                                   >
+                                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                          row.paycheckId &&
+                                          row.overrideKind &&
+                                          handleResetFlowOverride(
+                                            row.key,
+                                            row.paycheckId,
+                                            row.overrideKind,
+                                          )
+                                        }
+                                        disabled={overrideSavingThis}
+                                      >
+                                        Reset date
+                                      </Button>
+                                      {row.source === 'rent_payment' && (
+                                        <>
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                              row.paycheckId &&
+                                              handleSaveRentAmount(
+                                                row.key,
+                                                row.paycheckId,
+                                                null,
+                                                'Reset to full rent',
+                                              )
+                                            }
+                                            disabled={overrideSavingThis}
+                                          >
+                                            Reset amount
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                              row.paycheckId &&
+                                              handleSaveRentAmount(
+                                                row.key,
+                                                row.paycheckId,
+                                                0,
+                                                'Rent zeroed — stays in Chase',
+                                              )
+                                            }
+                                            disabled={overrideSavingThis}
+                                            style={{ color: 'var(--accent-ink)' }}
+                                          >
+                                            Delete
+                                          </Button>
+                                        </>
+                                      )}
+                                    </div>
                                     <Button
                                       type="button"
-                                      variant="outline"
                                       size="sm"
-                                      onClick={() =>
-                                        row.paycheckId &&
-                                        row.overrideKind &&
-                                        handleResetFlowOverride(
-                                          row.key,
-                                          row.paycheckId,
-                                          row.overrideKind,
-                                        )
-                                      }
-                                      disabled={
-                                        overrideSavingThis || !row.hasOverride
-                                      }
-                                    >
-                                      Reset
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      onClick={() =>
-                                        row.paycheckId &&
-                                        row.overrideKind &&
-                                        handleSaveFlowOverride(
-                                          row.key,
-                                          row.paycheckId,
-                                          row.overrideKind,
-                                          overrideDateDraft,
-                                        )
-                                      }
+                                      onClick={() => {
+                                        if (!row.paycheckId || !row.overrideKind)
+                                          return
+                                        const dateChanged =
+                                          overrideDateDraft !== row.date
+                                        if (dateChanged) {
+                                          handleSaveFlowOverride(
+                                            row.key,
+                                            row.paycheckId,
+                                            row.overrideKind,
+                                            overrideDateDraft,
+                                          )
+                                        }
+                                        if (row.source === 'rent_payment') {
+                                          const trimmed = overrideAmountDraft.trim()
+                                          if (trimmed === '') {
+                                            toast.error('Enter an amount or use Delete')
+                                            return
+                                          }
+                                          const nextAmount = Number(trimmed)
+                                          if (!Number.isFinite(nextAmount) || nextAmount < 0) {
+                                            toast.error('Amount must be a non-negative number')
+                                            return
+                                          }
+                                          const amountChanged =
+                                            nextAmount.toFixed(2) !==
+                                            Math.abs(row.amount).toFixed(2)
+                                          if (amountChanged) {
+                                            handleSaveRentAmount(
+                                              row.key,
+                                              row.paycheckId,
+                                              nextAmount,
+                                              'Rent updated',
+                                            )
+                                            return
+                                          }
+                                        }
+                                        if (!dateChanged) setOverridePopoverKey(null)
+                                      }}
                                       disabled={overrideSavingThis}
                                     >
                                       {overrideSavingThis ? (

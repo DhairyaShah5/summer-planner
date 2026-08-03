@@ -84,6 +84,8 @@ export default async function DashboardPage() {
       grossOverride: p.gross_override,
       rentPaid: p.rent_paid,
       rentDateOverride: overrides.rent ?? null,
+      rentAmountOverride:
+        overrides.rent_amount != null ? Number(overrides.rent_amount) : null,
       coOverride: overrides.co_amount != null ? Number(overrides.co_amount) : null,
       bofaOverride:
         overrides.bofa_overflow != null ? Number(overrides.bofa_overflow) : null,

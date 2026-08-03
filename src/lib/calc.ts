@@ -55,6 +55,12 @@ export interface PaycheckInput {
    *  month following payDate. Decouples rent from paycheck date so Chase
    *  reflects cash that's still sitting until rent is actually paid. */
   rentDateOverride?: string | null
+  /** Overrides the rent OUTFLOW amount only (Chase-side).  `rentPaid` still
+   *  drives `computeAll` allocation so vault/CO/BofA don't shift when the
+   *  user edits this. Any positive delta (rentPaid − override) just stays in
+   *  Chase. `0` means the row still renders in the ledger but no cash moves.
+   *  Null / undefined = no override (use `rentPaid`). */
+  rentAmountOverride?: number | null
   /** Locks this row's CO Spend allocation to a fixed dollar amount, ignoring
    *  the netPct-derived formula. Any residual (from wages that would have
    *  landed in CO but didn't) falls into buffer / stays in Chase. Used to
@@ -528,11 +534,15 @@ export function computeAccountStates(
         if (row.received) toDate += row.reimbursement
         // Rent: outflow lands on its own date.  fullSummer counts every
         // rent regardless; toDate only counts rents that have actually
-        // happened by `today`.
-        if (row.rentPaid > 0) {
+        // happened by `today`. Honors rentAmountOverride so the user can
+        // trim/zero a rent row without disturbing the allocator (which
+        // still uses `rentPaid`); the delta just stays in Chase.
+        const rentOut =
+          row.rentAmountOverride != null ? row.rentAmountOverride : row.rentPaid
+        if (rentOut > 0) {
           const rentDate = row.rentDateOverride ?? defaultRentDate(payDateISO)
-          fullSummer -= row.rentPaid
-          if (rentDate <= today) toDate -= row.rentPaid
+          fullSummer -= rentOut
+          if (rentDate <= today) toDate -= rentOut
         }
       }
       // Weekly Robinhood: $robinhoodWeekly drains Chase every Monday from
