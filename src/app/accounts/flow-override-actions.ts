@@ -48,3 +48,53 @@ export async function setFlowOverride(
   revalidatePath('/paychecks')
   return { ok: true }
 }
+
+/** Update a paycheck's rent_paid amount. Pass 0 to remove the rent row
+ *  entirely from the ledger (also clears any rent date override so the
+ *  row doesn't linger as a $0 entry with an off-paycheck date). */
+export async function setPaycheckRentAmount(
+  paycheck_id: string,
+  amount: number,
+): Promise<ActionResult> {
+  if (await isViewMode()) return viewOnlyError()
+  if (!Number.isFinite(amount) || amount < 0) {
+    return { ok: false, error: 'Amount must be a non-negative number' }
+  }
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Not signed in' }
+
+  const { data, error } = await supabase
+    .from('paychecks')
+    .select('flow_overrides')
+    .eq('id', paycheck_id)
+    .eq('user_id', user.id)
+    .single()
+  if (error) return { ok: false, error: error.message }
+
+  const patch: { rent_paid: number; flow_overrides?: Record<string, string> } =
+    { rent_paid: amount }
+
+  if (amount === 0) {
+    const current =
+      (data?.flow_overrides as Record<string, string> | null) ?? {}
+    if (current.rent) {
+      const next = { ...current }
+      delete next.rent
+      patch.flow_overrides = next
+    }
+  }
+
+  const { error: updErr } = await supabase
+    .from('paychecks')
+    .update(patch)
+    .eq('id', paycheck_id)
+    .eq('user_id', user.id)
+  if (updErr) return { ok: false, error: updErr.message }
+
+  revalidatePath('/accounts')
+  revalidatePath('/')
+  revalidatePath('/weekly')
+  revalidatePath('/paychecks')
+  return { ok: true }
+}
