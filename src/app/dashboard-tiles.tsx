@@ -528,33 +528,6 @@ function VaultProgressTile({
           pointerEvents: 'none',
         }}
       />
-      {goalReached && (
-        <div
-          aria-hidden
-          style={{
-            position: 'absolute',
-            top: 14,
-            left: 14,
-            zIndex: 2,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            padding: '4px 9px 4px 7px',
-            borderRadius: 999,
-            background:
-              'linear-gradient(135deg, color-mix(in oklch, var(--gold) 55%, transparent), color-mix(in oklch, var(--accent) 30%, transparent))',
-            border:
-              '1px solid color-mix(in oklch, var(--gold) 50%, transparent)',
-            font: '600 10px var(--ui)',
-            letterSpacing: '.14em',
-            textTransform: 'uppercase',
-            color: 'var(--ink-1)',
-          }}
-        >
-          <Sparkles size={10} color="var(--gold)" />
-          Fully funded
-        </div>
-      )}
       <div
         className="tile-stack-sm"
         style={{
@@ -605,18 +578,42 @@ function VaultProgressTile({
             title="Vault Progress"
             sub={`Projected ${fmtMoney(projected)} by ${deadlineLabel}`}
             right={
-              <span
-                style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: 8,
-                  display: 'grid',
-                  placeItems: 'center',
-                  color: 'var(--ink-3)',
-                }}
-              >
-                <ArrowUpRight size={16} />
-              </span>
+              goalReached ? (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    padding: '5px 10px 5px 8px',
+                    borderRadius: 999,
+                    background:
+                      'linear-gradient(135deg, color-mix(in oklch, var(--gold) 55%, transparent), color-mix(in oklch, var(--accent) 30%, transparent))',
+                    border:
+                      '1px solid color-mix(in oklch, var(--gold) 55%, transparent)',
+                    font: '700 10px var(--ui)',
+                    letterSpacing: '.14em',
+                    textTransform: 'uppercase',
+                    color: 'var(--ink-1)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <Sparkles size={11} color="var(--gold)" />
+                  Fully funded
+                </span>
+              ) : (
+                <span
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 8,
+                    display: 'grid',
+                    placeItems: 'center',
+                    color: 'var(--ink-3)',
+                  }}
+                >
+                  <ArrowUpRight size={16} />
+                </span>
+              )
             }
           />
           <div

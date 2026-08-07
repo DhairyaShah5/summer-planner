@@ -12,14 +12,14 @@ import {
   useCelebrationMode,
   useRevealSeen,
 } from './use-celebrations'
-import { ambientBurst } from './confetti'
+import { ambientBurst, startEndlessFall } from './confetti'
 import type { GoalStatus } from '@/lib/goal-status'
 
 export function CelebrationProvider({
   status,
   children,
 }: {
-  status: GoalStatus | null
+  status: GoalStatus
   children: React.ReactNode
 }) {
   return (
@@ -49,6 +49,16 @@ function CelebrationEffects() {
 
   const ambientReady = !!status?.isReached && mode === 'full' && seen
   useAmbientOnce(ambientBurst, ambientReady)
+
+  // Endless snowfall while the goal is met AND the user hasn't opted out.
+  // Cleans up automatically when they toggle to 'badge'/'off' or drop below
+  // the cap (which auto-unsets `seen` above).
+  useEffect(() => {
+    if (!status?.isReached) return
+    if (mode !== 'full') return
+    const stop = startEndlessFall()
+    return stop
+  }, [status?.isReached, mode])
 
   // Root-level goal flag so vault-facing tiles can opt into gold treatment
   // without prop-drilling. Cleared to "false" when off so unrelated targets

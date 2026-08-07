@@ -28,6 +28,11 @@ export const metadata: Metadata = {
   description: "Paycheck allocation and expense tracker for summer 2026",
 };
 
+// The layout probes `getGoalStatus()` which reads live paycheck state, so
+// prevent Next from caching the wrapper — otherwise crossing the goal wouldn't
+// surface the modal until the next full navigation refresh.
+export const dynamic = 'force-dynamic';
+
 export default async function RootLayout({
   children,
 }: Readonly<{

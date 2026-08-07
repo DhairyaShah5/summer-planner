@@ -119,3 +119,35 @@ export function previewBurst() {
     disableForReducedMotion: true,
   })
 }
+
+/**
+ * Ambient snowfall of confetti from the top of the viewport. Runs until the
+ * returned stop() is invoked. Deliberately low density (~10 particles/sec)
+ * so it reads as celebratory-but-not-distracting on every page.
+ */
+export function startEndlessFall(): () => void {
+  if (typeof window === 'undefined') return () => {}
+  const prefersReduced =
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  if (prefersReduced) return () => {}
+
+  const id = window.setInterval(() => {
+    if (document.hidden) return
+    confetti({
+      particleCount: 3,
+      startVelocity: 0,
+      ticks: 320,
+      gravity: 0.4,
+      scalar: 0.85,
+      spread: 55,
+      angle: 270,
+      drift: (Math.random() - 0.5) * 1.2,
+      origin: { x: Math.random(), y: -0.05 },
+      colors: FULL_PALETTE,
+      disableForReducedMotion: true,
+    })
+  }, 320)
+  return () => window.clearInterval(id)
+}
+

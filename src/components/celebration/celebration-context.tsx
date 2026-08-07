@@ -9,7 +9,7 @@ export function CelebrationContextProvider({
   status,
   children,
 }: {
-  status: GoalStatus | null
+  status: GoalStatus
   children: React.ReactNode
 }) {
   return <CTX.Provider value={status}>{children}</CTX.Provider>
