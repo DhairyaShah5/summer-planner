@@ -292,7 +292,7 @@ export function GoalReachedModal(props: Props) {
                 boxShadow: '0 10px 30px rgba(212, 161, 74, 0.4)',
               }}
             >
-              Amazing — take me back
+              Take me back
             </motion.button>
           </motion.div>
           <style>{`

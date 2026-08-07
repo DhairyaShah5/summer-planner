@@ -28,7 +28,7 @@ export function GoalBadge() {
       transition={{ type: 'spring', stiffness: 260, damping: 18 }}
       whileHover={{ scale: 1.04 }}
       whileTap={{ scale: 0.96 }}
-      aria-label="Goal reached — click for a small burst"
+      aria-label="Goal reached. Click for a small burst"
       className="celebration-goal-badge"
       style={{
         display: 'inline-flex',

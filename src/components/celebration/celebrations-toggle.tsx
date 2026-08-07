@@ -73,7 +73,7 @@ export function CelebrationsToggle() {
             }}
           >
             {status?.isReached
-              ? 'Goal reached — the site is glowing. Choose how loud you want it.'
+              ? 'Goal reached. The site is glowing. Choose how loud you want it.'
               : `Fires when Vault ≥ ${status?.cap ? '$' + status.cap.toLocaleString() : 'goal'}. Preview any time below.`}
           </div>
         </div>
