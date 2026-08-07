@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dialog'
 import { logRolloverSweep } from './sweep-actions'
 import { useViewMode } from '@/components/view-mode-context'
+import { useGoalStatus } from '@/components/celebration/celebration-context'
 
 export type WeeklyRow = {
   index: number
@@ -199,6 +200,9 @@ export function WeeklyView({
   void _threshold
   const router = useRouter()
   const viewMode = useViewMode()
+  // Once the vault is full, rollover sweeps are moot — the money would just
+  // land in a maxed HYSA. Hide the banner instead of prompting.
+  const goalReached = !!useGoalStatus()?.isReached
   const summerIsUnder = summerRemaining >= 0
 
   const [sweepOpen, setSweepOpen] = useState(false)
@@ -270,7 +274,7 @@ export function WeeklyView({
         subtitle="Maximum allowed to spend (cumulative) vs actual spent · week ending Sunday."
       />
 
-      {showBanner && !viewMode && (
+      {showBanner && !viewMode && !goalReached && (
         <Reveal>
           <SweepBanner
             rolloverSurplus={rolloverSurplus}

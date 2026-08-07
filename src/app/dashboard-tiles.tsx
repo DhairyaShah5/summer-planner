@@ -24,6 +24,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import { useViewMode } from '@/components/view-mode-context'
+import { useGoalStatus } from '@/components/celebration/celebration-context'
 
 import { Button } from '@/components/ui/button'
 import { logBufferSweep, logVaultTopupSweep } from './weekly/sweep-actions'
@@ -184,6 +185,9 @@ export function DashboardTiles(props: DashboardTilesProps) {
   const coPctClamped = Math.max(0, Math.min(1, coPct))
 
   const viewMode = useViewMode()
+  // Once the goal is reached, all "sweep more to Marcus" prompts become
+  // noise — there's no room left in the vault to sweep into.
+  const goalReached = !!useGoalStatus()?.isReached
   const vw = useViewportWidth()
   // Phone (<=640): smaller rings/gauges/donuts so they fit one-column tiles.
   // Tablet (<=900): slight reduction so the 2-col layout breathes.
@@ -200,7 +204,7 @@ export function DashboardTiles(props: DashboardTilesProps) {
         subtitle={`${todayLabel} · saving toward ${fmtMoney(vault.projected)} by ${deadlineLabel}`}
       />
 
-      {vaultTopup.show && !viewMode && (
+      {vaultTopup.show && !viewMode && !goalReached && (
         <Reveal>
           <VaultTopupBanner
             ready={vaultTopup.ready}
@@ -212,7 +216,7 @@ export function DashboardTiles(props: DashboardTilesProps) {
         </Reveal>
       )}
 
-      {bufferSweep.show && !viewMode && (
+      {bufferSweep.show && !viewMode && !goalReached && (
         <Reveal>
           <BufferSweepBanner
             surplus={bufferSweep.surplus}
