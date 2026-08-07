@@ -4,6 +4,22 @@ const GOLD_PALETTE = ['#f5c66b', '#d4a14a', '#f0d585', '#c48a2f', '#f6e0a3']
 const ACCENT_PALETTE = ['#8a6fe0', '#a58bf5', '#6b4fbf', '#c2b2ff', '#e5dcff']
 const FULL_PALETTE = [...GOLD_PALETTE, ...ACCENT_PALETTE, '#ffffff']
 
+// Party palette — deliberately loud and varied so the endless fall reads as
+// festival confetti (gold, purple, pink, blue, green, orange, red, teal,
+// yellow, white) rather than a monochrome sprinkle.
+const PARTY_PALETTE = [
+  '#f5c66b', '#d4a14a',   // gold
+  '#8a6fe0', '#a58bf5',   // purple
+  '#ff6b9d', '#ff85b3',   // pink
+  '#4dabf7', '#74c0fc',   // blue
+  '#51cf66', '#69db7c',   // green
+  '#ff8c42', '#ffa94d',   // orange
+  '#ff6b6b', '#ff8787',   // red
+  '#20c997', '#38d9a9',   // teal
+  '#ffd43b',              // yellow
+  '#ffffff',              // white
+]
+
 export function ambientBurst() {
   confetti({
     particleCount: 40,
@@ -132,37 +148,32 @@ export function startEndlessFall(): () => void {
     window.matchMedia('(prefers-reduced-motion: reduce)').matches
   if (prefersReduced) return () => {}
 
+  // Three staggered emitters covering left / center / right thirds of the
+  // viewport so the sky above every part of the page is always seeding new
+  // particles. Combined with a short interval this holds ~300-500 pieces
+  // mid-fall — a real party, not a sprinkle.
+  const emit = (xMin: number, xMax: number) => {
+    confetti({
+      particleCount: 8,
+      startVelocity: 0,
+      ticks: 500,
+      gravity: 0.45,
+      scalar: 1.05,
+      spread: 120,
+      angle: 270,
+      drift: -0.6 + Math.random() * 1.2,
+      origin: { x: xMin + Math.random() * (xMax - xMin), y: -0.05 },
+      colors: PARTY_PALETTE,
+      shapes: ['square', 'circle'],
+      disableForReducedMotion: true,
+    })
+  }
   const id = window.setInterval(() => {
     if (document.hidden) return
-    // Two staggered emitters — one skewed left, one right — so the fall
-    // covers the full viewport width instead of clumping.
-    confetti({
-      particleCount: 5,
-      startVelocity: 0,
-      ticks: 420,
-      gravity: 0.42,
-      scalar: 1,
-      spread: 90,
-      angle: 270,
-      drift: -0.4 + Math.random() * 0.6,
-      origin: { x: Math.random() * 0.5, y: -0.05 },
-      colors: FULL_PALETTE,
-      disableForReducedMotion: true,
-    })
-    confetti({
-      particleCount: 5,
-      startVelocity: 0,
-      ticks: 420,
-      gravity: 0.42,
-      scalar: 1,
-      spread: 90,
-      angle: 270,
-      drift: -0.6 + Math.random() * 0.6,
-      origin: { x: 0.5 + Math.random() * 0.5, y: -0.05 },
-      colors: FULL_PALETTE,
-      disableForReducedMotion: true,
-    })
-  }, 160)
+    emit(0, 0.34)
+    emit(0.33, 0.67)
+    emit(0.66, 1)
+  }, 90)
   return () => window.clearInterval(id)
 }
 
