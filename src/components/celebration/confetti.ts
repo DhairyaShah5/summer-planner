@@ -134,20 +134,35 @@ export function startEndlessFall(): () => void {
 
   const id = window.setInterval(() => {
     if (document.hidden) return
+    // Two staggered emitters — one skewed left, one right — so the fall
+    // covers the full viewport width instead of clumping.
     confetti({
-      particleCount: 3,
+      particleCount: 5,
       startVelocity: 0,
-      ticks: 320,
-      gravity: 0.4,
-      scalar: 0.85,
-      spread: 55,
+      ticks: 420,
+      gravity: 0.42,
+      scalar: 1,
+      spread: 90,
       angle: 270,
-      drift: (Math.random() - 0.5) * 1.2,
-      origin: { x: Math.random(), y: -0.05 },
+      drift: -0.4 + Math.random() * 0.6,
+      origin: { x: Math.random() * 0.5, y: -0.05 },
       colors: FULL_PALETTE,
       disableForReducedMotion: true,
     })
-  }, 320)
+    confetti({
+      particleCount: 5,
+      startVelocity: 0,
+      ticks: 420,
+      gravity: 0.42,
+      scalar: 1,
+      spread: 90,
+      angle: 270,
+      drift: -0.6 + Math.random() * 0.6,
+      origin: { x: 0.5 + Math.random() * 0.5, y: -0.05 },
+      colors: FULL_PALETTE,
+      disableForReducedMotion: true,
+    })
+  }, 160)
   return () => window.clearInterval(id)
 }
 
