@@ -4,22 +4,6 @@ const GOLD_PALETTE = ['#f5c66b', '#d4a14a', '#f0d585', '#c48a2f', '#f6e0a3']
 const ACCENT_PALETTE = ['#8a6fe0', '#a58bf5', '#6b4fbf', '#c2b2ff', '#e5dcff']
 const FULL_PALETTE = [...GOLD_PALETTE, ...ACCENT_PALETTE, '#ffffff']
 
-// Party palette — deliberately loud and varied so the endless fall reads as
-// festival confetti (gold, purple, pink, blue, green, orange, red, teal,
-// yellow, white) rather than a monochrome sprinkle.
-const PARTY_PALETTE = [
-  '#f5c66b', '#d4a14a',   // gold
-  '#8a6fe0', '#a58bf5',   // purple
-  '#ff6b9d', '#ff85b3',   // pink
-  '#4dabf7', '#74c0fc',   // blue
-  '#51cf66', '#69db7c',   // green
-  '#ff8c42', '#ffa94d',   // orange
-  '#ff6b6b', '#ff8787',   // red
-  '#20c997', '#38d9a9',   // teal
-  '#ffd43b',              // yellow
-  '#ffffff',              // white
-]
-
 export function ambientBurst() {
   confetti({
     particleCount: 40,
@@ -152,17 +136,19 @@ export function startEndlessFall(): () => void {
   // viewport so the sky above every part of the page is always seeding new
   // particles. Combined with a short interval this holds ~300-500 pieces
   // mid-fall — a real party, not a sprinkle.
-  // One emit call per color per cycle — guarantees the whole palette is
-  // always represented instead of relying on canvas-confetti's random pick,
-  // which produces a "mostly gold" look on small bursts.
+  // Match the click-burst look: small particles (scalar 0.9) in the same
+  // gold + accent + white palette. One emit call per color per cycle
+  // guarantees the palette shows even at low per-tick particle counts —
+  // canvas-confetti's random-per-particle pick tends to clump into gold
+  // when the burst is tiny, so forcing one call per color eliminates that.
   const emit = () => {
-    for (const color of PARTY_PALETTE) {
+    for (const color of FULL_PALETTE) {
       confetti({
-        particleCount: 2,
+        particleCount: 1,
         startVelocity: 0,
-        ticks: 380,
+        ticks: 400,
         gravity: 0.5,
-        scalar: 1.15,
+        scalar: 0.9,
         spread: 90,
         angle: 270,
         drift: -0.8 + Math.random() * 1.6,
@@ -175,7 +161,7 @@ export function startEndlessFall(): () => void {
   const id = window.setInterval(() => {
     if (document.hidden) return
     emit()
-  }, 110)
+  }, 120)
   return () => window.clearInterval(id)
 }
 
