@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useViewMode } from "@/components/view-mode-context";
+import { GoalBadge } from "@/components/celebration/goal-badge";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
@@ -171,6 +172,7 @@ export function SiteNav() {
         </nav>
 
         <div className="ml-auto flex flex-none items-center gap-1.5 sm:gap-2">
+          <GoalBadge />
           <ThemeToggle />
           {!viewMode && (
             <form action="/auth/signout" method="post">

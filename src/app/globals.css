@@ -132,3 +132,33 @@
     transition: none !important;
   }
 }
+
+.vault-goal-reached::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    color-mix(in oklch, var(--gold) 45%, transparent) 50%,
+    transparent 70%
+  );
+  background-size: 220% 100%;
+  animation: vault-goal-shine 6.5s ease-in-out infinite;
+  opacity: 0.55;
+  mix-blend-mode: screen;
+}
+
+@keyframes vault-goal-shine {
+  0%   { background-position: 220% 0; }
+  100% { background-position: -220% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vault-goal-reached::after {
+    animation: none;
+  }
+}

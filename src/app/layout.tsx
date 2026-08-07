@@ -8,6 +8,8 @@ import { BackgroundFX } from "@/components/redesign/background-fx";
 import { ViewModeProvider } from "@/components/view-mode-context";
 import { ViewOnlyBanner } from "@/components/view-only-banner";
 import { isViewMode } from "@/lib/view-mode";
+import { CelebrationProvider } from "@/components/celebration/celebration-provider";
+import { getGoalStatus } from "@/lib/goal-status";
 
 const bricolage = Bricolage_Grotesque({
   variable: "--font-display",
@@ -31,7 +33,10 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const viewMode = await isViewMode();
+  const [viewMode, goalStatus] = await Promise.all([
+    isViewMode(),
+    getGoalStatus(),
+  ]);
   return (
     <html
       lang="en"
@@ -41,11 +46,13 @@ export default async function RootLayout({
       <body className={`${bricolage.variable} ${instrument.variable} min-h-full flex flex-col`}>
         <Providers>
           <ViewModeProvider viewMode={viewMode}>
-            <BackgroundFX />
-            <SiteNav />
-            {viewMode && <ViewOnlyBanner />}
-            <main className="flex-1">{children}</main>
-            <Toaster />
+            <CelebrationProvider status={goalStatus}>
+              <BackgroundFX />
+              <SiteNav />
+              {viewMode && <ViewOnlyBanner />}
+              <main className="flex-1">{children}</main>
+              <Toaster />
+            </CelebrationProvider>
           </ViewModeProvider>
         </Providers>
       </body>

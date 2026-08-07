@@ -34,6 +34,7 @@ import {
   fmtDate,
 } from "@/components/redesign";
 import { useViewMode } from "@/components/view-mode-context";
+import { CelebrationsToggle } from "@/components/celebration/celebrations-toggle";
 
 const schema = z.object({
   vault_cap: z.number().min(0),
@@ -443,6 +444,12 @@ export function SettingsForm({
                 </div>
               ))}
             </div>
+          </Card>
+        </Reveal>
+
+        <Reveal delay={175}>
+          <Card>
+            <CelebrationsToggle />
           </Card>
         </Reveal>
 

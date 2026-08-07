@@ -502,17 +502,59 @@ function VaultProgressTile({
   deadlineLabel: string
   ringSize: number
 }) {
+  const goalReached = percent >= 1
   return (
-    <div className="fx-card" style={tileCardStyle({ padding: 24 })}>
+    <div
+      className={goalReached ? 'fx-card vault-goal-reached' : 'fx-card'}
+      style={{
+        ...tileCardStyle({ padding: 24 }),
+        ...(goalReached
+          ? {
+              borderColor:
+                'color-mix(in oklch, var(--gold) 55%, var(--hair))',
+              boxShadow:
+                '0 0 0 1px color-mix(in oklch, var(--gold) 40%, transparent), 0 18px 50px color-mix(in oklch, var(--gold) 22%, transparent)',
+            }
+          : null),
+      }}
+    >
       <div
         style={{
           position: 'absolute',
           inset: 0,
-          background:
-            'radial-gradient(120% 130% at 100% 0%, color-mix(in oklch, var(--accent) 12%, transparent), transparent 55%)',
+          background: goalReached
+            ? 'radial-gradient(120% 130% at 100% 0%, color-mix(in oklch, var(--gold) 22%, transparent), transparent 60%), radial-gradient(90% 100% at 0% 100%, color-mix(in oklch, var(--accent) 14%, transparent), transparent 55%)'
+            : 'radial-gradient(120% 130% at 100% 0%, color-mix(in oklch, var(--accent) 12%, transparent), transparent 55%)',
           pointerEvents: 'none',
         }}
       />
+      {goalReached && (
+        <div
+          aria-hidden
+          style={{
+            position: 'absolute',
+            top: 14,
+            left: 14,
+            zIndex: 2,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '4px 9px 4px 7px',
+            borderRadius: 999,
+            background:
+              'linear-gradient(135deg, color-mix(in oklch, var(--gold) 55%, transparent), color-mix(in oklch, var(--accent) 30%, transparent))',
+            border:
+              '1px solid color-mix(in oklch, var(--gold) 50%, transparent)',
+            font: '600 10px var(--ui)',
+            letterSpacing: '.14em',
+            textTransform: 'uppercase',
+            color: 'var(--ink-1)',
+          }}
+        >
+          <Sparkles size={10} color="var(--gold)" />
+          Fully funded
+        </div>
+      )}
       <div
         className="tile-stack-sm"
         style={{
