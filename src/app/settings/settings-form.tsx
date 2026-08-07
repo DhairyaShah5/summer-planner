@@ -58,7 +58,7 @@ export type SettingsFormValues = z.infer<typeof schema>;
 const SETTINGS_QUERY_KEY = ["settings"] as const;
 
 // Deadline isn't persisted in the settings table; lock to the Fall 2026 due date.
-const FALL_2026_DEADLINE = "2026-08-28";
+const FALL_2026_DEADLINE = "2026-09-02";
 const FALL_2026_TERM = "Fall 2026";
 
 type SettingsForm = UseFormReturn<SettingsFormValues>;

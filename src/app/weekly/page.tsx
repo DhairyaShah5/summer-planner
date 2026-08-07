@@ -13,7 +13,7 @@ import { WeeklyView, type WeeklyRow } from './weekly-view'
 export const dynamic = 'force-dynamic'
 
 const INTERNSHIP_START = '2026-05-26'
-const INTERNSHIP_END = '2026-08-31'
+const INTERNSHIP_END = '2026-09-06'
 
 function startOfDay(d: Date): Date {
   const x = new Date(d)

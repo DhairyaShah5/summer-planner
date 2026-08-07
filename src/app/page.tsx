@@ -509,7 +509,7 @@ export default async function DashboardPage() {
         vaultGrowth={vaultGrowthSeries}
         coGauge={{ spent: cumSpent, allowed: cumMaxAllowed }}
         vaultCap={settings.vaultCap}
-        deadlineLabel={format(new Date("2026-08-28T12:00:00"), "MMM d")}
+        deadlineLabel={format(new Date("2026-09-02T12:00:00"), "MMM d")}
         vaultTopup={{
           show: showTopupBanner,
           ready: Math.max(0, bofaExtraCurrent),
