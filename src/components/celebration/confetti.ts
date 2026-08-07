@@ -152,28 +152,30 @@ export function startEndlessFall(): () => void {
   // viewport so the sky above every part of the page is always seeding new
   // particles. Combined with a short interval this holds ~300-500 pieces
   // mid-fall — a real party, not a sprinkle.
-  const emit = (xMin: number, xMax: number) => {
-    confetti({
-      particleCount: 8,
-      startVelocity: 0,
-      ticks: 500,
-      gravity: 0.45,
-      scalar: 1.05,
-      spread: 120,
-      angle: 270,
-      drift: -0.6 + Math.random() * 1.2,
-      origin: { x: xMin + Math.random() * (xMax - xMin), y: -0.05 },
-      colors: PARTY_PALETTE,
-      shapes: ['square', 'circle'],
-      disableForReducedMotion: true,
-    })
+  // One emit call per color per cycle — guarantees the whole palette is
+  // always represented instead of relying on canvas-confetti's random pick,
+  // which produces a "mostly gold" look on small bursts.
+  const emit = () => {
+    for (const color of PARTY_PALETTE) {
+      confetti({
+        particleCount: 2,
+        startVelocity: 0,
+        ticks: 380,
+        gravity: 0.5,
+        scalar: 1.15,
+        spread: 90,
+        angle: 270,
+        drift: -0.8 + Math.random() * 1.6,
+        origin: { x: Math.random(), y: -0.05 },
+        colors: [color],
+        disableForReducedMotion: true,
+      })
+    }
   }
   const id = window.setInterval(() => {
     if (document.hidden) return
-    emit(0, 0.34)
-    emit(0.33, 0.67)
-    emit(0.66, 1)
-  }, 90)
+    emit()
+  }, 110)
   return () => window.clearInterval(id)
 }
 

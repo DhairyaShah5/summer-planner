@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   CelebrationContextProvider,
   useGoalStatus,
@@ -22,8 +23,24 @@ export function CelebrationProvider({
   status: GoalStatus
   children: React.ReactNode
 }) {
+  // Poll /api/goal-status so checking/unchecking a paycheck (which mutates
+  // Supabase directly from the client — no server re-render) still surfaces
+  // the modal / snowfall / badge without a page refresh. Seeded with the
+  // server-rendered `status` so first paint is correct.
+  const { data } = useQuery({
+    queryKey: ['goal-status'],
+    queryFn: async () => {
+      const res = await fetch('/api/goal-status', { cache: 'no-store' })
+      if (!res.ok) throw new Error('Failed to fetch goal status')
+      return (await res.json()) as GoalStatus
+    },
+    initialData: status,
+    refetchInterval: 2000,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+  })
   return (
-    <CelebrationContextProvider status={status}>
+    <CelebrationContextProvider status={data ?? status}>
       {children}
       <CelebrationEffects />
     </CelebrationContextProvider>
