@@ -146,12 +146,17 @@ export function startEndlessFall(): () => void {
       confetti({
         particleCount: 1,
         startVelocity: 0,
-        ticks: 400,
-        gravity: 0.5,
+        // Long enough that particles fully clear the viewport before the
+        // library's own fade kicks in — otherwise they'd vanish mid-page
+        // even on tall layouts.
+        ticks: 900,
+        gravity: 0.55,
         scalar: 0.9,
         spread: 90,
         angle: 270,
-        drift: -0.8 + Math.random() * 1.6,
+        // Gentle sway; the previous ±0.8 was blowing particles off the
+        // sides before they made it to the bottom.
+        drift: -0.35 + Math.random() * 0.7,
         origin: { x: Math.random(), y: -0.05 },
         colors: [color],
         disableForReducedMotion: true,
@@ -161,7 +166,7 @@ export function startEndlessFall(): () => void {
   const id = window.setInterval(() => {
     if (document.hidden) return
     emit()
-  }, 120)
+  }, 160)
   return () => window.clearInterval(id)
 }
 
