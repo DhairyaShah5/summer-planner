@@ -1,28 +1,82 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#2a2418"/>
-      <stop offset="55%" stop-color="#1f1a10"/>
-      <stop offset="100%" stop-color="#141008"/>
-    </linearGradient>
-    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#f6e0a3"/>
-      <stop offset="45%" stop-color="#f5c66b"/>
-      <stop offset="100%" stop-color="#b6832f"/>
-    </linearGradient>
-    <radialGradient id="glow" cx="0.5" cy="0.42" r="0.62">
-      <stop offset="0%" stop-color="rgba(245,198,107,0.32)"/>
-      <stop offset="100%" stop-color="rgba(245,198,107,0)"/>
+    <radialGradient id="bg" cx="0.5" cy="0.15" r="1.05">
+      <stop offset="0%" stop-color="#3a2f1a"/>
+      <stop offset="45%" stop-color="#1f1811"/>
+      <stop offset="100%" stop-color="#0b0805"/>
     </radialGradient>
+    <linearGradient id="gold" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%"   stop-color="#fff1cc"/>
+      <stop offset="18%"  stop-color="#f8d689"/>
+      <stop offset="55%"  stop-color="#d4a14a"/>
+      <stop offset="100%" stop-color="#6a4715"/>
+    </linearGradient>
+    <linearGradient id="innerFace" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%"   stop-color="#b6832f" stop-opacity="0.0"/>
+      <stop offset="100%" stop-color="#3a2810" stop-opacity="0.55"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.52" r="0.55">
+      <stop offset="0%"   stop-color="#f5c66b" stop-opacity="0.38"/>
+      <stop offset="55%"  stop-color="#8a6fe0" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#8a6fe0" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ringStroke" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#8a6fe0" stop-opacity="0.55"/>
+      <stop offset="50%"  stop-color="#f5c66b" stop-opacity="0.90"/>
+      <stop offset="100%" stop-color="#8a6fe0" stop-opacity="0.55"/>
+    </linearGradient>
   </defs>
+
   <rect width="1024" height="1024" fill="url(#bg)"/>
   <rect width="1024" height="1024" fill="url(#glow)"/>
-  <g stroke="url(#gold)" stroke-linecap="round" fill="none">
-    <circle cx="512" cy="512" r="272" stroke-width="52"/>
-    <line x1="512" y1="184" x2="512" y2="256" stroke-width="34"/>
-    <line x1="512" y1="768" x2="512" y2="840" stroke-width="34"/>
-    <line x1="184" y1="512" x2="256" y2="512" stroke-width="34"/>
-    <line x1="768" y1="512" x2="840" y2="512" stroke-width="34"/>
+
+  <g>
+    <circle cx="512" cy="512" r="418" fill="none"
+      stroke="#d4a14a" stroke-opacity="0.18" stroke-width="6"/>
+    <circle cx="512" cy="512" r="418" fill="none"
+      stroke="url(#ringStroke)" stroke-width="12"
+      stroke-linecap="round"
+      stroke-dasharray="2000 620"
+      stroke-dashoffset="-500"/>
   </g>
-  <circle cx="512" cy="512" r="72" fill="url(#gold)"/>
+
+  <g>
+    <path d="M 220 214
+             L 366 214
+             L 512 636
+             L 658 214
+             L 804 214
+             L 570 858
+             L 454 858
+             Z"
+      fill="url(#gold)"/>
+    <path d="M 220 214
+             L 366 214
+             L 512 636
+             L 658 214
+             L 804 214
+             L 570 858
+             L 454 858
+             Z"
+      fill="url(#innerFace)"/>
+    <path d="M 220 214 L 366 214 L 366 240 L 228 240 Z"
+      fill="#fff6de" opacity="0.55"/>
+    <path d="M 658 214 L 804 214 L 796 240 L 658 240 Z"
+      fill="#fff6de" opacity="0.55"/>
+    <path d="M 500 636 L 512 660 L 524 636 Z"
+      fill="#2a1c08" opacity="0.6"/>
+  </g>
+
+  <g opacity="0.9">
+    <path d="M 830 168
+             L 840 194
+             L 866 204
+             L 840 214
+             L 830 240
+             L 820 214
+             L 794 204
+             L 820 194
+             Z"
+      fill="#fff6de"/>
+  </g>
 </svg>
