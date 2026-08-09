@@ -1916,7 +1916,7 @@ export function AccountsList({
           style={{
             width: '100%',
             maxWidth: 'min(720px, calc(100% - 2rem))',
-            maxHeight: 'calc(100vh - 4rem)',
+            maxHeight: 'calc(100dvh - 4rem)',
             overflowY: 'auto',
           }}
         >

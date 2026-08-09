@@ -50,6 +50,7 @@ export function SiteNav() {
       style={{
         background: "color-mix(in oklch, var(--surface, var(--background)) 80%, transparent)",
         borderBottom: "1px solid var(--hair, var(--border))",
+        paddingTop: "env(safe-area-inset-top)",
       }}
     >
       <div className="site-nav-row mx-auto flex h-16 max-w-7xl items-center gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8">

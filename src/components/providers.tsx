@@ -3,7 +3,9 @@
 import { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
+import { SerwistProvider } from "@serwist/turbopack/react";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { RealtimeSync } from "@/lib/use-realtime-sync";
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -26,7 +28,15 @@ export function Providers({ children }: { children: ReactNode }) {
       disableTransitionOnChange
     >
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider delay={150}>{children}</TooltipProvider>
+        <SerwistProvider
+          swUrl="/serwist/sw.js"
+          disable={process.env.NODE_ENV === "development"}
+        >
+          <TooltipProvider delay={150}>
+            <RealtimeSync />
+            {children}
+          </TooltipProvider>
+        </SerwistProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );

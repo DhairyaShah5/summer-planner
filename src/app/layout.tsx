@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Instrument_Sans } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
@@ -26,6 +26,29 @@ const instrument = Instrument_Sans({
 export const metadata: Metadata = {
   title: "Summer Planner",
   description: "Paycheck allocation and expense tracker for summer 2026",
+  manifest: "/manifest.webmanifest",
+  applicationName: "Vault",
+  appleWebApp: {
+    capable: true,
+    title: "Vault",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#1a1812",
+  viewportFit: "cover",
+  width: "device-width",
+  initialScale: 1,
 };
 
 // The layout probes `getGoalStatus()` which reads live paycheck state, so

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2a2418"/>
+      <stop offset="55%" stop-color="#1f1a10"/>
+      <stop offset="100%" stop-color="#141008"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f6e0a3"/>
+      <stop offset="45%" stop-color="#f5c66b"/>
+      <stop offset="100%" stop-color="#b6832f"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.42" r="0.62">
+      <stop offset="0%" stop-color="rgba(245,198,107,0.32)"/>
+      <stop offset="100%" stop-color="rgba(245,198,107,0)"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#glow)"/>
+  <g stroke="url(#gold)" stroke-linecap="round" fill="none">
+    <circle cx="512" cy="512" r="272" stroke-width="52"/>
+    <line x1="512" y1="184" x2="512" y2="256" stroke-width="34"/>
+    <line x1="512" y1="768" x2="512" y2="840" stroke-width="34"/>
+    <line x1="184" y1="512" x2="256" y2="512" stroke-width="34"/>
+    <line x1="768" y1="512" x2="840" y2="512" stroke-width="34"/>
+  </g>
+  <circle cx="512" cy="512" r="72" fill="url(#gold)"/>
+</svg>
