@@ -33,7 +33,6 @@ import {
   fmtMoney,
   fmtDate,
 } from "@/components/redesign";
-import { useViewMode } from "@/components/view-mode-context";
 import { CelebrationsToggle } from "@/components/celebration/celebrations-toggle";
 
 const schema = z.object({
@@ -72,7 +71,6 @@ export function SettingsForm({
   initialValues: SettingsFormValues;
   defaults: SettingsFormValues;
 }) {
-  const viewMode = useViewMode();
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(schema),
     defaultValues: initialValues,
@@ -453,7 +451,7 @@ export function SettingsForm({
           </Card>
         </Reveal>
 
-        {!viewMode && (
+        {(
           <Reveal delay={200}>
             <div
               className="settings-actions"

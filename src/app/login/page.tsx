@@ -17,9 +17,6 @@ export const metadata = {
 };
 
 export default async function LoginPage() {
-  // Note: even when view_mode cookie is set, we still render the form here.
-  // The owner needs a way to sign in from a session that already auto-dropped
-  // into view mode. On successful sign-in, updateSession clears the cookie.
   const supabase = await createClient();
   const {
     data: { user },

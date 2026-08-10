@@ -18,7 +18,6 @@ import {
 
 import { importFromXlsx } from './import-actions'
 import { parseWorkbook, type ParsedWorkbook } from './import-parse'
-import { useViewMode } from '@/components/view-mode-context'
 
 type PreviewState = {
   file: File
@@ -26,14 +25,11 @@ type PreviewState = {
 }
 
 export function ImportFromXlsx() {
-  const viewMode = useViewMode()
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<PreviewState | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-
-  if (viewMode) return null
 
   const previewMutation = useMutation({
     mutationFn: async (selectedFile: File): Promise<PreviewState> => {

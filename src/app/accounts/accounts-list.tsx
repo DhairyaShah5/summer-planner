@@ -61,7 +61,6 @@ import {
   type FlowKind,
 } from './flow-override-actions'
 import { Checkbox } from '@/components/ui/checkbox'
-import { useViewMode } from '@/components/view-mode-context'
 import {
   Popover,
   PopoverContent,
@@ -292,7 +291,6 @@ export function AccountsList({
   robinhoodWeekly,
 }: Props) {
   const router = useRouter()
-  const viewMode = useViewMode()
   const [editing, setEditing] = useState<AccountStateRow | null>(null)
   const [editValue, setEditValue] = useState('')
   const [saving, setSaving] = useState(false)
@@ -1126,18 +1124,16 @@ export function AccountsList({
           justifyContent: 'flex-end',
         }}
       >
-        {!viewMode && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={openTransferDialog}
-            disabled={transferableAccounts.length < 2}
-          >
-            <RepeatIcon className="size-4" />
-            Log a transfer
-          </Button>
-        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={openTransferDialog}
+          disabled={transferableAccounts.length < 2}
+        >
+          <RepeatIcon className="size-4" />
+          Log a transfer
+        </Button>
       </div>
 
       {/* 3 net cards: arrival / now / projected. Each opens the
@@ -1151,7 +1147,7 @@ export function AccountsList({
         }}
       >
         <Reveal>
-          <NetWorthCardButton onClick={viewMode ? undefined : openNetWorthDialog}>
+          <NetWorthCardButton onClick={openNetWorthDialog}>
             <NetCard
               label="At arrival"
               sub="Came to Colorado with"
@@ -1160,7 +1156,7 @@ export function AccountsList({
           </NetWorthCardButton>
         </Reveal>
         <Reveal delay={50}>
-          <NetWorthCardButton onClick={viewMode ? undefined : openNetWorthDialog}>
+          <NetWorthCardButton onClick={openNetWorthDialog}>
             <NetCard
               label="Right now"
               sub="Live net worth today"
@@ -1170,7 +1166,7 @@ export function AccountsList({
           </NetWorthCardButton>
         </Reveal>
         <Reveal delay={100}>
-          <NetWorthCardButton onClick={viewMode ? undefined : openNetWorthDialog}>
+          <NetWorthCardButton onClick={openNetWorthDialog}>
             <NetCard
               label="Leaving with (projected)"
               sub="Net worth at summer's end"
@@ -1258,7 +1254,6 @@ export function AccountsList({
                   vaultCap={vaultCap}
                   onOpenLedger={() => openLedger(s)}
                   onPayCC={() => openPayDialog(s)}
-                  viewMode={viewMode}
                 />
               </Reveal>
             ))}
@@ -1367,7 +1362,7 @@ export function AccountsList({
                   >
                     {fmtMoney(t.amount, { cents: true })}
                   </span>
-                  {!viewMode && (
+                  {(
                     <span
                       style={{
                         display: 'inline-flex',
@@ -2378,7 +2373,7 @@ export function AccountsList({
                                   </div>
                                 </PopoverContent>
                               </Popover>
-                            ) : row.source === 'manual' && row.manualId && !viewMode ? (
+                            ) : row.source === 'manual' && row.manualId ? (
                               <div
                                 style={{
                                   display: 'inline-flex',
@@ -2431,7 +2426,7 @@ export function AccountsList({
               </div>
 
               {/* Add-entry form, expanded inline */}
-              {ledgerFormOpen && !viewMode ? (
+              {ledgerFormOpen ? (
                 <div
                   style={{
                     display: 'flex',
@@ -2636,7 +2631,7 @@ export function AccountsList({
                     </Button>
                   </div>
                 </div>
-              ) : !viewMode ? (
+              ) : (
                 <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                   <Button
                     type="button"
@@ -2648,7 +2643,7 @@ export function AccountsList({
                     Add entry
                   </Button>
                 </div>
-              ) : null}
+              )}
             </>
           )}
         </DialogContent>
@@ -3124,7 +3119,6 @@ type AccountCardProps = {
   vaultCap: number
   onOpenLedger: () => void
   onPayCC: () => void
-  viewMode?: boolean
 }
 
 function AccountCard({
@@ -3132,7 +3126,6 @@ function AccountCard({
   vaultCap,
   onOpenLedger,
   onPayCC,
-  viewMode,
 }: AccountCardProps) {
   const isCredit = account.type === 'credit_card'
   const isVault = account.is_vault
@@ -3275,7 +3268,7 @@ function AccountCard({
             justifySelf: 'end',
           }}
         >
-          {isCredit && !viewMode && (
+          {isCredit && (
             <Button
               type="button"
               variant="outline"

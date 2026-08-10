@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { isViewMode, viewOnlyError } from '@/lib/view-mode'
 
 export interface LogTransferInput {
   fromAccountId: string
@@ -20,7 +19,6 @@ export interface ActionResult {
 export async function logTransfer(
   input: LogTransferInput,
 ): Promise<ActionResult> {
-  if (await isViewMode()) return viewOnlyError()
   const supabase = await createClient()
 
   const {
@@ -69,7 +67,6 @@ export interface UpdateTransferInput {
 export async function updateTransfer(
   input: UpdateTransferInput,
 ): Promise<ActionResult> {
-  if (await isViewMode()) return viewOnlyError()
   const supabase = await createClient()
 
   const {
@@ -113,7 +110,6 @@ export async function updateTransfer(
 }
 
 export async function deleteTransfer(id: string): Promise<ActionResult> {
-  if (await isViewMode()) return viewOnlyError()
   if (!id) return { ok: false, error: 'Transfer id required' }
   const supabase = await createClient()
 

@@ -1,7 +1,6 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { isViewMode, viewOnlyError } from '@/lib/view-mode'
 
 export type FlowKind = 'vault' | 'rent' | 'robinhood' | 'robinhood_2'
 
@@ -22,7 +21,6 @@ export interface ActionResult { ok: boolean; error?: string }
 export async function setFlowOverride(
   input: SetFlowOverrideInput,
 ): Promise<ActionResult> {
-  if (await isViewMode()) return viewOnlyError()
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'Not signed in' }
@@ -66,7 +64,6 @@ export async function setPaycheckRentAmount(
   paycheck_id: string,
   amount: number | null,
 ): Promise<ActionResult> {
-  if (await isViewMode()) return viewOnlyError()
   if (amount !== null && (!Number.isFinite(amount) || amount < 0)) {
     return { ok: false, error: 'Amount must be a non-negative number' }
   }

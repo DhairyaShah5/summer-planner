@@ -2,9 +2,6 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import type { Database } from '@/lib/database.types';
 
-const VIEW_COOKIE = 'view_mode';
-const VIEW_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
-
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -41,37 +38,15 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isAuthRoute = path.startsWith('/login') || path.startsWith('/auth');
+  const isAuthRoute =
+    path === '/login' || path.startsWith('/auth/') || path.startsWith('/api/');
 
-  if (user) {
-    // Authenticated owner — ensure any stale view_mode cookie is cleared so
-    // they see the editable UI, not the viewer banner.
-    if (request.cookies.get(VIEW_COOKIE)) {
-      request.cookies.delete(VIEW_COOKIE);
-      supabaseResponse = NextResponse.next({ request });
-      supabaseResponse.cookies.delete(VIEW_COOKIE);
-    }
-    return supabaseResponse;
+  if (!user && !isAuthRoute) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = '/login';
+    loginUrl.search = '';
+    return NextResponse.redirect(loginUrl);
   }
 
-  if (!isAuthRoute) {
-    // Anonymous visitor on a real page — drop them into read-only view mode
-    // instead of redirecting to /login. Set the cookie on BOTH the request
-    // and the response so the current render sees it via `cookies()`.
-    request.cookies.set(VIEW_COOKIE, '1');
-    supabaseResponse = NextResponse.next({ request });
-    supabaseResponse.cookies.set(VIEW_COOKIE, '1', {
-      maxAge: VIEW_COOKIE_MAX_AGE,
-      path: '/',
-      sameSite: 'lax',
-      httpOnly: true,
-    });
-  }
-
-  // IMPORTANT: You *must* return the supabaseResponse object as it is.
-  // If you're creating a new response object with NextResponse.next() make sure to:
-  // 1. Pass the request in it, like so: NextResponse.next({ request })
-  // 2. Copy over the cookies
-  // 3. Change the response object to fit your needs, but avoid changing the cookies!
   return supabaseResponse;
 }

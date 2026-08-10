@@ -37,7 +37,6 @@ import {
   fmtMoney,
 } from '@/components/redesign'
 import { cn } from '@/lib/utils'
-import { useViewMode } from '@/components/view-mode-context'
 
 export type PaycheckRow = {
   id: string
@@ -1247,18 +1246,16 @@ function ReceivedCheck({
   checked: boolean
   onChange: (v: boolean) => void
 }) {
-  const viewMode = useViewMode()
   return (
     <button
       type="button"
-      onClick={viewMode ? undefined : () => onChange(!checked)}
+      onClick={() => onChange(!checked)}
       aria-label={checked ? 'Received' : 'Not received'}
-      disabled={viewMode}
       style={{
         width: 22,
         height: 22,
         borderRadius: 7,
-        cursor: viewMode ? 'default' : 'pointer',
+        cursor: 'pointer',
         display: 'inline-grid',
         placeItems: 'center',
         border: '1.5px solid',
@@ -1373,26 +1370,7 @@ function NumberCell({
   last?: boolean
   onCommit: (v: string) => void
 }) {
-  const viewMode = useViewMode()
   const initial = value == null ? '' : String(value)
-  if (viewMode) {
-    return (
-      <Td align={align} last={last}>
-        <span
-          style={{
-            textAlign: align,
-            font: `${strong ? 600 : 500} 13px var(--ui)`,
-            color: 'var(--ink-1)',
-            fontVariantNumeric: 'tabular-nums',
-            padding: '4px 4px',
-            display: 'inline-block',
-          }}
-        >
-          {initial || placeholder || '0'}
-        </span>
-      </Td>
-    )
-  }
   return (
     <Td align={align} last={last}>
       <input

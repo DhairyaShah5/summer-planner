@@ -45,7 +45,6 @@ import {
 import { classifyBudgetKind, type BudgetKind } from './budget-kind'
 import type { AccountOption } from './add-expense-form'
 import { ExpenseCharts } from './expense-charts'
-import { useViewMode } from '@/components/view-mode-context'
 import { EXPENSE_CATEGORIES, hueForCategory } from './categories'
 
 function parseLocalDate(iso: string): Date {
@@ -116,7 +115,6 @@ export function ExpenseList({
   settledRefundTotal,
 }: Props) {
   const router = useRouter()
-  const viewMode = useViewMode()
   const [pendingDelete, setPendingDelete] = useState<Expense | null>(null)
   const [deleting, startDeleting] = useTransition()
   const [togglingId, setTogglingId] = useState<string | null>(null)
@@ -626,7 +624,7 @@ export function ExpenseList({
                           >
                             {fmtMoney(e.amount, { cents: true })}
                           </span>
-                          {!viewMode && (
+                          {(
                             <>
                               {(e.refund_expected ?? 0) > 0 && (
                                 <Button

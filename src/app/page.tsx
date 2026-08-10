@@ -23,7 +23,7 @@ import { DashboardTiles } from "./dashboard-tiles";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const { supabase, userId, viewMode } = await getViewerContext();
+  const { supabase, userId } = await getViewerContext();
 
   let { data: settingsRow } = await supabase
     .from("settings")
@@ -31,7 +31,7 @@ export default async function DashboardPage() {
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (!settingsRow && !viewMode) {
+  if (!settingsRow) {
     const { data: inserted, error: insertError } = await supabase
       .from("settings")
       .insert({ user_id: userId })

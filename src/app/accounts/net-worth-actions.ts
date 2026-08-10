@@ -2,13 +2,11 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { isViewMode, viewOnlyError } from '@/lib/view-mode'
 
 export async function updateNetWorthInclusion(
   selections: Array<{ id: string; include: boolean }>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!selections.length) return { ok: true }
-  if (await isViewMode()) return viewOnlyError()
 
   const supabase = await createClient()
   const {

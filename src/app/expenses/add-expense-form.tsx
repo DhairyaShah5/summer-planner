@@ -16,7 +16,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { CatDot } from '@/components/redesign'
-import { useViewMode } from '@/components/view-mode-context'
 import { addExpense } from './expense-actions'
 import { EXPENSE_CATEGORIES } from './categories'
 
@@ -50,7 +49,6 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
   const router = useRouter()
   const descriptionRef = useRef<HTMLInputElement>(null)
   const [pending, startTransition] = useTransition()
-  const viewMode = useViewMode()
 
   const [date, setDate] = useState(todayISO())
   const [description, setDescription] = useState('')
@@ -116,8 +114,6 @@ export function AddExpenseForm({ accounts, defaultAccountId }: Props) {
       router.refresh()
     })
   }
-
-  if (viewMode) return null
 
   return (
     <Card

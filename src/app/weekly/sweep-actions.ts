@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { isViewMode, viewOnlyError } from '@/lib/view-mode'
 
 export interface RolloverSweepInput {
   fromAccountId: string
@@ -19,7 +18,6 @@ export interface ActionResult {
 export async function logRolloverSweep(
   input: RolloverSweepInput,
 ): Promise<ActionResult> {
-  if (await isViewMode()) return viewOnlyError()
   const supabase = await createClient()
 
   const {
@@ -64,7 +62,6 @@ export interface BufferSweepInput {
 export async function logBufferSweep(
   input: BufferSweepInput,
 ): Promise<ActionResult> {
-  if (await isViewMode()) return viewOnlyError()
   const supabase = await createClient()
 
   const {
@@ -109,7 +106,6 @@ export interface VaultTopupSweepInput {
 export async function logVaultTopupSweep(
   input: VaultTopupSweepInput,
 ): Promise<ActionResult> {
-  if (await isViewMode()) return viewOnlyError()
   const supabase = await createClient()
 
   const {

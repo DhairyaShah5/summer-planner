@@ -24,7 +24,7 @@ const DEFAULTS: SettingsFormValues = {
 };
 
 export default async function SettingsPage() {
-  const { supabase, userId, viewMode } = await getViewerContext();
+  const { supabase, userId } = await getViewerContext();
 
   let { data: row } = await supabase
     .from("settings")
@@ -32,7 +32,7 @@ export default async function SettingsPage() {
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (!row && !viewMode) {
+  if (!row) {
     const { data: inserted, error } = await supabase
       .from("settings")
       .insert({ user_id: userId })
