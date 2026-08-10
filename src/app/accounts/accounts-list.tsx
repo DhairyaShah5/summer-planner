@@ -1098,10 +1098,15 @@ export function AccountsList({
     setSaving(true)
     try {
       const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not signed in')
       const { error } = await supabase
         .from('accounts')
         .update({ arrival_balance: parsed })
         .eq('id', editing.id)
+        .eq('user_id', user.id)
       if (error) throw error
       toast.success('Arrival balance updated')
       setEditing(null)

@@ -181,7 +181,11 @@ export async function deleteExpense(expenseId: string): Promise<ActionResult> {
   } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'Not signed in' }
 
-  const { error: delErr } = await supabase.from('expenses').delete().eq('id', expenseId)
+  const { error: delErr } = await supabase
+    .from('expenses')
+    .delete()
+    .eq('id', expenseId)
+    .eq('user_id', user.id)
   if (delErr) return { ok: false, error: delErr.message }
 
   revalidatePath('/expenses')

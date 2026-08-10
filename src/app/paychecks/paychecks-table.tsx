@@ -279,10 +279,15 @@ export function PaychecksTable({
   const mutation = useMutation({
     mutationFn: async ({ id, patch }: UpdatePayload) => {
       const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not signed in')
       const { error } = await supabase
         .from('paychecks')
         .update(patch)
         .eq('id', id)
+        .eq('user_id', user.id)
       if (error) throw error
     },
     onSuccess: () => {

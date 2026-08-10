@@ -23,6 +23,18 @@ export async function importFromXlsx(formData: FormData): Promise<ImportResult> 
       }
     }
 
+    // Guard against a malicious or oversized workbook exhausting the
+    // Vercel function's memory before we even get to auth checks.
+    const MAX_UPLOAD_BYTES = 2_000_000
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return {
+        ok: false,
+        settingsImported: false,
+        paychecksImported: 0,
+        error: `File too large (max ${MAX_UPLOAD_BYTES / 1_000_000} MB)`,
+      }
+    }
+
     const supabase = await createClient()
     const {
       data: { user },

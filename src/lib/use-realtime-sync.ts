@@ -58,9 +58,20 @@ export function useRealtimeSync() {
     })
 
     const { data: authSub } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
         unsubscribe()
         if (session) subscribe(session.access_token)
+        if (
+          event === 'SIGNED_OUT' &&
+          typeof window !== 'undefined' &&
+          'caches' in window
+        ) {
+          // Wipe SW-cached HTML so the next person to sign in on this device
+          // doesn't briefly see the previous session's dashboard.
+          void caches
+            .keys()
+            .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+        }
       },
     )
 
