@@ -300,9 +300,7 @@ export default async function WeeklyPage() {
   const showBanner = rolloverSurplus >= threshold && suggestedSweep > 0
 
   const chaseAccount = accountRows.find((a) => a.name === 'Chase Checking')
-  const bofaAccount = accountRows.find((a) => a.name === 'BofA Checking')
   const chaseAccountId = chaseAccount?.id ?? ''
-  const bofaAccountId = bofaAccount?.id ?? ''
 
   return (
     <WeeklyView
@@ -314,9 +312,9 @@ export default async function WeeklyPage() {
       suggestedSweep={suggestedSweep}
       threshold={threshold}
       cushion={cushion}
-      showBanner={showBanner && !!chaseAccountId && !!bofaAccountId}
+      showBanner={showBanner && !!chaseAccountId && !!vaultAccountId}
       chaseAccountId={chaseAccountId}
-      bofaAccountId={bofaAccountId}
+      vaultAccountId={vaultAccountId}
     />
   )
 }

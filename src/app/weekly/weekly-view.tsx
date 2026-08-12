@@ -49,7 +49,7 @@ type Props = {
   cushion: number
   showBanner: boolean
   chaseAccountId: string
-  bofaAccountId: string
+  vaultAccountId: string
 }
 
 const POS = 'var(--pos)'
@@ -155,8 +155,8 @@ function SweepBanner({
             marginTop: 4,
           }}
         >
-          Sweep {fmtMoney(suggestedSweep, { cents: true })} to BofA Checking?
-          Keeps a {fmtMoney(cushion, { cents: true })} cushion in Chase.
+          Sweep {fmtMoney(suggestedSweep, { cents: true })} to Marcus? Keeps a{' '}
+          {fmtMoney(cushion, { cents: true })} cushion in Chase.
         </div>
       </div>
       <Button
@@ -169,7 +169,7 @@ function SweepBanner({
           whiteSpace: 'nowrap',
         }}
       >
-        Sweep {fmtMoney(suggestedSweep, { cents: true })} to BofA
+        Sweep {fmtMoney(suggestedSweep, { cents: true })} to Marcus
         <ArrowRightIcon className="size-4" />
       </Button>
       <style>{`
@@ -194,7 +194,7 @@ export function WeeklyView({
   cushion,
   showBanner,
   chaseAccountId,
-  bofaAccountId,
+  vaultAccountId,
 }: Props) {
   void _threshold
   const router = useRouter()
@@ -209,8 +209,8 @@ export function WeeklyView({
   const sweepDate = todayISO()
 
   function handleConfirmSweep() {
-    if (!chaseAccountId || !bofaAccountId) {
-      toast.error('Missing Chase or BofA account')
+    if (!chaseAccountId || !vaultAccountId) {
+      toast.error('Missing Chase or Marcus account')
       return
     }
     if (suggestedSweep <= 0) {
@@ -220,7 +220,7 @@ export function WeeklyView({
     startTransition(async () => {
       const res = await logRolloverSweep({
         fromAccountId: chaseAccountId,
-        toAccountId: bofaAccountId,
+        toAccountId: vaultAccountId,
         amount: suggestedSweep,
         transferredAt: sweepDate,
       })
@@ -229,7 +229,7 @@ export function WeeklyView({
         return
       }
       toast.success(
-        `${fmtMoney(suggestedSweep, { cents: true })} swept to BofA`,
+        `${fmtMoney(suggestedSweep, { cents: true })} swept to Marcus`,
       )
       setSweepOpen(false)
       router.refresh()
@@ -608,14 +608,13 @@ export function WeeklyView({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Sweep {fmtMoney(suggestedSweep, { cents: true })} to BofA
-              Checking?
+              Sweep {fmtMoney(suggestedSweep, { cents: true })} to Marcus?
             </DialogTitle>
             <DialogDescription>
-              This will record a transfer from Chase Checking to BofA Checking
+              This will record a transfer from Chase Checking to Marcus HYSA
               dated today, marked as a rollover sweep. Your Chase balance will
-              drop by {fmtMoney(suggestedSweep, { cents: true })}; BofA will
-              grow by the same. This action is reversible — you can delete the
+              drop by {fmtMoney(suggestedSweep, { cents: true })}; Marcus will
+              grow by the same. This action is reversible. You can delete the
               transfer from the Accounts page if you change your mind.
             </DialogDescription>
           </DialogHeader>
@@ -674,7 +673,7 @@ export function WeeklyView({
                   marginTop: 2,
                 }}
               >
-                BofA Checking
+                Marcus HYSA
               </div>
             </div>
             <div
