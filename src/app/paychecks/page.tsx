@@ -1,5 +1,6 @@
 import { getViewerContext } from '@/lib/viewer-context'
 import type { Settings } from '@/lib/types'
+import { CO_SURPLUS_SWEEP_KINDS } from '@/lib/calc'
 import { PageHeader } from '@/components/redesign'
 import { todayInUserTz } from '@/lib/today'
 import { PaychecksTable, type PaycheckRow } from './paychecks-table'
@@ -109,15 +110,17 @@ export default async function PaychecksPage() {
           )
           .reduce((s, t) => s + Number(t.amount), 0)
       : 0
-  // Net Vault-account flow across ALL transfer kinds. Passed to computeAll
-  // via `initialCumulativeVault` so pre-loading Marcus (sweep OR manual)
-  // shrinks scheduled per-paycheck vault contributions from the end.
-  let externalVaultSweeps = 0
+  // Net wage-derived Vault flow (manual + vault_topup_sweep). CO-surplus
+  // sweeps are excluded so the paycheck plan doesn't re-shuffle when a
+  // rollover/buffer sweep locks CO into savings.
+  let externalVaultPlanSeed = 0
   if (vault) {
     for (const t of transfersRes.data ?? []) {
-      if (t.to_account_id === vault.id) externalVaultSweeps += Number(t.amount)
+      if (CO_SURPLUS_SWEEP_KINDS.has(t.kind)) continue
+      if (t.to_account_id === vault.id)
+        externalVaultPlanSeed += Number(t.amount)
       if (t.from_account_id === vault.id)
-        externalVaultSweeps -= Number(t.amount)
+        externalVaultPlanSeed -= Number(t.amount)
     }
   }
 
@@ -133,7 +136,7 @@ export default async function PaychecksPage() {
         todayISO={todayInUserTz()}
         totalChaseToBofa={totalChaseToBofa}
         totalBufferSwept={totalBufferSwept}
-        initialCumulativeVault={externalVaultSweeps}
+        initialCumulativeVault={externalVaultPlanSeed}
       />
     </div>
   )

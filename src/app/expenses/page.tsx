@@ -1,6 +1,7 @@
 import { getViewerContext } from '@/lib/viewer-context'
 import {
   computeAll,
+  CO_SURPLUS_SWEEP_KINDS,
   type Settings,
   type PaycheckInput,
   type Employer,
@@ -36,7 +37,7 @@ export default async function ExpensesPage() {
         .order('display_order', { ascending: true }),
       supabase
         .from('transfers')
-        .select('from_account_id, to_account_id, amount'),
+        .select('from_account_id, to_account_id, amount, kind'),
     ])
 
   if (settingsRes.error) throw settingsRes.error
@@ -128,14 +129,14 @@ export default async function ExpensesPage() {
       }
     })
 
-    // Seed prevCumulative with any external Vault flows so per-paycheck
-    // vault contributions shrink from the end after a manual/sweep top-up.
-    // CO Spend (which this page's cumMaxAllowed sums) depends on the vault
-    // allocation, so this keeps late-summer CO honest.
+    // Seed prevCumulative with wage-derived Vault flows only. CO-surplus
+    // sweeps are excluded so this page's cumMaxAllowed doesn't drift up
+    // when a sweep locks CO into savings.
     const vaultAcct = (accountsRes.data ?? []).find((a) => a.is_vault)
     let initialVault = 0
     if (vaultAcct) {
       for (const t of transfersRes.data ?? []) {
+        if (CO_SURPLUS_SWEEP_KINDS.has(t.kind)) continue
         if (t.to_account_id === vaultAcct.id) initialVault += Number(t.amount)
         if (t.from_account_id === vaultAcct.id)
           initialVault -= Number(t.amount)

@@ -7,6 +7,7 @@ import {
   computeAll,
   computeAccountStates,
   summarize,
+  CO_SURPLUS_SWEEP_KINDS,
   type Settings,
   type PaycheckInput,
   type Employer,
@@ -207,11 +208,12 @@ export default async function DashboardPage() {
     kind: t.kind as TransferInput['kind'],
   }));
 
-  // Account lookups + externalVaultSweeps ready BEFORE computeAll so the
-  // seed (net Vault-account flows across ALL kinds — vault_topup_sweep,
-  // buffer_sweep, manual transfers to Marcus) can shrink scheduled
-  // per-paycheck vault contributions from the end instead of overshooting
-  // the cap.
+  // Two vault-transfer sums:
+  //   - `externalVaultPlanSeed` feeds computeAll; excludes CO-surplus sweeps
+  //     so a rollover/buffer sweep does NOT re-shuffle future paycheck vault
+  //     contributions (i.e. sweeping doesn't magically boost CO budget).
+  //   - `externalVaultBalance` is the true net movement into Marcus and drives
+  //     the displayed vault balance + goal-reached check.
   const vaultAccount = accountInputs.find((a) => a.is_vault);
   const chaseCheckingAccount = accountInputs.find(
     (a) => a.is_paycheck_destination,
@@ -226,15 +228,20 @@ export default async function DashboardPage() {
   const chaseAccountId = chaseCheckingAccount?.id;
   const bofaAccountId = bofaCheckingAccount?.id;
 
-  let externalVaultSweeps = 0;
+  let externalVaultBalance = 0;
+  let externalVaultPlanSeed = 0;
   if (vaultAccountId) {
     for (const t of transferInputs) {
-      if (t.to_account_id === vaultAccountId) externalVaultSweeps += t.amount;
-      if (t.from_account_id === vaultAccountId) externalVaultSweeps -= t.amount;
+      const isInflow = t.to_account_id === vaultAccountId;
+      const isOutflow = t.from_account_id === vaultAccountId;
+      if (!isInflow && !isOutflow) continue;
+      const signed = isInflow ? t.amount : -t.amount;
+      externalVaultBalance += signed;
+      if (!CO_SURPLUS_SWEEP_KINDS.has(t.kind)) externalVaultPlanSeed += signed;
     }
   }
 
-  const computed = computeAll(inputs, settings, externalVaultSweeps);
+  const computed = computeAll(inputs, settings, externalVaultPlanSeed);
   const totals = summarize(computed, settings);
 
   const accountEntryInputs: AccountEntryInput[] = (
@@ -266,15 +273,27 @@ export default async function DashboardPage() {
   }));
 
 
-  // Cumulative spend across the summer through today. Off-budget expenses
-  // (count_in_co_budget === false) are excluded from the CO budget tile.
-  const cumSpent = (cumExpensesRes.data ?? [])
+  // Cumulative CO utilization through today. Off-budget expenses
+  // (count_in_co_budget === false) are excluded. CO-surplus sweeps
+  // (rollover_sweep, buffer_sweep) ARE included — the money left the CO
+  // pool for savings, so it counts as utilized budget even though it isn't
+  // a consumption expense.
+  const cumExpensesSpent = (cumExpensesRes.data ?? [])
     .filter((e) => e.count_in_co_budget !== false)
     .reduce(
       (s, e) =>
         s + ((e.amount ?? 0) - (e.refund_expected ? Number(e.refund_expected) : 0)),
       0,
     );
+  const cumCoSavedToVault = transferInputs
+    .filter(
+      (t) =>
+        CO_SURPLUS_SWEEP_KINDS.has(t.kind) &&
+        t.to_account_id === vaultAccountId &&
+        t.transferred_at <= todayISO,
+    )
+    .reduce((s, t) => s + Number(t.amount), 0);
+  const cumSpent = cumExpensesSpent + cumCoSavedToVault;
 
   // Cumulative CO maximum allowed = sum of CO from every paycheck whose
   // pay_date <= this Sunday (end of current week). Unspent CO from prior
@@ -354,7 +373,7 @@ export default async function DashboardPage() {
   for (const r of computed) {
     if (!r.received) {
       projectedBofaWagesUnswept += Math.max(0, r.bofaOverflow - r.perDiem);
-      // r.cumulativeVault already includes externalVaultSweeps (seeded into
+      // r.cumulativeVault already includes externalVaultPlanSeed (seeded into
       // computeAll via prevCumulative), so it only needs the running
       // projected-sweep tally added on top.
       const baseAtRow = r.cumulativeVault + projectedFutureSweeps;
@@ -379,7 +398,7 @@ export default async function DashboardPage() {
 
   const currentVaultWithSweeps = Math.min(
     settings.vaultCap,
-    totals.currentVault + externalVaultSweeps,
+    totals.currentVault + externalVaultBalance,
   );
   const projectedTotalVaultWithSweeps =
     projectedVaultPerRow[projectedVaultPerRow.length - 1] ?? totals.totalVault;

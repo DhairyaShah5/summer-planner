@@ -1,6 +1,6 @@
 import { addDays, format, isAfter, isBefore, parseISO } from 'date-fns'
 import { getViewerContext } from '@/lib/viewer-context'
-import { computeAll, floor100 } from '@/lib/calc'
+import { computeAll, floor100, CO_SURPLUS_SWEEP_KINDS } from '@/lib/calc'
 import { dayOfWeekInUserTz, todayInUserTz } from '@/lib/today'
 import type {
   Employer,
@@ -140,21 +140,23 @@ export default async function WeeklyPage() {
     }
   })
 
-  // Net any Vault-account transfer (any kind) so pre-loading Marcus via a
-  // sweep or manual transfer shrinks per-paycheck vault contributions from
-  // the end. Both the Weekly page's Vault Balance column and CO figures
-  // read this reduced schedule.
+  // Net wage-derived vault flows (manual transfers in, vault_topup_sweeps)
+  // shrink per-paycheck vault contributions from the end. CO-surplus sweeps
+  // are deliberately excluded: they represent CO leaving the spending pool
+  // into savings, and re-planning around them would inflate future CO.
   const vaultAcct = accountRows.find((a) => a.is_vault)
-  let externalVaultSeed = 0
+  let externalVaultPlanSeed = 0
   if (vaultAcct) {
     for (const t of transferRows) {
-      if (t.to_account_id === vaultAcct.id) externalVaultSeed += Number(t.amount)
+      if (CO_SURPLUS_SWEEP_KINDS.has(t.kind)) continue
+      if (t.to_account_id === vaultAcct.id)
+        externalVaultPlanSeed += Number(t.amount)
       if (t.from_account_id === vaultAcct.id)
-        externalVaultSeed -= Number(t.amount)
+        externalVaultPlanSeed -= Number(t.amount)
     }
   }
 
-  const computed = computeAll(paycheckInputs, settings, externalVaultSeed)
+  const computed = computeAll(paycheckInputs, settings, externalVaultPlanSeed)
 
   // User-timezone "today" (YYYY-MM-DD). Server runs in UTC so calling
   // `new Date()` directly would flip the date around the user's local
@@ -184,14 +186,15 @@ export default async function WeeklyPage() {
         vaultBalance = row.cumulativeVault
       }
     }
-    // cumulativeVault now includes `externalVaultSeed` (all vault-account
-    // transfers pre-loaded onto row 1) so the paycheck plan can shrink
-    // vault contributions from the end. But that treats every transfer as
-    // if it happened at t=0, which is wrong for the weekly balance column
-    // that has to be time-accurate. Undo the seed first, then layer in the
-    // real dated transfers so the weekly balance reflects what's actually
-    // in Marcus by that week's Sunday.
-    vaultBalance -= externalVaultSeed
+    // cumulativeVault includes `externalVaultPlanSeed` (wage-derived vault
+    // transfers pre-loaded onto row 1) so the paycheck plan can shrink vault
+    // contributions from the end. But that treats every transfer as if it
+    // happened at t=0, which is wrong for the weekly balance column that
+    // has to be time-accurate. Undo the seed first, then layer in the real
+    // dated transfers (INCLUDING CO-surplus sweeps, which never enter the
+    // seed but still physically live in Marcus) so the weekly balance
+    // reflects what's actually in Marcus by that week's Sunday.
+    vaultBalance -= externalVaultPlanSeed
     if (vaultAccountId) {
       for (const t of transferRows) {
         if (t.transferred_at > weekEndISO) continue
@@ -240,16 +243,29 @@ export default async function WeeklyPage() {
   })
 
   const totalSummerCO = computed.reduce((sum, r) => sum + r.co, 0)
-  // totalActualToDate feeds the CO summer-remaining headline; off-budget
-  // expenses (count_in_co_budget === false) are excluded.
-  const totalActualToDate = expenseRows
+  // totalActualExpensesToDate = real consumption (off-budget excluded).
+  // totalCoSavedToDate = CO-surplus swept into Marcus (rollover + buffer).
+  // Together they equal the CO "utilized" so far; summerRemaining subtracts
+  // both from the plan.
+  const totalActualExpensesToDate = expenseRows
     .filter((e) => e.count_in_co_budget !== false)
     .reduce(
       (sum, e) =>
         sum + ((e.amount ?? 0) - (e.refund_expected ? Number(e.refund_expected) : 0)),
       0,
     )
-  const summerRemaining = totalSummerCO - totalActualToDate
+  const totalCoSavedToDate = vaultAcct
+    ? transferRows
+        .filter(
+          (t) =>
+            CO_SURPLUS_SWEEP_KINDS.has(t.kind) &&
+            t.to_account_id === vaultAcct.id &&
+            t.transferred_at <= todayStr,
+        )
+        .reduce((sum, t) => sum + Number(t.amount), 0)
+    : 0
+  const totalCoUtilizedToDate = totalActualExpensesToDate + totalCoSavedToDate
+  const summerRemaining = totalSummerCO - totalCoUtilizedToDate
 
   // --- Rollover sweep computation ---
   // Find last Sunday in the user's timezone. Server is UTC, so we use a
@@ -306,7 +322,8 @@ export default async function WeeklyPage() {
     <WeeklyView
       weeks={weeks}
       summerRemaining={summerRemaining}
-      totalActualToDate={totalActualToDate}
+      totalActualExpensesToDate={totalActualExpensesToDate}
+      totalCoSavedToDate={totalCoSavedToDate}
       totalSummerCO={totalSummerCO}
       rolloverSurplus={Math.round(rolloverSurplus * 100) / 100}
       suggestedSweep={suggestedSweep}

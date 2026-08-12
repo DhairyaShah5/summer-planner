@@ -2,6 +2,7 @@ import { getViewerContext } from '@/lib/viewer-context'
 import {
   computeAccountStates,
   computeAll,
+  CO_SURPLUS_SWEEP_KINDS,
   type AccountEntryInput,
   type AccountInput,
   type CCPaymentInput,
@@ -224,12 +225,15 @@ export default async function AccountsPage() {
     })
   }
 
-  // Seed prevCumulative with net Vault-account transfers so per-paycheck
-  // vault contributions shrink from the end after any manual/sweep top-up.
+  // Seed prevCumulative with wage-derived Vault transfers only (manual +
+  // vault_topup_sweep). CO-surplus sweeps are excluded so the ledger's
+  // paycheck plan doesn't re-shuffle when a rollover/buffer sweep locks
+  // CO into savings.
   const vaultAcctForSeed = accounts.find((a) => a.is_vault)
   let initialVaultSeed = 0
   if (vaultAcctForSeed) {
     for (const t of transfers) {
+      if (CO_SURPLUS_SWEEP_KINDS.has(t.kind)) continue
       if (t.to_account_id === vaultAcctForSeed.id)
         initialVaultSeed += t.amount
       if (t.from_account_id === vaultAcctForSeed.id)

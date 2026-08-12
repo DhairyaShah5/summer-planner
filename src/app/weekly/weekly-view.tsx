@@ -41,7 +41,8 @@ export type WeeklyRow = {
 type Props = {
   weeks: WeeklyRow[]
   summerRemaining: number
-  totalActualToDate: number
+  totalActualExpensesToDate: number
+  totalCoSavedToDate: number
   totalSummerCO: number
   rolloverSurplus: number
   suggestedSweep: number
@@ -186,7 +187,8 @@ function SweepBanner({
 export function WeeklyView({
   weeks,
   summerRemaining,
-  totalActualToDate,
+  totalActualExpensesToDate,
+  totalCoSavedToDate,
   totalSummerCO,
   rolloverSurplus,
   suggestedSweep,
@@ -319,10 +321,20 @@ export function WeeklyView({
               marginLeft: 'auto',
               font: '500 12.5px var(--ui)',
               color: 'var(--ink-3)',
+              textAlign: 'right',
             }}
           >
-            Spent {fmtMoney(totalActualToDate, { cents: true })} of{' '}
-            {fmtMoney(totalSummerCO, { cents: true })} projected CO
+            Spent {fmtMoney(totalActualExpensesToDate, { cents: true })}
+            {totalCoSavedToDate > 0 ? (
+              <>
+                {' '}
+                &middot; Saved{' '}
+                <span style={{ color: 'var(--gold)', fontWeight: 600 }}>
+                  {fmtMoney(totalCoSavedToDate, { cents: true })}
+                </span>
+              </>
+            ) : null}{' '}
+            of {fmtMoney(totalSummerCO, { cents: true })} projected CO
           </span>
         </div>
       </Reveal>

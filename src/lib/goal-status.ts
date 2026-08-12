@@ -3,6 +3,7 @@ import { getViewerContext } from '@/lib/viewer-context'
 import {
   computeAll,
   summarize,
+  CO_SURPLUS_SWEEP_KINDS,
   type Employer,
   type PaycheckInput,
   type Settings,
@@ -50,7 +51,7 @@ export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
           .order('pay_num', { ascending: true }),
         supabase
           .from('transfers')
-          .select('to_account_id, from_account_id, amount'),
+          .select('to_account_id, from_account_id, amount, kind'),
       ])
 
     if (accountsRes.error) throw accountsRes.error
@@ -78,11 +79,17 @@ export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
       nttVaultDefault: Number(settingsRow.ntt_vault_default),
     }
 
-    let externalVaultSweeps = 0
+    let externalVaultBalance = 0
+    let externalVaultPlanSeed = 0
     for (const t of transfersRes.data ?? []) {
       const amt = Number(t.amount)
-      if (t.to_account_id === vaultAcct.id) externalVaultSweeps += amt
-      if (t.from_account_id === vaultAcct.id) externalVaultSweeps -= amt
+      const isInflow = t.to_account_id === vaultAcct.id
+      const isOutflow = t.from_account_id === vaultAcct.id
+      if (!isInflow && !isOutflow) continue
+      const signed = isInflow ? amt : -amt
+      externalVaultBalance += signed
+      if (!CO_SURPLUS_SWEEP_KINDS.has(t.kind))
+        externalVaultPlanSeed += signed
     }
 
     const paycheckInputs: PaycheckInput[] = (paychecksRes.data ?? []).map(
@@ -118,16 +125,16 @@ export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
       },
     )
 
-    const computed = computeAll(paycheckInputs, settings, externalVaultSweeps)
+    const computed = computeAll(paycheckInputs, settings, externalVaultPlanSeed)
     const totals = summarize(computed, settings)
 
     const currentVault = Math.min(
       settings.vaultCap,
-      totals.currentVault + externalVaultSweeps,
+      totals.currentVault + externalVaultBalance,
     )
     const projected = Math.min(
       settings.vaultCap,
-      totals.totalVault + externalVaultSweeps,
+      totals.totalVault + externalVaultBalance,
     )
 
     const paycheckContributions = paycheckInputs.filter((p) => p.received).length

@@ -415,6 +415,18 @@ export interface TransferInput {
     | 'buffer_sweep'
 }
 
+/**
+ * Transfer kinds that represent CO-budget surplus being routed into savings
+ * (Marcus HYSA) rather than wage-derived vault deposits. The physical accounts
+ * still reflect the transfer (Chase drops, Marcus rises) and the vault balance
+ * still counts them for goal detection, but the paycheck plan is NOT
+ * re-shuffled — the sweep is an outflow OF CO, not a pre-load of Vault. So
+ * these MUST be excluded from the `initialCumulativeVault` seed passed to
+ * `computeAll`, and included in the "utilized CO" figure on the weekly page.
+ */
+export const CO_SURPLUS_SWEEP_KINDS: ReadonlySet<TransferInput['kind']> =
+  new Set(['rollover_sweep', 'buffer_sweep'])
+
 export interface AccountEntryInput {
   id: string
   account_id: string
@@ -451,13 +463,16 @@ export function computeAccountStates(
   accountEntries: AccountEntryInput[] = [],
   todayISO?: string,
 ): AccountState[] {
-  // Manual/sweep transfers touching the vault account bump the initial
-  // cumulative so future per-paycheck vault contributions shrink from the
-  // end (won't overshoot the cap). Any Vault account outflow (rare) drops it.
+  // Manual + wage-derived (vault_topup) transfers into Vault bump the initial
+  // cumulative so future per-paycheck vault contributions shrink from the end
+  // (won't overshoot the cap). CO-surplus sweeps (rollover, buffer) are
+  // deliberately excluded — they represent CO being spent into savings, not
+  // extra wage-derived money for the vault plan.
   const vaultAccountForSeed = accounts.find((a) => a.is_vault)
   let initialVault = 0
   if (vaultAccountForSeed) {
     for (const t of transfers) {
+      if (CO_SURPLUS_SWEEP_KINDS.has(t.kind)) continue
       if (t.to_account_id === vaultAccountForSeed.id) initialVault += t.amount
       if (t.from_account_id === vaultAccountForSeed.id) initialVault -= t.amount
     }
