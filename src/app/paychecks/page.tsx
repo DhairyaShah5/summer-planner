@@ -95,30 +95,24 @@ export default async function PaychecksPage() {
           .reduce((s, t) => s + Number(t.amount), 0)
       : 0
 
-  // Buffer swept out of Chase (Chase → Marcus). The paycheck table's
-  // currentBuffer is a sum of per-received-row `r.buffer`; any Chase →
-  // Vault transfer (regardless of kind — buffer_sweep OR manual OR the
-  // now-Marcus-bound rollover_sweep) drains the buffer, so the table
-  // subtracts the total to reflect what's actually left in Chase.
+  // Wage-buffer sweeps out of Chase. Only `buffer_sweep` transfers count —
+  // they physically drain the wage-buffer portion of Chase into Marcus. A
+  // rollover_sweep also touches Chase→Marcus but drains CO surplus (a
+  // different pocket), so it must NOT be subtracted from the wage buffer.
+  // Same rule for manual Chase→Marcus moves: intent is unknown, so keep
+  // them out of the wage-buffer math and let them float in the raw balance.
   const vault = (accountsRes.data ?? []).find((a) => a.is_vault)
-  const chaseToVault =
+  const totalBufferSwept =
     chase && vault
-      ? (transfersRes.data ?? []).filter(
-          (t) =>
-            t.from_account_id === chase.id && t.to_account_id === vault.id,
-        )
-      : []
-  const totalBufferSwept = chaseToVault.reduce(
-    (s, t) => s + Number(t.amount),
-    0,
-  )
-  // Subset that specifically represents the wage-buffer sweep (dashboard's
-  // "Chase buffer → Marcus HYSA"). Surfaced in the Total Buffer card so the
-  // user can see how much wage buffer has actually been routed to savings,
-  // separate from CO-under-spend (rollover) or manual moves.
-  const totalBufferSweptToVault = chaseToVault
-    .filter((t) => t.kind === 'buffer_sweep')
-    .reduce((s, t) => s + Number(t.amount), 0)
+      ? (transfersRes.data ?? [])
+          .filter(
+            (t) =>
+              t.kind === 'buffer_sweep' &&
+              t.from_account_id === chase.id &&
+              t.to_account_id === vault.id,
+          )
+          .reduce((s, t) => s + Number(t.amount), 0)
+      : 0
   // Net wage-derived Vault flow (manual + vault_topup_sweep). CO-surplus
   // sweeps are excluded so the paycheck plan doesn't re-shuffle when a
   // rollover/buffer sweep locks CO into savings.
@@ -145,7 +139,6 @@ export default async function PaychecksPage() {
         todayISO={todayInUserTz()}
         totalChaseToBofa={totalChaseToBofa}
         totalBufferSwept={totalBufferSwept}
-        totalBufferSweptToVault={totalBufferSweptToVault}
         initialCumulativeVault={externalVaultPlanSeed}
       />
     </div>
