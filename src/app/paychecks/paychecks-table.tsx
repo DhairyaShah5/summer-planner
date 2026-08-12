@@ -193,6 +193,10 @@ function toInput(r: PaycheckRow): PaycheckInput {
       overrides.bofa_overflow != null
         ? Number(overrides.bofa_overflow)
         : null,
+    robinhoodOverride:
+      overrides.robinhood_amount != null
+        ? Number(overrides.robinhood_amount)
+        : null,
     received: r.received,
   }
 }

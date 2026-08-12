@@ -72,6 +72,11 @@ export interface PaycheckInput {
    *  actual transfer already happened at a value that differs from what the
    *  current settings would recompute. Null = derive as before. */
   bofaOverride?: number | null
+  /** Locks this row's Robinhood allocation to a fixed dollar amount, ignoring
+   *  the default USC-weekly * 2 derivation. Same escape hatch pattern as
+   *  coOverride: freezes the RH figure when the user has a one-off (a check
+   *  where the standard Robinhood cadence didn't apply). Null = derive. */
+  robinhoodOverride?: number | null
   received: boolean
 }
 
@@ -181,6 +186,7 @@ export function computeRow(
     rentPaid,
     coOverride,
     bofaOverride,
+    robinhoodOverride,
     received,
   } = input
 
@@ -232,9 +238,14 @@ export function computeRow(
   const excess = Math.max(0, baseNet - expectedNoOT)
   const usableNet = baseNet - excess
 
-  // 9. Robinhood
+  // 9. Robinhood — per-row override wins (freezes a one-off RH figure);
+  //    otherwise USC gets the default weekly * 2 and NTT gets nothing.
   const robinhood =
-    employer === 'USC On-Campus' ? settings.robinhoodWeekly * 2 : 0
+    robinhoodOverride != null
+      ? Math.max(0, robinhoodOverride)
+      : employer === 'USC On-Campus'
+        ? settings.robinhoodWeekly * 2
+        : 0
 
   // 10. Vault target - manual override, else employer-specific schedule
   let vaultTarget: number
