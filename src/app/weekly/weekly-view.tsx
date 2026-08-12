@@ -238,14 +238,17 @@ export function WeeklyView({
     })
   }
 
+  // `x` is the always-present week-end date so tooltips read it; `xLabel`
+  // blanks alternate ticks so the axis stays uncrowded.
   const series = [
     {
       name: 'Spending Budget',
       color: 'var(--ink-2)',
       fill: true,
       points: weeks.map((w, i) => ({
-        x: i % 2 === 0 ? w.endLabel : '',
+        x: w.endLabel,
         y: w.budget,
+        xLabel: i % 2 === 0 ? undefined : '',
       })),
     },
     {
@@ -253,8 +256,9 @@ export function WeeklyView({
       color: 'var(--accent)',
       fill: true,
       points: weeks.map((w, i) => ({
-        x: i % 2 === 0 ? w.endLabel : '',
+        x: w.endLabel,
         y: w.spent,
+        xLabel: i % 2 === 0 ? undefined : '',
       })),
     },
   ]

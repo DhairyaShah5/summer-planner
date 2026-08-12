@@ -362,6 +362,34 @@ export default async function DashboardPage() {
         .reduce((s, t) => s + t.amount, 0)
     : 0;
 
+  // Date-indexed CO-surplus sweep events (rollover + buffer). These
+  // physically sit in Marcus but are deliberately excluded from the plan
+  // seed, so r.cumulativeVault doesn't know about them. Layer them onto
+  // each row by date so the growth curve and projected total include the
+  // money that actually landed.
+  const coSurplusVaultEvents = vaultAccountId
+    ? transferInputs
+        .filter(
+          (t) =>
+            CO_SURPLUS_SWEEP_KINDS.has(t.kind) &&
+            (t.to_account_id === vaultAccountId ||
+              t.from_account_id === vaultAccountId),
+        )
+        .map((t) => ({
+          date: t.transferred_at,
+          amount:
+            t.to_account_id === vaultAccountId ? t.amount : -t.amount,
+        }))
+    : [];
+  const coSurplusThroughDate = (dateISO: string): number =>
+    coSurplusVaultEvents
+      .filter((e) => e.date <= dateISO)
+      .reduce((s, e) => s + e.amount, 0);
+  const coSurplusTotal = coSurplusVaultEvents.reduce(
+    (s, e) => s + e.amount,
+    0,
+  );
+
   // Project future BofA→Vault sweeps into the cumulativeVault series.
   // calc's cumulativeVault only counts scheduled per-paycheck vault transfers
   // (vault + extraDeposit); vault_topup_sweep moves money outside that flow,
@@ -376,10 +404,13 @@ export default async function DashboardPage() {
   for (const r of computed) {
     if (!r.received) {
       projectedBofaWagesUnswept += Math.max(0, r.bofaOverflow - r.perDiem);
-      // r.cumulativeVault already includes externalVaultPlanSeed (seeded into
-      // computeAll via prevCumulative), so it only needs the running
-      // projected-sweep tally added on top.
-      const baseAtRow = r.cumulativeVault + projectedFutureSweeps;
+      // r.cumulativeVault includes externalVaultPlanSeed (seeded into
+      // computeAll via prevCumulative). Add CO-surplus sweeps dated on/before
+      // this paycheck and the running projected-sweep tally so the "cap
+      // headroom" check reflects what's actually left in Marcus.
+      const coSurplusHere = coSurplusThroughDate(String(r.payDate));
+      const baseAtRow =
+        r.cumulativeVault + projectedFutureSweeps + coSurplusHere;
       const roomLeft = Math.max(0, settings.vaultCap - baseAtRow);
       const roomFloored = Math.floor(roomLeft / 100) * 100;
       const sweepAmount =
@@ -394,7 +425,9 @@ export default async function DashboardPage() {
     projectedVaultPerRow.push(
       Math.min(
         settings.vaultCap,
-        r.cumulativeVault + projectedFutureSweeps,
+        r.cumulativeVault +
+          projectedFutureSweeps +
+          coSurplusThroughDate(String(r.payDate)),
       ),
     );
   }
@@ -403,8 +436,16 @@ export default async function DashboardPage() {
     settings.vaultCap,
     totals.currentVault + externalVaultBalance,
   );
-  const projectedTotalVaultWithSweeps =
-    projectedVaultPerRow[projectedVaultPerRow.length - 1] ?? totals.totalVault;
+  // The last row's projectedVaultPerRow only includes CO-surplus sweeps
+  // dated on/before that paycheck; guard against a future-dated sweep by
+  // taking the max with the full CO-surplus total layered on top.
+  const projectedTotalVaultWithSweeps = Math.min(
+    settings.vaultCap,
+    Math.max(
+      projectedVaultPerRow[projectedVaultPerRow.length - 1] ?? 0,
+      totals.totalVault + projectedFutureSweeps + coSurplusTotal,
+    ),
+  );
 
   const vaultPct =
     settings.vaultCap > 0
@@ -418,10 +459,11 @@ export default async function DashboardPage() {
   // Weekly vault growth series for the AreaChart: one cumulative point per
   // paycheck. Uses projectedVaultPerRow so the curve reflects both past
   // sweeps already done and future sweeps we expect from accumulated BofA
-  // wages. Show every other label to avoid axis crowding.
+  // wages. `label` is always the paycheck date; VaultGrowthTile handles
+  // hiding alternate axis ticks via the chart's `xLabel` override so the
+  // tooltip still shows the date.
   const vaultGrowthSeries: VaultGrowthPoint[] = computed.map((r, i) => ({
-    label:
-      i % 2 === 0 ? format(new Date(String(r.payDate)), "MMM d") : "",
+    label: format(new Date(String(r.payDate)), "MMM d"),
     value: projectedVaultPerRow[i] ?? r.cumulativeVault,
     received: r.received,
   }));

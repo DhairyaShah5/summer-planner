@@ -274,7 +274,11 @@ export function Donut({
 type AreaSeries = {
   name: string;
   color: string;
-  points: { x: string | number; y: number | null }[];
+  /** Each point's `x` is the source-of-truth label passed to `tooltipContent`.
+   *  `xLabel` overrides what's shown on the axis (undefined = use `x`; empty
+   *  string = hide the tick), letting callers thin out axis labels for a
+   *  clean look while keeping the full date in the tooltip. */
+  points: { x: string | number; y: number | null; xLabel?: string }[];
   fill?: boolean;
 };
 
@@ -324,6 +328,9 @@ export function AreaChart({
     .filter((v): v is number => v != null);
   const maxY = Math.max(1, ...all) * 1.15;
   const xs = series[0].points.map((p) => p.x);
+  const xAxisLabels = series[0].points.map((p) =>
+    p.xLabel !== undefined ? p.xLabel : String(p.x),
+  );
   const innerW = width - pad * 2;
   const innerH = height - pad * 2;
   const xAt = (i: number) =>
@@ -375,7 +382,7 @@ export function AreaChart({
             strokeWidth="1"
           />
         ))}
-        {xs.map((x, i) => (
+        {xAxisLabels.map((lbl, i) => (
           <text
             key={i}
             x={xAt(i)}
@@ -385,7 +392,7 @@ export function AreaChart({
             fill="var(--ink-3)"
             fontFamily="var(--ui)"
           >
-            {x}
+            {lbl}
           </text>
         ))}
         {series.map((s, si) => {

@@ -735,7 +735,13 @@ function VaultGrowthTile({
       name: 'Vault',
       color: 'var(--accent)',
       fill: true,
-      points: points.map((p) => ({ x: p.label, y: p.value })),
+      // `x` is the full date so the tooltip always renders "Through Aug 5";
+      // `xLabel` blanks alternate ticks so the axis stays uncrowded.
+      points: points.map((p, i) => ({
+        x: p.label,
+        y: p.value,
+        xLabel: i % 2 === 0 ? undefined : '',
+      })),
     },
   ]
   return (
