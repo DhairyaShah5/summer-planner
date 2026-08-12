@@ -285,10 +285,13 @@ export default async function DashboardPage() {
         s + ((e.amount ?? 0) - (e.refund_expected ? Number(e.refund_expected) : 0)),
       0,
     );
+  // Only rollover sweeps count as CO-utilized here. Buffer sweeps are Chase
+  // cushion surplus (wage buffer / reimbursement float), not CO under-spend,
+  // so they don't belong in the "spent" side of the CO gauge.
   const cumCoSavedToVault = transferInputs
     .filter(
       (t) =>
-        CO_SURPLUS_SWEEP_KINDS.has(t.kind) &&
+        t.kind === 'rollover_sweep' &&
         t.to_account_id === vaultAccountId &&
         t.transferred_at <= todayISO,
     )

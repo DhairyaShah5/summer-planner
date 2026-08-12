@@ -97,19 +97,28 @@ export default async function PaychecksPage() {
 
   // Buffer swept out of Chase (Chase → Marcus). The paycheck table's
   // currentBuffer is a sum of per-received-row `r.buffer`; any Chase →
-  // Vault transfer (regardless of kind — buffer_sweep OR manual) drains
-  // the buffer, so the table subtracts the total to reflect what's
-  // actually left in Chase.
+  // Vault transfer (regardless of kind — buffer_sweep OR manual OR the
+  // now-Marcus-bound rollover_sweep) drains the buffer, so the table
+  // subtracts the total to reflect what's actually left in Chase.
   const vault = (accountsRes.data ?? []).find((a) => a.is_vault)
-  const totalBufferSwept =
+  const chaseToVault =
     chase && vault
-      ? (transfersRes.data ?? [])
-          .filter(
-            (t) =>
-              t.from_account_id === chase.id && t.to_account_id === vault.id,
-          )
-          .reduce((s, t) => s + Number(t.amount), 0)
-      : 0
+      ? (transfersRes.data ?? []).filter(
+          (t) =>
+            t.from_account_id === chase.id && t.to_account_id === vault.id,
+        )
+      : []
+  const totalBufferSwept = chaseToVault.reduce(
+    (s, t) => s + Number(t.amount),
+    0,
+  )
+  // Subset that specifically represents the wage-buffer sweep (dashboard's
+  // "Chase buffer → Marcus HYSA"). Surfaced in the Total Buffer card so the
+  // user can see how much wage buffer has actually been routed to savings,
+  // separate from CO-under-spend (rollover) or manual moves.
+  const totalBufferSweptToVault = chaseToVault
+    .filter((t) => t.kind === 'buffer_sweep')
+    .reduce((s, t) => s + Number(t.amount), 0)
   // Net wage-derived Vault flow (manual + vault_topup_sweep). CO-surplus
   // sweeps are excluded so the paycheck plan doesn't re-shuffle when a
   // rollover/buffer sweep locks CO into savings.
@@ -136,6 +145,7 @@ export default async function PaychecksPage() {
         todayISO={todayInUserTz()}
         totalChaseToBofa={totalChaseToBofa}
         totalBufferSwept={totalBufferSwept}
+        totalBufferSweptToVault={totalBufferSweptToVault}
         initialCumulativeVault={externalVaultPlanSeed}
       />
     </div>

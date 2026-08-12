@@ -78,7 +78,7 @@ export default async function WeeklyPage() {
       <div className="mx-auto w-full max-w-6xl px-4 py-8">
         <PageHeader
           title="Weekly Tracker"
-          subtitle="Maximum allowed to spend (cumulative) vs actual spent · week ending Sunday."
+          subtitle="Maximum allowed to spend (cumulative) vs Actual spent · Week ending Sunday."
         />
         <div
           className="fx-card"
@@ -244,9 +244,11 @@ export default async function WeeklyPage() {
 
   const totalSummerCO = computed.reduce((sum, r) => sum + r.co, 0)
   // totalActualExpensesToDate = real consumption (off-budget excluded).
-  // totalCoSavedToDate = CO-surplus swept into Marcus (rollover + buffer).
-  // Together they equal the CO "utilized" so far; summerRemaining subtracts
-  // both from the plan.
+  // totalCoSavedToDate = CO under-spend that has been swept into Marcus.
+  // Only rollover sweeps count — those come from the weekly-CO surplus. Buffer
+  // sweeps land in Marcus too but represent Chase-buffer surplus (wage
+  // remainders, reimbursement float), which belongs on the Paychecks page's
+  // Total Buffer card, not on this CO-tracking headline.
   const totalActualExpensesToDate = expenseRows
     .filter((e) => e.count_in_co_budget !== false)
     .reduce(
@@ -256,13 +258,13 @@ export default async function WeeklyPage() {
     )
   const totalCoSavedToDate = vaultAcct
     ? transferRows
-        .filter(
-          (t) =>
-            CO_SURPLUS_SWEEP_KINDS.has(t.kind) &&
-            t.to_account_id === vaultAcct.id &&
-            t.transferred_at <= todayStr,
-        )
-        .reduce((sum, t) => sum + Number(t.amount), 0)
+      .filter(
+        (t) =>
+          t.kind === 'rollover_sweep' &&
+          t.to_account_id === vaultAcct.id &&
+          t.transferred_at <= todayStr,
+      )
+      .reduce((sum, t) => sum + Number(t.amount), 0)
     : 0
   const totalCoUtilizedToDate = totalActualExpensesToDate + totalCoSavedToDate
   const summerRemaining = totalSummerCO - totalCoUtilizedToDate

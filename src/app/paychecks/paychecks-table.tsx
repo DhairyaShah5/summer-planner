@@ -203,6 +203,7 @@ export function PaychecksTable({
   todayISO,
   totalChaseToBofa,
   totalBufferSwept,
+  totalBufferSweptToVault,
   initialCumulativeVault,
 }: {
   initialRows: PaycheckRow[]
@@ -210,6 +211,7 @@ export function PaychecksTable({
   todayISO: string
   totalChaseToBofa: number
   totalBufferSwept: number
+  totalBufferSweptToVault: number
   initialCumulativeVault: number
 }) {
   const [rows, setRows] = useState<PaycheckRow[]>(initialRows)
@@ -1063,6 +1065,14 @@ export function PaychecksTable({
               >
                 <span>
                   {receivedCount} of {computed.length} paychecks received
+                  {totalBufferSweptToVault > 0 && (
+                    <>
+                      {' · '}
+                      <span style={{ color: 'var(--gold)', fontWeight: 600 }}>
+                        {fmtMoney(totalBufferSweptToVault)} swept to Marcus
+                      </span>
+                    </>
+                  )}
                 </span>
                 <span>Projected {fmtMoney(totals.totalBuffer)}</span>
               </div>

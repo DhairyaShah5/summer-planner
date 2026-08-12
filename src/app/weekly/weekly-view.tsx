@@ -334,7 +334,7 @@ export function WeeklyView({
                 </span>
               </>
             ) : null}{' '}
-            of {fmtMoney(totalSummerCO, { cents: true })} projected CO
+            of {fmtMoney(totalSummerCO, { cents: true })} Projected CO
           </span>
         </div>
       </Reveal>
