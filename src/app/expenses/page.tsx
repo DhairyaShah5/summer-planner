@@ -37,7 +37,7 @@ export default async function ExpensesPage() {
         .order('display_order', { ascending: true }),
       supabase
         .from('transfers')
-        .select('from_account_id, to_account_id, amount, kind'),
+        .select('from_account_id, to_account_id, amount, kind, transferred_at'),
     ])
 
   if (settingsRes.error) throw settingsRes.error
@@ -161,6 +161,17 @@ export default async function ExpensesPage() {
     cumMaxAllowed = computed
       .filter((r) => String(r.payDate) <= sundayISO)
       .reduce((acc, r) => acc + r.co, 0)
+
+    // Rollover sweeps commit CO surplus to Marcus, removing it from the
+    // spendable pool. Subtract sweeps through today so "left to spend"
+    // reflects only CO you can still actually spend.
+    let sweptToDate = 0
+    for (const t of transfersRes.data ?? []) {
+      if (t.kind === 'rollover_sweep' && t.transferred_at <= todayISO) {
+        sweptToDate += Number(t.amount)
+      }
+    }
+    cumMaxAllowed -= sweptToDate
 
     cumSpent = expenses
       .filter((e) => e.expense_date <= todayISO && e.count_in_co_budget !== false)

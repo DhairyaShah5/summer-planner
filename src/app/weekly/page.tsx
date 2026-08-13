@@ -190,6 +190,17 @@ export default async function WeeklyPage() {
         vaultBalance = row.cumulativeVault
       }
     }
+    // Rollover sweeps lock CO surplus into Marcus, so it's no longer
+    // spendable. Subtract cumulative sweeps through this week's end
+    // from the Spending Budget so Variance = Budget - Spent stays
+    // consistent (and matches the summer-wide "left to spend" headline).
+    let sweptThroughWeek = 0
+    for (const t of transferRows) {
+      if (t.kind === 'rollover_sweep' && t.transferred_at <= weekEndISO) {
+        sweptThroughWeek += Number(t.amount)
+      }
+    }
+    targetCumulative -= sweptThroughWeek
     // cumulativeVault includes `externalVaultPlanSeed` (wage-derived vault
     // transfers pre-loaded onto row 1) so the paycheck plan can shrink vault
     // contributions from the end. But that treats every transfer as if it
