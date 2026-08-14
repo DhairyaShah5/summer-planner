@@ -353,13 +353,17 @@ export default async function DashboardPage() {
         .reduce((s, t) => s + t.amount, 0)
     : 0;
   const bofaExtraCurrent = wagesInBofa - bofaWageSweeps;
-  // Any Chase → Vault transfer drains the buffer (residual sub-$100 wage
-  // remainder that sits in Chase). Kind-agnostic so a manual Chase →
-  // Marcus transfer behaves identically to a buffer_sweep.
+  // Only `buffer_sweep` transfers drain the wage-buffer pocket. A
+  // rollover_sweep also moves Chase → Marcus but drains CO surplus (a
+  // different pocket), so counting it here would deflate bufferSurplus
+  // and silently hide the sweep banner. Manual Chase → Marcus moves have
+  // unknown intent, so we leave them out too and let them float in the
+  // raw balance. Mirrors the paychecks page's totalBufferSwept.
   const bufferSweptSoFar = vaultAccountId && chaseAccountId
     ? transferInputs
         .filter(
           (t) =>
+            t.kind === 'buffer_sweep' &&
             t.from_account_id === chaseAccountId &&
             t.to_account_id === vaultAccountId,
         )
