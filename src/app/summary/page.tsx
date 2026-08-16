@@ -203,7 +203,7 @@ export default async function SummaryPage() {
     { label: 'Paycheck base net wages', amount: income_baseNet },
     { label: 'Per diem', amount: income_perDiem },
     { label: 'Reimbursements', amount: income_reimb },
-    { label: 'Extra deposits (signing bonus)', amount: income_extra },
+    { label: 'Extra deposits', amount: income_extra },
     { label: 'Cash reimbursements & side income (checking)', amount: entry_cash_in, note: 'Frictionless paycheck, Splitwise/Uber/Raghav/EasyTransfer settlements' },
     { label: 'Credit card statement credits', amount: entry_cc_credits, note: 'Vivek + Amazon refunds, Paze, Lemonade' },
     { label: 'Settled expense refunds', amount: exp_settled_refunds },
