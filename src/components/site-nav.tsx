@@ -12,6 +12,7 @@ import {
   LogOut,
   Sun,
   Landmark,
+  Sigma,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -30,6 +31,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/expenses", label: "Expenses", icon: Receipt },
   { href: "/accounts", label: "Accounts", icon: Landmark },
   { href: "/weekly", label: "Weekly", icon: CalendarDays },
+  { href: "/summary", label: "Summary", icon: Sigma },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

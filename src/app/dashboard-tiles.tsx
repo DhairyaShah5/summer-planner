@@ -97,7 +97,7 @@ export interface DashboardTilesProps {
   accountsPreview: {
     id: string
     name: string
-    type: 'checking' | 'credit_card' | 'hysa'
+    type: 'checking' | 'credit_card' | 'hysa' | 'investment'
     current_balance: number
   }[]
   vaultGrowth: VaultGrowthPoint[]
@@ -1458,7 +1458,7 @@ function EmptyHint({ title, body }: { title: string; body: string }) {
   )
 }
 
-function accountTypeLabel(t: 'checking' | 'credit_card' | 'hysa'): string {
+function accountTypeLabel(t: 'checking' | 'credit_card' | 'hysa' | 'investment'): string {
   switch (t) {
     case 'checking':
       return 'Checking'
@@ -1466,6 +1466,8 @@ function accountTypeLabel(t: 'checking' | 'credit_card' | 'hysa'): string {
       return 'Credit Card'
     case 'hysa':
       return 'HYSA'
+    case 'investment':
+      return 'Investment'
   }
 }
 

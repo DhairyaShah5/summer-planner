@@ -74,7 +74,7 @@ import {
   mondaysBetween,
 } from '@/lib/calc'
 
-export type AccountType = 'checking' | 'credit_card' | 'hysa'
+export type AccountType = 'checking' | 'credit_card' | 'hysa' | 'investment'
 
 export type TransferKind =
   | 'manual'
@@ -222,6 +222,7 @@ function shiftIsoDate(iso: string, days: number): string {
 function hueForAccount(name: string, type: AccountType, isVault: boolean): number {
   const n = name.toLowerCase()
   if (type === 'credit_card') return 25
+  if (type === 'investment' || n.includes('robinhood') || n.includes('brokerage')) return 145
   if (isVault || type === 'hysa' || n.includes('marcus') || n.includes('hysa')) return 285
   if (n.includes('bofa') || n.includes('bank of america')) return 200
   if (n.includes('chase')) return 235
@@ -243,6 +244,8 @@ function typeLabel(t: AccountType): string {
       return 'Credit Card'
     case 'hysa':
       return 'HYSA'
+    case 'investment':
+      return 'Investment'
   }
 }
 

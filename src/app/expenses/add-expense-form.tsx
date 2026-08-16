@@ -19,7 +19,7 @@ import { CatDot } from '@/components/redesign'
 import { addExpense } from './expense-actions'
 import { EXPENSE_CATEGORIES } from './categories'
 
-export type AccountOptionType = 'checking' | 'credit_card' | 'hysa'
+export type AccountOptionType = 'checking' | 'credit_card' | 'hysa' | 'investment'
 
 export interface AccountOption {
   id: string

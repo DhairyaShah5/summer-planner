@@ -377,7 +377,7 @@ export function computeAll(
 export interface AccountInput {
   id: string
   name: string
-  type: 'checking' | 'credit_card' | 'hysa'
+  type: 'checking' | 'credit_card' | 'hysa' | 'investment'
   arrival_balance: number
   is_paycheck_destination: boolean
   is_vault: boolean

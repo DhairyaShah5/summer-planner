@@ -58,7 +58,7 @@ function shortAccountLabel(name: string, type: AccountOption['type']): string {
     const stripped = name.replace(/credit card/i, '').trim()
     return `${stripped || name} CC`.replace(/\s+/g, ' ')
   }
-  if (type === 'hysa') {
+  if (type === 'hysa' || type === 'investment') {
     return name
   }
   return name.replace(/checking/i, '').trim() || name

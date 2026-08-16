@@ -175,7 +175,7 @@ export default async function DashboardPage() {
   const accountInputs: AccountInput[] = (accountsRes.data ?? []).map((a) => ({
     id: a.id,
     name: a.name,
-    type: a.type as 'checking' | 'credit_card' | 'hysa',
+    type: a.type as AccountInput['type'],
     arrival_balance: Number(a.arrival_balance),
     is_paycheck_destination: a.is_paycheck_destination,
     is_vault: a.is_vault,
