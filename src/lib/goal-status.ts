@@ -4,6 +4,7 @@ import {
   computeAll,
   summarize,
   CO_SURPLUS_SWEEP_KINDS,
+  INTERNSHIP_END,
   type Employer,
   type PaycheckInput,
   type Settings,
@@ -12,6 +13,8 @@ import { todayInUserTz } from '@/lib/today'
 
 export type GoalStatus = {
   isReached: boolean
+  /** goal reached AND the summer is over — the app has served its purpose. */
+  isRetired: boolean
   current: number
   cap: number
   projected: number
@@ -19,12 +22,14 @@ export type GoalStatus = {
   deadlineISO: string
   todayISO: string
   daysUntilDeadline: number
+  internshipEndISO: string
 }
 
 const DEADLINE_ISO = '2026-09-02'
 
 const EMPTY_STATUS: GoalStatus = {
   isReached: false,
+  isRetired: false,
   current: 0,
   cap: 0,
   projected: 0,
@@ -32,6 +37,7 @@ const EMPTY_STATUS: GoalStatus = {
   deadlineISO: DEADLINE_ISO,
   todayISO: DEADLINE_ISO,
   daysUntilDeadline: 0,
+  internshipEndISO: INTERNSHIP_END,
 }
 
 // Cached per-request so the layout probe and any page-level compute don't
@@ -163,10 +169,12 @@ export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
       ),
     )
 
+    const isReached =
+      settings.vaultCap > 0 && currentVault + 0.005 >= settings.vaultCap
+    const isRetired = isReached && todayISO > INTERNSHIP_END
     return {
-      isReached:
-        settings.vaultCap > 0 &&
-        currentVault + 0.005 >= settings.vaultCap,
+      isReached,
+      isRetired,
       current: currentVault,
       cap: settings.vaultCap,
       projected,
@@ -174,6 +182,7 @@ export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
       deadlineISO: DEADLINE_ISO,
       todayISO,
       daysUntilDeadline,
+      internshipEndISO: INTERNSHIP_END,
     }
   } catch (err) {
     console.error('[goal-status] failed', err)

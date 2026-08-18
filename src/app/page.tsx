@@ -20,6 +20,7 @@ import {
 import type { Expense } from "@/lib/types";
 import type { AllocationDatum } from "@/components/allocation-breakdown";
 import { DashboardTiles } from "./dashboard-tiles";
+import { PurposeFulfilledHero } from "@/components/celebration/purpose-fulfilled-hero";
 
 export const dynamic = "force-dynamic";
 
@@ -554,6 +555,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="container mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <PurposeFulfilledHero />
       <DashboardTiles
         todayLabel={todayLabel}
         vault={{
