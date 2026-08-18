@@ -41,7 +41,7 @@ const EMPTY_STATUS: GoalStatus = {
 export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
   try {
     const { supabase } = await getViewerContext()
-    const [accountsRes, settingsRes, paychecksRes, transfersRes] =
+    const [accountsRes, settingsRes, paychecksRes, transfersRes, entriesRes] =
       await Promise.all([
         supabase.from('accounts').select('id, is_vault, arrival_balance'),
         supabase.from('settings').select('*').maybeSingle(),
@@ -52,12 +52,16 @@ export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
         supabase
           .from('transfers')
           .select('to_account_id, from_account_id, amount, kind'),
+        supabase
+          .from('account_entries')
+          .select('account_id, amount'),
       ])
 
     if (accountsRes.error) throw accountsRes.error
     if (settingsRes.error) throw settingsRes.error
     if (paychecksRes.error) throw paychecksRes.error
     if (transfersRes.error) throw transfersRes.error
+    if (entriesRes.error) throw entriesRes.error
 
     const settingsRow = settingsRes.data
     if (!settingsRow) return EMPTY_STATUS
@@ -91,6 +95,13 @@ export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
       if (!CO_SURPLUS_SWEEP_KINDS.has(t.kind))
         externalVaultPlanSeed += signed
     }
+
+    // Free-form Marcus entries (e.g. manual BofA fee-vault sweep) are neither
+    // paycheck-driven nor transfers, so they'd be invisible to summarize().
+    // Fold them in so goal-status matches the dashboard + Accounts page.
+    const vaultEntriesTotal = (entriesRes.data ?? [])
+      .filter((e) => e.account_id === vaultAcct.id)
+      .reduce((s, e) => s + Number(e.amount), 0)
 
     const paycheckInputs: PaycheckInput[] = (paychecksRes.data ?? []).map(
       (p) => {
@@ -134,11 +145,11 @@ export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
 
     const currentVault = Math.min(
       settings.vaultCap,
-      totals.currentVault + externalVaultBalance,
+      totals.currentVault + externalVaultBalance + vaultEntriesTotal,
     )
     const projected = Math.min(
       settings.vaultCap,
-      totals.totalVault + externalVaultBalance,
+      totals.totalVault + externalVaultBalance + vaultEntriesTotal,
     )
 
     const paycheckContributions = paycheckInputs.filter((p) => p.received).length

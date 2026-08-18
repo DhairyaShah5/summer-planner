@@ -276,6 +276,24 @@ export default async function DashboardPage() {
     current_balance: s.current,
   }));
 
+  // Marcus account_entries (e.g. the manual BofA fee-vault payment) don't
+  // flow through paychecks or transfers, so the base vault projection here
+  // misses them. Layer them in by date the same way CO-surplus sweeps are.
+  const vaultEntriesThroughDate = (dateISO: string): number =>
+    vaultAccountId
+      ? accountEntryInputs
+          .filter(
+            (e) => e.account_id === vaultAccountId && e.dated_at <= dateISO,
+          )
+          .reduce((s, e) => s + e.amount, 0)
+      : 0;
+  const vaultEntriesTotal = vaultAccountId
+    ? accountEntryInputs
+        .filter((e) => e.account_id === vaultAccountId)
+        .reduce((s, e) => s + e.amount, 0)
+    : 0;
+  const vaultEntriesToDate = vaultEntriesThroughDate(todayISO);
+
 
   // Cumulative CO utilization through today. Off-budget expenses
   // (count_in_co_budget === false) are excluded. CO-surplus sweeps
@@ -417,8 +435,12 @@ export default async function DashboardPage() {
       // this paycheck and the running projected-sweep tally so the "cap
       // headroom" check reflects what's actually left in Marcus.
       const coSurplusHere = coSurplusThroughDate(String(r.payDate));
+      const entriesHere = vaultEntriesThroughDate(String(r.payDate));
       const baseAtRow =
-        r.cumulativeVault + projectedFutureSweeps + coSurplusHere;
+        r.cumulativeVault +
+        projectedFutureSweeps +
+        coSurplusHere +
+        entriesHere;
       const roomLeft = Math.max(0, settings.vaultCap - baseAtRow);
       const roomFloored = Math.floor(roomLeft / 100) * 100;
       const sweepAmount =
@@ -435,14 +457,15 @@ export default async function DashboardPage() {
         settings.vaultCap,
         r.cumulativeVault +
           projectedFutureSweeps +
-          coSurplusThroughDate(String(r.payDate)),
+          coSurplusThroughDate(String(r.payDate)) +
+          vaultEntriesThroughDate(String(r.payDate)),
       ),
     );
   }
 
   const currentVaultWithSweeps = Math.min(
     settings.vaultCap,
-    totals.currentVault + externalVaultBalance,
+    totals.currentVault + externalVaultBalance + vaultEntriesToDate,
   );
   // The last row's projectedVaultPerRow only includes CO-surplus sweeps
   // dated on/before that paycheck; guard against a future-dated sweep by
@@ -451,7 +474,10 @@ export default async function DashboardPage() {
     settings.vaultCap,
     Math.max(
       projectedVaultPerRow[projectedVaultPerRow.length - 1] ?? 0,
-      totals.totalVault + projectedFutureSweeps + coSurplusTotal,
+      totals.totalVault +
+        projectedFutureSweeps +
+        coSurplusTotal +
+        vaultEntriesTotal,
     ),
   );
 
