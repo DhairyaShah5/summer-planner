@@ -207,7 +207,7 @@ export function GoalReachedModal(props: Props) {
                 size={12}
                 style={{ display: 'inline', verticalAlign: -1, marginRight: 6 }}
               />
-              Tuition. Handled.
+              USC. Paid in Full.
               <Sparkles
                 size={12}
                 style={{ display: 'inline', verticalAlign: -1, marginLeft: 6 }}
@@ -240,11 +240,16 @@ export function GoalReachedModal(props: Props) {
                 lineHeight: 1.55,
               }}
             >
-              Dear USC, please find {fmtMoney(cap)} attached.
+              Dear USC, thanks for cashing that {fmtMoney(cap)}.
+              <br />
+              <span style={{ color: 'rgba(250, 244, 230, 0.68)' }}>
+                One summer. 15 paychecks. A full Fall 2026 tuition.
+              </span>
               <br />
               <span style={{ color: 'rgba(250, 244, 230, 0.6)' }}>
-                Earned in USD. Paid in USD. No loan officer, no cosigner, no
-                calls home.
+                Zero bank loans. Zero FAFSA. Zero cosigners. Friends floated
+                the deadline while checks landed. Every one of them squared up
+                before syllabus week.
               </span>
               <br />
               <span
@@ -253,7 +258,7 @@ export function GoalReachedModal(props: Props) {
                   fontSize: 13,
                 }}
               >
-                Fall 2026 tuition, sorted by {deadline}
+                Delivered by {deadline}
                 {daysUntilDeadline > 0 && (
                   <>
                     .{' '}
@@ -276,10 +281,10 @@ export function GoalReachedModal(props: Props) {
               }}
             >
               <Stat
-                label="Checks cashed"
+                label="Paychecks cashed"
                 value={String(paycheckContributions)}
               />
-              <Stat label="Loans taken" value="$0" />
+              <Stat label="Bank loans" value="$0" />
             </div>
 
             <motion.button
@@ -301,7 +306,7 @@ export function GoalReachedModal(props: Props) {
                 boxShadow: '0 10px 30px rgba(212, 161, 74, 0.4)',
               }}
             >
-              OK, enough flexing
+              OK, back to counting the leftovers
             </motion.button>
           </motion.div>
           <style>{`
