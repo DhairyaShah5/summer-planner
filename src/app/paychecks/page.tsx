@@ -4,30 +4,44 @@ import { CO_SURPLUS_SWEEP_KINDS } from '@/lib/calc'
 import { PageHeader } from '@/components/redesign'
 import { todayInUserTz } from '@/lib/today'
 import { PaychecksTable, type PaycheckRow } from './paychecks-table'
+import type { LenderOption } from './lender-routing-dialog'
 
 export const dynamic = 'force-dynamic'
 
 export default async function PaychecksPage() {
   const { supabase } = await getViewerContext()
 
-  const [settingsRes, paychecksRes, accountsRes, transfersRes] = await Promise.all([
-    supabase.from('settings').select('*').maybeSingle(),
-    supabase
-      .from('paychecks')
-      .select('*')
-      .order('pay_num', { ascending: true }),
-    supabase
-      .from('accounts')
-      .select('id, name, is_paycheck_destination, is_vault'),
-    supabase
-      .from('transfers')
-      .select('from_account_id, to_account_id, amount, kind'),
-  ])
+  const [settingsRes, paychecksRes, accountsRes, transfersRes, lendersRes] =
+    await Promise.all([
+      supabase.from('settings').select('*').maybeSingle(),
+      supabase
+        .from('paychecks')
+        .select('*')
+        .order('pay_num', { ascending: true }),
+      supabase
+        .from('accounts')
+        .select('id, name, is_paycheck_destination, is_vault'),
+      supabase
+        .from('transfers')
+        .select('from_account_id, to_account_id, amount, kind'),
+      supabase
+        .from('lenders')
+        .select('id, name, outstanding')
+        .order('created_at', { ascending: true }),
+    ])
 
   if (settingsRes.error) throw settingsRes.error
   if (paychecksRes.error) throw paychecksRes.error
   if (accountsRes.error) throw accountsRes.error
   if (transfersRes.error) throw transfersRes.error
+  // Lenders table may not exist yet (migration pending). Fall back to none.
+  const lenders: LenderOption[] = lendersRes.error
+    ? []
+    : (lendersRes.data ?? []).map((l) => ({
+        id: l.id,
+        name: l.name,
+        outstanding: Number(l.outstanding ?? 0),
+      }))
 
   const s = settingsRes.data
   if (!s) {
@@ -140,6 +154,7 @@ export default async function PaychecksPage() {
         totalChaseToBofa={totalChaseToBofa}
         totalBufferSwept={totalBufferSwept}
         initialCumulativeVault={externalVaultPlanSeed}
+        lenders={lenders}
       />
     </div>
   )

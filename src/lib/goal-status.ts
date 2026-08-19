@@ -5,6 +5,7 @@ import {
   summarize,
   CO_SURPLUS_SWEEP_KINDS,
   INTERNSHIP_END,
+  parseLenderRouting,
   type Employer,
   type PaycheckInput,
   type Settings,
@@ -23,6 +24,10 @@ export type GoalStatus = {
   todayISO: string
   daysUntilDeadline: number
   internshipEndISO: string
+  /** Total money still owed to lenders. Reduces `current` and gates
+   *  Mission Accomplished so the celebration can't fire while there's a
+   *  friend still to pay back. */
+  lenderOutstandingTotal: number
 }
 
 const DEADLINE_ISO = '2026-09-02'
@@ -38,6 +43,7 @@ const EMPTY_STATUS: GoalStatus = {
   todayISO: DEADLINE_ISO,
   daysUntilDeadline: 0,
   internshipEndISO: INTERNSHIP_END,
+  lenderOutstandingTotal: 0,
 }
 
 // Cached per-request so the layout probe and any page-level compute don't
@@ -47,27 +53,42 @@ const EMPTY_STATUS: GoalStatus = {
 export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
   try {
     const { supabase } = await getViewerContext()
-    const [accountsRes, settingsRes, paychecksRes, transfersRes, entriesRes] =
-      await Promise.all([
-        supabase.from('accounts').select('id, is_vault, arrival_balance'),
-        supabase.from('settings').select('*').maybeSingle(),
-        supabase
-          .from('paychecks')
-          .select('*')
-          .order('pay_num', { ascending: true }),
-        supabase
-          .from('transfers')
-          .select('to_account_id, from_account_id, amount, kind'),
-        supabase
-          .from('account_entries')
-          .select('account_id, amount'),
-      ])
+    const [
+      accountsRes,
+      settingsRes,
+      paychecksRes,
+      transfersRes,
+      entriesRes,
+      lendersRes,
+    ] = await Promise.all([
+      supabase.from('accounts').select('id, is_vault, arrival_balance'),
+      supabase.from('settings').select('*').maybeSingle(),
+      supabase
+        .from('paychecks')
+        .select('*')
+        .order('pay_num', { ascending: true }),
+      supabase
+        .from('transfers')
+        .select('to_account_id, from_account_id, amount, kind'),
+      supabase
+        .from('account_entries')
+        .select('account_id, amount'),
+      supabase.from('lenders').select('outstanding'),
+    ])
 
     if (accountsRes.error) throw accountsRes.error
     if (settingsRes.error) throw settingsRes.error
     if (paychecksRes.error) throw paychecksRes.error
     if (transfersRes.error) throw transfersRes.error
     if (entriesRes.error) throw entriesRes.error
+    // lenders table may not exist yet (migration hasn't been applied). Treat
+    // any error as "no lenders" so the dashboard keeps working; the goal just
+    // won't have any debt-gating until the migration lands.
+    const lenderRows = lendersRes.error ? [] : (lendersRes.data ?? [])
+    const lenderOutstandingTotal = lenderRows.reduce(
+      (s, l) => s + Number(l.outstanding ?? 0),
+      0,
+    )
 
     const settingsRow = settingsRes.data
     if (!settingsRow) return EMPTY_STATUS
@@ -141,6 +162,7 @@ export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
             overrides.robinhood_amount != null
               ? Number(overrides.robinhood_amount)
               : null,
+          lenderRouting: parseLenderRouting(p.flow_overrides),
           received: p.received,
         }
       },
@@ -149,13 +171,21 @@ export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
     const computed = computeAll(paycheckInputs, settings, externalVaultPlanSeed)
     const totals = summarize(computed, settings)
 
-    const currentVault = Math.min(
-      settings.vaultCap,
-      totals.currentVault + externalVaultBalance + vaultEntriesTotal,
+    // Subtract lender debt: money in Marcus that was borrowed isn't really
+    // "saved" until the friend is paid back. Clamp at 0 so a settings glitch
+    // (e.g. leftover outstanding after vault was drained) doesn't render a
+    // nonsense negative goal.
+    const rawCurrent =
+      totals.currentVault + externalVaultBalance + vaultEntriesTotal
+    const rawProjected =
+      totals.totalVault + externalVaultBalance + vaultEntriesTotal
+    const currentVault = Math.max(
+      0,
+      Math.min(settings.vaultCap, rawCurrent) - lenderOutstandingTotal,
     )
-    const projected = Math.min(
-      settings.vaultCap,
-      totals.totalVault + externalVaultBalance + vaultEntriesTotal,
+    const projected = Math.max(
+      0,
+      Math.min(settings.vaultCap, rawProjected) - lenderOutstandingTotal,
     )
 
     const paycheckContributions = paycheckInputs.filter((p) => p.received).length
@@ -169,8 +199,14 @@ export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
       ),
     )
 
+    // isReached requires BOTH cap-full AND no lender debt outstanding, so
+    // Mission Accomplished can't fire on borrowed money still sitting in
+    // Marcus. lenderOutstandingTotal is already baked into currentVault, but
+    // gate explicitly for clarity in case the max(0, ...) clamp masked it.
     const isReached =
-      settings.vaultCap > 0 && currentVault + 0.005 >= settings.vaultCap
+      settings.vaultCap > 0 &&
+      currentVault + 0.005 >= settings.vaultCap &&
+      lenderOutstandingTotal < 0.005
     const isRetired = isReached && todayISO > INTERNSHIP_END
     return {
       isReached,
@@ -183,6 +219,7 @@ export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
       todayISO,
       daysUntilDeadline,
       internshipEndISO: INTERNSHIP_END,
+      lenderOutstandingTotal,
     }
   } catch (err) {
     console.error('[goal-status] failed', err)

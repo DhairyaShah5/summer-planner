@@ -5,7 +5,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Check, NotebookPen } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { computeAll, defaultRentDate, RH_WEEKLY_CUTOVER } from '@/lib/calc'
+import {
+  computeAll,
+  defaultRentDate,
+  parseLenderRouting,
+  RH_WEEKLY_CUTOVER,
+} from '@/lib/calc'
 import type { Employer, PaycheckComputed, PaycheckInput, Settings } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,6 +42,10 @@ import {
   fmtMoney,
 } from '@/components/redesign'
 import { cn } from '@/lib/utils'
+import {
+  LenderRoutingButton,
+  type LenderOption,
+} from './lender-routing-dialog'
 
 export type PaycheckRow = {
   id: string
@@ -197,6 +206,7 @@ function toInput(r: PaycheckRow): PaycheckInput {
       overrides.robinhood_amount != null
         ? Number(overrides.robinhood_amount)
         : null,
+    lenderRouting: parseLenderRouting(r.flow_overrides),
     received: r.received,
   }
 }
@@ -208,6 +218,7 @@ export function PaychecksTable({
   totalChaseToBofa,
   totalBufferSwept,
   initialCumulativeVault,
+  lenders,
 }: {
   initialRows: PaycheckRow[]
   settings: Settings
@@ -215,6 +226,7 @@ export function PaychecksTable({
   totalChaseToBofa: number
   totalBufferSwept: number
   initialCumulativeVault: number
+  lenders: LenderOption[]
 }) {
   const [rows, setRows] = useState<PaycheckRow[]>(initialRows)
   const queryClient = useQueryClient()
@@ -674,7 +686,43 @@ export function PaychecksTable({
                       </Td>
                       <Td align="center" last={isLast}>
                         <CellWithTicks tick={vaultTick}>
-                          <MoneyCell value={c.vault} hue={HUE.vault} />
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                            }}
+                          >
+                            <MoneyCell value={c.vault} hue={HUE.vault} />
+                            {c.vault > 0 && lenders.length > 0 && (
+                              <LenderRoutingButton
+                                paycheckId={row.id}
+                                vaultAmount={c.vault}
+                                lenders={lenders}
+                                routing={c.lenderPayouts ?? {}}
+                                compact
+                              />
+                            )}
+                          </div>
+                          {c.lenderPayoutTotal > 0 && (
+                            <div
+                              style={{
+                                marginTop: 2,
+                                font: '500 10.5px/1.2 var(--ui)',
+                                color: 'var(--ink-3)',
+                              }}
+                            >
+                              →{' '}
+                              {Object.entries(c.lenderPayouts ?? {})
+                                .map(([id, amt]) => {
+                                  const name =
+                                    lenders.find((l) => l.id === id)?.name ??
+                                    'lender'
+                                  return `${name} ${fmtMoney(amt)}`
+                                })
+                                .join(' · ')}
+                            </div>
+                          )}
                         </CellWithTicks>
                       </Td>
                       <Td align="center" last={isLast}>

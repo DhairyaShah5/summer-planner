@@ -1,6 +1,11 @@
 import { addDays, format, isAfter, isBefore, parseISO } from 'date-fns'
 import { getViewerContext } from '@/lib/viewer-context'
-import { computeAll, floor100, CO_SURPLUS_SWEEP_KINDS } from '@/lib/calc'
+import {
+  computeAll,
+  floor100,
+  CO_SURPLUS_SWEEP_KINDS,
+  parseLenderRouting,
+} from '@/lib/calc'
 import { dayOfWeekInUserTz, todayInUserTz } from '@/lib/today'
 import type {
   Employer,
@@ -140,6 +145,7 @@ export default async function WeeklyPage() {
         overrides.robinhood_amount != null
           ? Number(overrides.robinhood_amount)
           : null,
+      lenderRouting: parseLenderRouting(p.flow_overrides),
       received: p.received,
     }
   })

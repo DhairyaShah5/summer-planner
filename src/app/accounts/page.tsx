@@ -3,6 +3,7 @@ import {
   computeAccountStates,
   computeAll,
   CO_SURPLUS_SWEEP_KINDS,
+  parseLenderRouting,
   type AccountEntryInput,
   type AccountInput,
   type CCPaymentInput,
@@ -139,6 +140,7 @@ export default async function AccountsPage() {
         overrides.robinhood_amount != null
           ? Number(overrides.robinhood_amount)
           : null,
+      lenderRouting: parseLenderRouting(p.flow_overrides),
       received: p.received,
     }
   })

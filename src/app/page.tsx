@@ -8,6 +8,7 @@ import {
   computeAccountStates,
   summarize,
   CO_SURPLUS_SWEEP_KINDS,
+  parseLenderRouting,
   type Settings,
   type PaycheckInput,
   type Employer,
@@ -21,6 +22,7 @@ import type { Expense } from "@/lib/types";
 import type { AllocationDatum } from "@/components/allocation-breakdown";
 import { DashboardTiles } from "./dashboard-tiles";
 import { PurposeFulfilledHero } from "@/components/celebration/purpose-fulfilled-hero";
+import { LenderDebtsCard } from "@/components/lender-debts-card";
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +97,7 @@ export default async function DashboardPage() {
         overrides.robinhood_amount != null
           ? Number(overrides.robinhood_amount)
           : null,
+      lenderRouting: parseLenderRouting(p.flow_overrides),
       received: p.received,
     };
   });
@@ -121,6 +124,7 @@ export default async function DashboardPage() {
     ccPaymentsRes,
     transfersRes,
     accountEntriesRes,
+    lendersRes,
   ] = await Promise.all([
     supabase
       .from("expenses")
@@ -153,7 +157,33 @@ export default async function DashboardPage() {
     supabase
       .from("account_entries")
       .select("id, account_id, dated_at, amount, description"),
+    supabase
+      .from("lenders")
+      .select("id, name, principal, outstanding")
+      .order("created_at", { ascending: true }),
   ]);
+
+  // Lenders (borrowed money still owed): reduces the "true" vault so the
+  // dashboard tile + Mission Accomplished don't fire on borrowed cash sitting
+  // in Marcus. Missing table (migration not yet applied) falls back to none.
+  type LenderRow = {
+    id: string;
+    name: string;
+    principal: number;
+    outstanding: number;
+  };
+  const lenders: LenderRow[] = lendersRes.error
+    ? []
+    : (lendersRes.data ?? []).map((l) => ({
+        id: l.id,
+        name: l.name,
+        principal: Number(l.principal ?? 0),
+        outstanding: Number(l.outstanding ?? 0),
+      }));
+  const lenderOutstandingTotal = lenders.reduce(
+    (s, l) => s + l.outstanding,
+    0,
+  );
 
   const recentExpenses: Expense[] = (recentExpensesRes.data ?? []).map((e) => ({
     id: e.id,
@@ -464,14 +494,14 @@ export default async function DashboardPage() {
     );
   }
 
-  const currentVaultWithSweeps = Math.min(
+  // Raw vault (Marcus balance-derived) — what physically sits in Marcus. Used
+  // for cap arithmetic and display continuity so the tile still reads $24k
+  // even when part of it is borrowed money.
+  const rawCurrentVault = Math.min(
     settings.vaultCap,
     totals.currentVault + externalVaultBalance + vaultEntriesToDate,
   );
-  // The last row's projectedVaultPerRow only includes CO-surplus sweeps
-  // dated on/before that paycheck; guard against a future-dated sweep by
-  // taking the max with the full CO-surplus total layered on top.
-  const projectedTotalVaultWithSweeps = Math.min(
+  const rawProjectedVault = Math.min(
     settings.vaultCap,
     Math.max(
       projectedVaultPerRow[projectedVaultPerRow.length - 1] ?? 0,
@@ -480,6 +510,17 @@ export default async function DashboardPage() {
         coSurplusTotal +
         vaultEntriesTotal,
     ),
+  );
+  // "True" vault subtracts outstanding lender debt so the goal tile + Mission
+  // Accomplished can't fire on money still owed to a friend. Clamp at 0 so a
+  // stale row (outstanding > vault) doesn't render a negative goal.
+  const currentVaultWithSweeps = Math.max(
+    0,
+    rawCurrentVault - lenderOutstandingTotal,
+  );
+  const projectedTotalVaultWithSweeps = Math.max(
+    0,
+    rawProjectedVault - lenderOutstandingTotal,
   );
 
   const vaultPct =
@@ -556,6 +597,7 @@ export default async function DashboardPage() {
   return (
     <div className="container mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <PurposeFulfilledHero />
+      <LenderDebtsCard rows={lenders} />
       <DashboardTiles
         todayLabel={todayLabel}
         vault={{

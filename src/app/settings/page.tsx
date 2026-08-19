@@ -1,6 +1,7 @@
 import { getViewerContext } from "@/lib/viewer-context";
 import { SettingsForm, type SettingsFormValues } from "./settings-form";
 import { ImportFromXlsx } from "./import-from-xlsx";
+import { LendersManager, type LenderRow } from "./lenders-manager";
 import { PageHeader, Reveal } from "@/components/redesign";
 
 export const dynamic = "force-dynamic";
@@ -56,6 +57,20 @@ export default async function SettingsPage() {
     );
   }
 
+  const { data: lenderRowsRaw, error: lendersErr } = await supabase
+    .from("lenders")
+    .select("id, name, principal, outstanding, note")
+    .order("created_at", { ascending: true });
+  const lenderRows: LenderRow[] = lendersErr
+    ? []
+    : (lenderRowsRaw ?? []).map((l) => ({
+        id: l.id,
+        name: l.name,
+        principal: Number(l.principal ?? 0),
+        outstanding: Number(l.outstanding ?? 0),
+        note: l.note ?? null,
+      }));
+
   const values: SettingsFormValues = {
     vault_cap: Number(row.vault_cap),
     usc_gross_baseline: Number(row.usc_gross_baseline),
@@ -81,6 +96,7 @@ export default async function SettingsPage() {
         subtitle="Goal, employers, and how each paycheck cascades into buckets."
       />
       <SettingsForm initialValues={values} defaults={DEFAULTS} />
+      <LendersManager initialRows={lenderRows} />
       <Reveal delay={300}>
         <div
           className="fx-card settings-maint"

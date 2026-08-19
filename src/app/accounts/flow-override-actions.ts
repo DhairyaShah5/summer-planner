@@ -53,6 +53,57 @@ export async function setFlowOverride(
   return { ok: true }
 }
 
+/** Route some of this paycheck's vault contribution to lender payoffs
+ *  instead of Marcus. Writes a nested `{ lender_id: amount }` object under
+ *  `flow_overrides.lender_routing`. Pass an empty object (or all-zero map)
+ *  to clear the routing. Amounts <= 0 are dropped. Callers should also
+ *  update the corresponding `lenders.outstanding` when the paycheck is
+ *  received; this action only records the intent on the paycheck. */
+export async function setPaycheckLenderRouting(
+  paycheck_id: string,
+  routing: Record<string, number>,
+): Promise<ActionResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Not signed in' }
+
+  const cleaned: Record<string, number> = {}
+  for (const [id, raw] of Object.entries(routing ?? {})) {
+    const amt = Number(raw)
+    if (Number.isFinite(amt) && amt > 0) cleaned[id] = amt
+  }
+
+  const { data, error } = await supabase
+    .from('paychecks')
+    .select('flow_overrides')
+    .eq('id', paycheck_id)
+    .eq('user_id', user.id)
+    .single()
+  if (error) return { ok: false, error: error.message }
+
+  const current =
+    (data?.flow_overrides as Record<string, unknown> | null) ?? {}
+  const next: Record<string, unknown> = { ...current }
+  if (Object.keys(cleaned).length === 0) delete next.lender_routing
+  else next.lender_routing = cleaned
+
+  const { error: updErr } = await supabase
+    .from('paychecks')
+    .update({ flow_overrides: next as Record<string, unknown> as never })
+    .eq('id', paycheck_id)
+    .eq('user_id', user.id)
+  if (updErr) return { ok: false, error: updErr.message }
+
+  revalidatePath('/accounts')
+  revalidatePath('/')
+  revalidatePath('/weekly')
+  revalidatePath('/paychecks')
+  revalidatePath('/settings')
+  return { ok: true }
+}
+
 /** Override a paycheck's rent OUTFLOW amount without touching `rent_paid`.
  *  The allocator (`computeAll`) keeps using `rent_paid` so vault/CO/BofA
  *  distributions don't shift — only the actual cash leaving Chase changes.

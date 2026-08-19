@@ -77,6 +77,15 @@ export interface PaycheckInput {
    *  coOverride: freezes the RH figure when the user has a one-off (a check
    *  where the standard Robinhood cadence didn't apply). Null = derive. */
   robinhoodOverride?: number | null
+  /** Routes some or all of this paycheck's vault contribution to lenders
+   *  instead of Marcus. `{ lender_id: amount }`. The paycheck row still
+   *  displays its full `vault` figure (visual continuity), but the routed
+   *  portion never inflates Marcus or cumulativeVault — it represents the
+   *  user Zelle-ing that money to a friend to pay back a loan. Money still
+   *  leaves Chase the same day. Sum of routed amounts should not exceed
+   *  the row's computed `vault`; anything above is treated as still Marcus-
+   *  bound (defensive clamp). */
+  lenderRouting?: Record<string, number> | null
   received: boolean
 }
 
@@ -94,6 +103,12 @@ export interface PaycheckComputed extends PaycheckInput {
   buffer: number
   status: 'Received' | 'Pending'
   cumulativeVault: number
+  /** Sum of vault money routed to lenders on this row. Clamped to `vault`
+   *  (won't exceed the paycheck's own vault contribution). Marcus inflow
+   *  and cumulativeVault both exclude this portion. */
+  lenderPayoutTotal: number
+  /** Post-clamp per-lender payout map, sanitized for consumers. */
+  lenderPayouts: Record<string, number>
 }
 
 /** Floor `x` to the nearest multiple of 10 (legacy helper, kept for callers). */
@@ -104,6 +119,34 @@ export function floor10(x: number): number {
 /** Floor `x` to the nearest multiple of 100. */
 export function floor100(x: number): number {
   return Math.floor(x / 100) * 100
+}
+
+/** Pull the per-paycheck lender-routing map out of a `flow_overrides` jsonb
+ *  blob. Callers hand this straight into `PaycheckInput.lenderRouting`.
+ *  Accepts either a nested object or a JSON-encoded string (older writes).
+ *  Returns null when nothing is set so the row falls through the default
+ *  Marcus-bound path in `computeRow`. */
+export function parseLenderRouting(
+  flowOverrides: unknown,
+): Record<string, number> | null {
+  if (!flowOverrides || typeof flowOverrides !== 'object') return null
+  const raw = (flowOverrides as Record<string, unknown>).lender_routing
+  if (raw == null) return null
+  let parsed: unknown = raw
+  if (typeof raw === 'string') {
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      return null
+    }
+  }
+  if (!parsed || typeof parsed !== 'object') return null
+  const out: Record<string, number> = {}
+  for (const [id, amt] of Object.entries(parsed as Record<string, unknown>)) {
+    const n = Number(amt)
+    if (Number.isFinite(n) && n > 0) out[id] = n
+  }
+  return Object.keys(out).length > 0 ? out : null
 }
 
 /** Date the planner switches from paycheck-derived Robinhood to weekly
@@ -187,6 +230,7 @@ export function computeRow(
     coOverride,
     bofaOverride,
     robinhoodOverride,
+    lenderRouting,
     received,
   } = input
 
@@ -310,10 +354,29 @@ export function computeRow(
   // 17. Status - driven by the explicit `received` flag only.
   const status: 'Received' | 'Pending' = received ? 'Received' : 'Pending'
 
-  // 18. Cumulative Vault
+  // 18. Lender routing - portion of this row's vault contribution that Zelle's
+  //     to a friend instead of landing in Marcus. Never exceeds `vault`.
+  //     Individual amounts are floored to 0 and then the sum is clamped
+  //     against vault so a stale override can't ghost more money than the
+  //     paycheck actually vaults.
+  let lenderPayoutTotal = 0
+  const lenderPayouts: Record<string, number> = {}
+  if (lenderRouting && vault > 0) {
+    let remaining = vault
+    for (const [id, raw] of Object.entries(lenderRouting)) {
+      const amt = Math.max(0, Math.min(Number(raw) || 0, remaining))
+      if (amt <= 0) continue
+      lenderPayouts[id] = amt
+      lenderPayoutTotal += amt
+      remaining -= amt
+    }
+  }
+  const marcusVaultInflow = vault - lenderPayoutTotal
+
+  // 19. Cumulative Vault - only counts the portion that actually reaches Marcus.
   const cumulativeVault = Math.min(
     settings.vaultCap,
-    prevCumulative + extraDeposit + vault,
+    prevCumulative + extraDeposit + marcusVaultInflow,
   )
 
   return {
@@ -329,6 +392,8 @@ export function computeRow(
     buffer,
     status,
     cumulativeVault,
+    lenderPayoutTotal,
+    lenderPayouts,
   }
 }
 
@@ -583,9 +648,11 @@ export function computeAccountStates(
       // overflow to BofA by end of summer.
       fullSummer -= remainingExpectedBofaTransfer
     } else if (account.is_vault) {
-      // Vault account (Marcus HYSA): receives vault + extraDeposit each check.
+      // Vault account (Marcus HYSA): receives vault + extraDeposit each check,
+      // MINUS any portion the user routed to a lender (that money Zelle's
+      // straight from Chase to the friend and never lands here).
       for (const row of computed) {
-        const inflow = row.vault + row.extraDeposit
+        const inflow = row.vault + row.extraDeposit - row.lenderPayoutTotal
         fullSummer += inflow
         if (row.received) toDate += inflow
       }
@@ -704,7 +771,7 @@ export function summarize(
     totalBuffer += r.buffer
     if (r.received) {
       rowsReceived++
-      currentVault += r.vault + r.extraDeposit
+      currentVault += r.vault + r.extraDeposit - r.lenderPayoutTotal
       currentCO += r.co
       currentBuffer += r.buffer
     } else {

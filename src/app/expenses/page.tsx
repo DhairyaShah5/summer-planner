@@ -2,6 +2,7 @@ import { getViewerContext } from '@/lib/viewer-context'
 import {
   computeAll,
   CO_SURPLUS_SWEEP_KINDS,
+  parseLenderRouting,
   type Settings,
   type PaycheckInput,
   type Employer,
@@ -129,6 +130,7 @@ export default async function ExpensesPage() {
           overrides.robinhood_amount != null
             ? Number(overrides.robinhood_amount)
             : null,
+        lenderRouting: parseLenderRouting(p.flow_overrides),
         received: p.received,
       }
     })

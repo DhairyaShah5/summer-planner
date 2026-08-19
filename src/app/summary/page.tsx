@@ -7,6 +7,7 @@ import {
   RH_WEEKLY_CUTOVER,
   INTERNSHIP_END,
   CO_SURPLUS_SWEEP_KINDS,
+  parseLenderRouting,
   type AccountEntryInput,
   type AccountInput,
   type CCPaymentInput,
@@ -110,6 +111,7 @@ export default async function SummaryPage() {
       coOverride: ov.co_amount != null ? Number(ov.co_amount) : null,
       bofaOverride: ov.bofa_overflow != null ? Number(ov.bofa_overflow) : null,
       robinhoodOverride: ov.robinhood_amount != null ? Number(ov.robinhood_amount) : null,
+      lenderRouting: parseLenderRouting(p.flow_overrides),
       received: p.received,
     }
   })
