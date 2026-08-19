@@ -49,7 +49,6 @@ export function GoalReachedModal(props: Props) {
   const {
     open,
     cap,
-    current,
     paycheckContributions,
     daysUntilDeadline,
     deadlineISO,
@@ -208,7 +207,7 @@ export function GoalReachedModal(props: Props) {
                 size={12}
                 style={{ display: 'inline', verticalAlign: -1, marginRight: 6 }}
               />
-              Goal Reached
+              Tuition. Handled.
               <Sparkles
                 size={12}
                 style={{ display: 'inline', verticalAlign: -1, marginLeft: 6 }}
@@ -238,23 +237,33 @@ export function GoalReachedModal(props: Props) {
                 textAlign: 'center',
                 font: '500 15px var(--font-ui, var(--ui))',
                 color: 'rgba(250, 244, 230, 0.85)',
-                lineHeight: 1.5,
+                lineHeight: 1.55,
               }}
             >
-              You saved your full Fall 2026 tuition
+              Dear USC, please find {fmtMoney(cap)} attached.
               <br />
               <span style={{ color: 'rgba(250, 244, 230, 0.6)' }}>
-                by {deadline}
+                Earned in USD. Paid in USD. No loan officer, no cosigner, no
+                calls home.
+              </span>
+              <br />
+              <span
+                style={{
+                  color: 'rgba(250, 244, 230, 0.55)',
+                  fontSize: 13,
+                }}
+              >
+                Fall 2026 tuition, sorted by {deadline}
                 {daysUntilDeadline > 0 && (
                   <>
-                    {' '}
-                    ·{' '}
+                    .{' '}
                     <span style={{ color: '#f5c66b', fontWeight: 600 }}>
                       {daysUntilDeadline} day{daysUntilDeadline === 1 ? '' : 's'}{' '}
-                      ahead of schedule
+                      early because why not
                     </span>
                   </>
                 )}
+                .
               </span>
             </div>
 
@@ -266,11 +275,11 @@ export function GoalReachedModal(props: Props) {
                 gap: 10,
               }}
             >
-              <Stat label="Paychecks in" value={String(paycheckContributions)} />
               <Stat
-                label="Vault at goal"
-                value={fmtMoney(Math.max(current, cap))}
+                label="Checks cashed"
+                value={String(paycheckContributions)}
               />
+              <Stat label="Loans taken" value="$0" />
             </div>
 
             <motion.button
@@ -292,7 +301,7 @@ export function GoalReachedModal(props: Props) {
                 boxShadow: '0 10px 30px rgba(212, 161, 74, 0.4)',
               }}
             >
-              Take me back
+              OK, enough flexing
             </motion.button>
           </motion.div>
           <style>{`
