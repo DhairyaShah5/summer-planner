@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import { fmtMoney } from '@/components/redesign'
 import { setPaycheckLenderRouting } from '@/app/accounts/flow-override-actions'
+import { syncLenderBalances } from './lender-sync-actions'
 
 export interface LenderOption {
   id: string
@@ -74,6 +75,10 @@ export function LenderRoutingButton({
         toast.error(result.error ?? 'Failed to save routing')
         return
       }
+      // Routing edit shifts the paid-back total, so re-derive each lender's
+      // outstanding immediately. Silent failure is fine here — a stale
+      // outstanding is a visual issue, not a data-loss issue.
+      await syncLenderBalances()
       toast.success(
         Object.keys(cleaned).length === 0
           ? 'Routing cleared'

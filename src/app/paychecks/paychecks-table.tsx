@@ -46,6 +46,7 @@ import {
   LenderRoutingButton,
   type LenderOption,
 } from './lender-routing-dialog'
+import { syncLenderBalances } from './lender-sync-actions'
 
 export type PaycheckRow = {
   id: string
@@ -305,6 +306,13 @@ export function PaychecksTable({
         .eq('id', id)
         .eq('user_id', user.id)
       if (error) throw error
+      // Any received-flag change (and cheap enough to run on every save) may
+      // shift lender debt: a routed paycheck being (un)checked pays down /
+      // reopens the friend's balance. Idempotent server action only writes
+      // rows that actually move, so quiet saves are a no-op there.
+      if (lenders.length > 0) {
+        await syncLenderBalances()
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['paychecks'] })
