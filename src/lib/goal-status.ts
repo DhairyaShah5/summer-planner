@@ -30,7 +30,7 @@ export type GoalStatus = {
   lenderOutstandingTotal: number
 }
 
-const DEADLINE_ISO = '2026-09-02'
+const DEADLINE_ISO = '2026-08-21'
 
 const EMPTY_STATUS: GoalStatus = {
   isReached: false,
