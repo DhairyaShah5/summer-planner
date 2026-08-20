@@ -22,11 +22,17 @@ export type GoalStatus = {
   paycheckContributions: number
   deadlineISO: string
   todayISO: string
-  daysUntilDeadline: number
+  /** Days between the tuition deadline and the date the vault physically
+   *  first crossed the cap. Positive = early. Used by the celebration modal
+   *  as "N days before USC came knocking." */
+  daysAheadOfDeadline: number
+  /** ISO date the vault first crossed the cap. Null if not yet reached. */
+  goalReachedISO: string | null
   internshipEndISO: string
-  /** Total money still owed to lenders. Reduces `current` and gates
-   *  Mission Accomplished so the celebration can't fire while there's a
-   *  friend still to pay back. */
+  /** Total money still owed to lenders. Shown on the dashboard as a
+   *  separate ledger item — does NOT reduce the vault or gate the
+   *  celebration (the vault is Marcus's physical balance; debt is a
+   *  parallel obligation the user pays back from future paychecks). */
   lenderOutstandingTotal: number
 }
 
@@ -41,7 +47,8 @@ const EMPTY_STATUS: GoalStatus = {
   paycheckContributions: 0,
   deadlineISO: DEADLINE_ISO,
   todayISO: DEADLINE_ISO,
-  daysUntilDeadline: 0,
+  daysAheadOfDeadline: 0,
+  goalReachedISO: null,
   internshipEndISO: INTERNSHIP_END,
   lenderOutstandingTotal: 0,
 }
@@ -69,10 +76,10 @@ export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
         .order('pay_num', { ascending: true }),
       supabase
         .from('transfers')
-        .select('to_account_id, from_account_id, amount, kind'),
+        .select('to_account_id, from_account_id, amount, kind, transferred_at'),
       supabase
         .from('account_entries')
-        .select('account_id, amount'),
+        .select('account_id, amount, dated_at'),
       supabase.from('lenders').select('outstanding'),
     ])
 
@@ -110,6 +117,13 @@ export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
       nttVaultDefault: Number(settingsRow.ntt_vault_default),
     }
 
+    // Marcus events by date, used to figure out when the vault physically
+    // first crossed the cap. Each event: { date, amount signed }. Includes
+    // arrival balance (dated at the earliest event so it seeds the walk),
+    // transfers in/out, free-form entries, and each received paycheck's
+    // Marcus-bound inflow (vault - lenderPayoutTotal + extraDeposit).
+    const marcusEvents: Array<{ date: string; amount: number }> = []
+
     let externalVaultBalance = 0
     let externalVaultPlanSeed = 0
     for (const t of transfersRes.data ?? []) {
@@ -121,14 +135,20 @@ export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
       externalVaultBalance += signed
       if (!CO_SURPLUS_SWEEP_KINDS.has(t.kind))
         externalVaultPlanSeed += signed
+      if (t.transferred_at)
+        marcusEvents.push({ date: t.transferred_at, amount: signed })
     }
 
     // Free-form Marcus entries (e.g. manual BofA fee-vault sweep) are neither
     // paycheck-driven nor transfers, so they'd be invisible to summarize().
     // Fold them in so goal-status matches the dashboard + Accounts page.
-    const vaultEntriesTotal = (entriesRes.data ?? [])
-      .filter((e) => e.account_id === vaultAcct.id)
-      .reduce((s, e) => s + Number(e.amount), 0)
+    let vaultEntriesTotal = 0
+    for (const e of entriesRes.data ?? []) {
+      if (e.account_id !== vaultAcct.id) continue
+      const amt = Number(e.amount)
+      vaultEntriesTotal += amt
+      if (e.dated_at) marcusEvents.push({ date: e.dated_at, amount: amt })
+    }
 
     const paycheckInputs: PaycheckInput[] = (paychecksRes.data ?? []).map(
       (p) => {
@@ -171,52 +191,73 @@ export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
     const computed = computeAll(paycheckInputs, settings, externalVaultPlanSeed)
     const totals = summarize(computed, settings)
 
-    // Subtract lender debt: money in Marcus that was borrowed isn't really
-    // "saved" until the friend is paid back. Clamp at 0 so a settings glitch
-    // (e.g. leftover outstanding after vault was drained) doesn't render a
-    // nonsense negative goal.
+    // Fold each received paycheck's Marcus-bound inflow into the event list,
+    // then figure out when the running Marcus balance first hit the cap.
+    // Routed vault money (lenderPayoutTotal) is excluded — that money Zelle's
+    // straight to a friend and never grows Marcus.
+    for (const r of computed) {
+      if (!r.received) continue
+      const marcusInflow = r.vault + r.extraDeposit - (r.lenderPayoutTotal ?? 0)
+      if (marcusInflow === 0) continue
+      const dateISO =
+        typeof r.payDate === 'string'
+          ? r.payDate
+          : (r.payDate as Date).toISOString().slice(0, 10)
+      marcusEvents.push({ date: dateISO, amount: marcusInflow })
+    }
+    marcusEvents.sort((a, b) => a.date.localeCompare(b.date))
+    let goalReachedISO: string | null = null
+    {
+      let running = Number(vaultAcct.arrival_balance ?? 0)
+      const cap = settings.vaultCap
+      if (cap > 0 && running + 0.005 >= cap) {
+        // Already at cap from arrival; use the earliest event date we have,
+        // or fall back to today. This is an odd edge case, not the norm.
+        goalReachedISO = marcusEvents[0]?.date ?? todayInUserTz()
+      } else {
+        for (const e of marcusEvents) {
+          running += e.amount
+          if (cap > 0 && running + 0.005 >= cap) {
+            goalReachedISO = e.date
+            break
+          }
+        }
+      }
+    }
+
+    // Vault = Marcus's physical balance. Debt is a parallel obligation
+    // tracked separately (Money Owed card on the dashboard); it does NOT
+    // reduce the vault progress. The vault goal is a savings milestone;
+    // paying back friends is a downstream ledger event.
     const rawCurrent =
       totals.currentVault + externalVaultBalance + vaultEntriesTotal
     const rawProjected =
       totals.totalVault + externalVaultBalance + vaultEntriesTotal
-    const currentVault = Math.max(
-      0,
-      Math.min(settings.vaultCap, rawCurrent) - lenderOutstandingTotal,
-    )
-    // Projected debt: subtract what pending routed paychecks will pay off,
-    // so the projected number reflects the plan (not the frozen present).
-    const projectedFutureRoutedTotal = computed.reduce(
-      (s, r) => (r.received ? s : s + (r.lenderPayoutTotal ?? 0)),
-      0,
-    )
-    const projectedOutstanding = Math.max(
-      0,
-      lenderOutstandingTotal - projectedFutureRoutedTotal,
-    )
-    const projected = Math.max(
-      0,
-      Math.min(settings.vaultCap, rawProjected) - projectedOutstanding,
-    )
+    const currentVault = Math.min(settings.vaultCap, rawCurrent)
+    const projected = Math.min(settings.vaultCap, rawProjected)
 
     const paycheckContributions = paycheckInputs.filter((p) => p.received).length
     const todayISO = todayInUserTz()
     const msPerDay = 1000 * 60 * 60 * 24
-    const daysUntilDeadline = Math.max(
-      0,
-      Math.round(
-        (new Date(DEADLINE_ISO).getTime() - new Date(todayISO).getTime()) /
-          msPerDay,
-      ),
-    )
+    // "Days ahead of deadline" is measured from the date the vault first
+    // hit cap, NOT from today. So if the vault was full on Aug 18 and the
+    // deadline is Aug 21, the celebration reads "3 days early" no matter
+    // when the user actually opens the modal.
+    const daysAheadOfDeadline = goalReachedISO
+      ? Math.max(
+          0,
+          Math.round(
+            (new Date(DEADLINE_ISO).getTime() -
+              new Date(goalReachedISO).getTime()) /
+              msPerDay,
+          ),
+        )
+      : 0
 
-    // isReached requires BOTH cap-full AND no lender debt outstanding, so
-    // Mission Accomplished can't fire on borrowed money still sitting in
-    // Marcus. lenderOutstandingTotal is already baked into currentVault, but
-    // gate explicitly for clarity in case the max(0, ...) clamp masked it.
+    // isReached tracks Marcus's physical balance vs the cap. Debt is a
+    // parallel ledger and does NOT gate the celebration.
     const isReached =
-      settings.vaultCap > 0 &&
-      currentVault + 0.005 >= settings.vaultCap &&
-      lenderOutstandingTotal < 0.005
+      settings.vaultCap > 0 && currentVault + 0.005 >= settings.vaultCap
     const isRetired = isReached && todayISO > INTERNSHIP_END
     return {
       isReached,
@@ -227,7 +268,8 @@ export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
       paycheckContributions,
       deadlineISO: DEADLINE_ISO,
       todayISO,
-      daysUntilDeadline,
+      daysAheadOfDeadline,
+      goalReachedISO,
       internshipEndISO: INTERNSHIP_END,
       lenderOutstandingTotal,
     }

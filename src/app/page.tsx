@@ -180,10 +180,6 @@ export default async function DashboardPage() {
         principal: Number(l.principal ?? 0),
         outstanding: Number(l.outstanding ?? 0),
       }));
-  const lenderOutstandingTotal = lenders.reduce(
-    (s, l) => s + l.outstanding,
-    0,
-  );
 
   const recentExpenses: Expense[] = (recentExpensesRes.data ?? []).map((e) => ({
     id: e.id,
@@ -494,14 +490,16 @@ export default async function DashboardPage() {
     );
   }
 
-  // Raw vault (Marcus balance-derived) — what physically sits in Marcus. Used
-  // for cap arithmetic and display continuity so the tile still reads $24k
-  // even when part of it is borrowed money.
-  const rawCurrentVault = Math.min(
+  // Vault progress = Marcus's physical balance. Debt to friends is a parallel
+  // ledger item shown separately (Money Owed card); it does NOT reduce the
+  // vault. Reaching cap fires the celebration on the day it physically
+  // happens; friend repayments are downstream events the user handles via
+  // routed paychecks.
+  const currentVaultWithSweeps = Math.min(
     settings.vaultCap,
     totals.currentVault + externalVaultBalance + vaultEntriesToDate,
   );
-  const rawProjectedVault = Math.min(
+  const projectedTotalVaultWithSweeps = Math.min(
     settings.vaultCap,
     Math.max(
       projectedVaultPerRow[projectedVaultPerRow.length - 1] ?? 0,
@@ -510,30 +508,6 @@ export default async function DashboardPage() {
         coSurplusTotal +
         vaultEntriesTotal,
     ),
-  );
-  // "True" vault subtracts outstanding lender debt so the goal tile + Mission
-  // Accomplished can't fire on money still owed to a friend. Clamp at 0 so a
-  // stale row (outstanding > vault) doesn't render a negative goal.
-  const currentVaultWithSweeps = Math.max(
-    0,
-    rawCurrentVault - lenderOutstandingTotal,
-  );
-  // Projected debt: subtract what future (still-pending) routed paychecks
-  // will pay off. If the routing plan covers today's outstanding, projected
-  // debt is $0 and the projected tile shows the full cap. Without this the
-  // projection stays pinned at (raw - currentOutstanding) even when the
-  // plan already accounts for every dollar owed.
-  const projectedFutureRoutedTotal = computed.reduce(
-    (s, r) => (r.received ? s : s + (r.lenderPayoutTotal ?? 0)),
-    0,
-  );
-  const projectedOutstandingTotal = Math.max(
-    0,
-    lenderOutstandingTotal - projectedFutureRoutedTotal,
-  );
-  const projectedTotalVaultWithSweeps = Math.max(
-    0,
-    rawProjectedVault - projectedOutstandingTotal,
   );
 
   const vaultPct =

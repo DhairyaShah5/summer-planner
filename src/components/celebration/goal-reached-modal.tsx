@@ -12,7 +12,10 @@ type Props = {
   cap: number
   current: number
   paycheckContributions: number
-  daysUntilDeadline: number
+  /** Days between goalReachedISO and deadlineISO (positive = early). */
+  daysAheadOfDeadline: number
+  /** Date the vault physically first crossed cap. */
+  goalReachedISO: string | null
   deadlineISO: string
   onClose: () => void
   /** True when triggered manually via the "Replay" button in settings.
@@ -50,7 +53,8 @@ export function GoalReachedModal(props: Props) {
     open,
     cap,
     paycheckContributions,
-    daysUntilDeadline,
+    daysAheadOfDeadline,
+    goalReachedISO,
     deadlineISO,
     onClose,
   } = props
@@ -73,6 +77,17 @@ export function GoalReachedModal(props: Props) {
         year: 'numeric',
       }),
     [deadlineISO],
+  )
+  const reachedDate = useMemo(
+    () =>
+      goalReachedISO
+        ? new Date(goalReachedISO + 'T12:00:00').toLocaleDateString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          })
+        : null,
+    [goalReachedISO],
   )
 
   useEffect(() => {
@@ -258,13 +273,15 @@ export function GoalReachedModal(props: Props) {
                   fontSize: 13,
                 }}
               >
-                Fall 2026 tuition, funded by {deadline}
-                {daysUntilDeadline > 0 && (
+                Vault filled {reachedDate ? `on ${reachedDate}` : 'in time'}.
+                Fees due {deadline}
+                {daysAheadOfDeadline > 0 && (
                   <>
                     .{' '}
                     <span style={{ color: '#f5c66b', fontWeight: 600 }}>
-                      {daysUntilDeadline} day{daysUntilDeadline === 1 ? '' : 's'}{' '}
-                      before USC came knocking
+                      {daysAheadOfDeadline} day
+                      {daysAheadOfDeadline === 1 ? '' : 's'} before USC came
+                      knocking
                     </span>
                   </>
                 )}

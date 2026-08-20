@@ -101,7 +101,8 @@ function CelebrationEffects() {
       cap={status.cap}
       current={status.current}
       paycheckContributions={status.paycheckContributions}
-      daysUntilDeadline={status.daysUntilDeadline}
+      daysAheadOfDeadline={status.daysAheadOfDeadline}
+      goalReachedISO={status.goalReachedISO}
       deadlineISO={status.deadlineISO}
       onClose={onClose}
     />
