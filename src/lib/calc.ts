@@ -309,25 +309,59 @@ export function computeRow(
     Math.max(0, baseNet - rentPaid - robinhood),
   )
 
-  // 12. Vault cap room
-  const vaultCapRoom = Math.max(
+  // 12. Lender routing (sanitize FIRST). Routing money Zelle's from Chase
+  //     straight to a friend and NEVER lands in Marcus, so it bypasses the
+  //     Marcus cap room entirely — otherwise a nearly-full Marcus would
+  //     ghost the routing plan the user set up. Clamped only by
+  //     vaultAvailable (Chase actually has to be able to spare it).
+  let lenderPayoutTotal = 0
+  const lenderPayouts: Record<string, number> = {}
+  if (lenderRouting) {
+    let remaining = vaultAvailable
+    for (const [id, raw] of Object.entries(lenderRouting)) {
+      const amt = Math.max(0, Math.min(Number(raw) || 0, remaining))
+      if (amt <= 0) continue
+      lenderPayouts[id] = amt
+      lenderPayoutTotal += amt
+      remaining -= amt
+    }
+  }
+
+  // 13. Marcus cap room bounds ONLY the portion of vault landing in Marcus.
+  const marcusCapRoom = Math.max(
     0,
     settings.vaultCap - prevCumulative - extraDeposit,
   )
 
-  // 13. Vault - pick the most restrictive limit, then floor100 for override safety
-  const vault = floor100(Math.min(vaultTarget, vaultAvailable, vaultCapRoom))
+  // 14. Marcus-bound portion: whatever vault target is left after routing,
+  //     clamped by Marcus cap room and remaining Chase availability.
+  const marcusInflow = floor100(
+    Math.max(
+      0,
+      Math.min(
+        vaultTarget - lenderPayoutTotal,
+        vaultAvailable - lenderPayoutTotal,
+        marcusCapRoom,
+      ),
+    ),
+  )
 
-  // 14. CO Spend - what's left of usableNet after vault/rent/RH, floored
+  // 15. Displayed vault = total savings-purposed Chase outflow (Marcus + lenders).
+  //     Both leave Chase together so the ledger shows them as one column;
+  //     downstream, only marcusInflow grows Marcus (see cumulativeVault +
+  //     computeAccountStates).
+  const vault = marcusInflow + lenderPayoutTotal
+
+  // 16. CO Spend - what's left of usableNet after vault/rent/RH, floored
   //     to $100. Per diem is NOT included here - it's pure savings overflow,
-  //     not a CO budget booster (see step 15). coOverride locks the amount
+  //     not a CO budget booster (see step 17). coOverride locks the amount
   //     when set (freezes the CO plan against future netPct drift).
   const co =
     coOverride != null
       ? Math.max(0, coOverride)
       : floor100(Math.max(0, usableNet - vault - rentPaid - robinhood))
 
-  // 15. BofA overflow - OT-driven excess (floored to $100) plus the full
+  // 17. BofA overflow - OT-driven excess (floored to $100) plus the full
   //     per diem amount (untouched, since per diem lands as a clean
   //     daily-rate multiple and isn't subject to the $100 wage rounding).
   //     Both pass through Chase and land in BofA the same day the paycheck
@@ -339,7 +373,7 @@ export function computeRow(
       ? Math.max(0, bofaOverride)
       : floor100(excess) + perDiem
 
-  // 16. Buffer - the sub-$100 wage remainder that stays in Chase from this
+  // 18. Buffer - the sub-$100 wage remainder that stays in Chase from this
   //     paycheck once all planned transfers clear. Per diem nets to zero
   //     (added as income, fully removed via bofaOverflow). Reimbursement is
   //     EXCLUDED — it's a pass-through inflow earmarked for the fronted
@@ -351,32 +385,13 @@ export function computeRow(
   const buffer =
     baseNet + perDiem - vault - rentPaid - robinhood - co - bofaOverflow
 
-  // 17. Status - driven by the explicit `received` flag only.
+  // 19. Status - driven by the explicit `received` flag only.
   const status: 'Received' | 'Pending' = received ? 'Received' : 'Pending'
 
-  // 18. Lender routing - portion of this row's vault contribution that Zelle's
-  //     to a friend instead of landing in Marcus. Never exceeds `vault`.
-  //     Individual amounts are floored to 0 and then the sum is clamped
-  //     against vault so a stale override can't ghost more money than the
-  //     paycheck actually vaults.
-  let lenderPayoutTotal = 0
-  const lenderPayouts: Record<string, number> = {}
-  if (lenderRouting && vault > 0) {
-    let remaining = vault
-    for (const [id, raw] of Object.entries(lenderRouting)) {
-      const amt = Math.max(0, Math.min(Number(raw) || 0, remaining))
-      if (amt <= 0) continue
-      lenderPayouts[id] = amt
-      lenderPayoutTotal += amt
-      remaining -= amt
-    }
-  }
-  const marcusVaultInflow = vault - lenderPayoutTotal
-
-  // 19. Cumulative Vault - only counts the portion that actually reaches Marcus.
+  // 20. Cumulative Vault - only counts the portion actually reaching Marcus.
   const cumulativeVault = Math.min(
     settings.vaultCap,
-    prevCumulative + extraDeposit + marcusVaultInflow,
+    prevCumulative + extraDeposit + marcusInflow,
   )
 
   return {

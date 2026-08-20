@@ -183,9 +183,19 @@ export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
       0,
       Math.min(settings.vaultCap, rawCurrent) - lenderOutstandingTotal,
     )
+    // Projected debt: subtract what pending routed paychecks will pay off,
+    // so the projected number reflects the plan (not the frozen present).
+    const projectedFutureRoutedTotal = computed.reduce(
+      (s, r) => (r.received ? s : s + (r.lenderPayoutTotal ?? 0)),
+      0,
+    )
+    const projectedOutstanding = Math.max(
+      0,
+      lenderOutstandingTotal - projectedFutureRoutedTotal,
+    )
     const projected = Math.max(
       0,
-      Math.min(settings.vaultCap, rawProjected) - lenderOutstandingTotal,
+      Math.min(settings.vaultCap, rawProjected) - projectedOutstanding,
     )
 
     const paycheckContributions = paycheckInputs.filter((p) => p.received).length

@@ -518,9 +518,22 @@ export default async function DashboardPage() {
     0,
     rawCurrentVault - lenderOutstandingTotal,
   );
+  // Projected debt: subtract what future (still-pending) routed paychecks
+  // will pay off. If the routing plan covers today's outstanding, projected
+  // debt is $0 and the projected tile shows the full cap. Without this the
+  // projection stays pinned at (raw - currentOutstanding) even when the
+  // plan already accounts for every dollar owed.
+  const projectedFutureRoutedTotal = computed.reduce(
+    (s, r) => (r.received ? s : s + (r.lenderPayoutTotal ?? 0)),
+    0,
+  );
+  const projectedOutstandingTotal = Math.max(
+    0,
+    lenderOutstandingTotal - projectedFutureRoutedTotal,
+  );
   const projectedTotalVaultWithSweeps = Math.max(
     0,
-    rawProjectedVault - lenderOutstandingTotal,
+    rawProjectedVault - projectedOutstandingTotal,
   );
 
   const vaultPct =
