@@ -254,10 +254,15 @@ export const getGoalStatus = cache(async (): Promise<GoalStatus> => {
         )
       : 0
 
-    // isReached tracks Marcus's physical balance vs the cap. Debt is a
-    // parallel ledger and does NOT gate the celebration.
-    const isReached =
+    // isReached fires when Marcus is full AND no debt is outstanding. The
+    // vault tile shows the raw $24k regardless (debt is a parallel ledger,
+    // not a vault deduction), but the celebration is the "you actually got
+    // there" moment, which only makes sense once the friends who bridged
+    // the tuition deadline have been squared up.
+    const vaultFull =
       settings.vaultCap > 0 && currentVault + 0.005 >= settings.vaultCap
+    const debtClear = lenderOutstandingTotal < 0.005
+    const isReached = vaultFull && debtClear
     const isRetired = isReached && todayISO > INTERNSHIP_END
     return {
       isReached,
