@@ -35,6 +35,7 @@ export default async function AccountsPage() {
     ccPaymentsRes,
     transfersRes,
     accountEntriesRes,
+    lendersRes,
   ] = await Promise.all([
     supabase
       .from('accounts')
@@ -63,6 +64,7 @@ export default async function AccountsPage() {
         'id, account_id, dated_at, amount, description, category, note, created_at',
       )
       .order('dated_at', { ascending: true }),
+    supabase.from('lenders').select('id, name'),
   ])
 
   if (accountsRes.error) throw accountsRes.error
@@ -72,6 +74,12 @@ export default async function AccountsPage() {
   if (ccPaymentsRes.error) throw ccPaymentsRes.error
   if (transfersRes.error) throw transfersRes.error
   if (accountEntriesRes.error) throw accountEntriesRes.error
+  // Lenders table may not exist yet (migration pending). Fall back to no
+  // known lenders — ledger will just render the vault outflow as HYSA-bound.
+  const lenderNameById = new Map<string, string>()
+  for (const l of lendersRes.error ? [] : (lendersRes.data ?? [])) {
+    lenderNameById.set(l.id, l.name)
+  }
 
   const accounts: AccountInput[] = (accountsRes.data ?? []).map((a) => ({
     id: a.id,
@@ -251,6 +259,13 @@ export default async function AccountsPage() {
   // inflows/outflows without redoing the allocation math client-side.
   const paycheckRows = computeAll(paychecks, settings, initialVaultSeed).map((r) => {
     const meta = paycheckMetaByPayNum.get(r.payNum)
+    const lenderPayouts = Object.entries(r.lenderPayouts)
+      .filter(([, amount]) => amount > 0)
+      .map(([id, amount]) => ({
+        id,
+        name: lenderNameById.get(id) ?? 'lender',
+        amount,
+      }))
     return {
       id: meta?.id ?? '',
       payNum: r.payNum,
@@ -269,6 +284,8 @@ export default async function AccountsPage() {
       bofaOverflow: r.bofaOverflow,
       received: r.received,
       flow_overrides: meta?.flow_overrides ?? {},
+      lenderPayouts,
+      lenderPayoutTotal: r.lenderPayoutTotal,
     }
   })
 

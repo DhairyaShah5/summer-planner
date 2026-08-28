@@ -158,6 +158,12 @@ export interface PaycheckRow {
   bofaOverflow: number
   received: boolean
   flow_overrides: Record<string, string>
+  /** Portion of `vault` routed to friends on this paycheck instead of
+   *  Marcus. The Chase ledger shows one Zelle outflow per lender; the
+   *  Marcus ledger subtracts the total so only the actual HYSA deposit
+   *  shows as an inflow. */
+  lenderPayouts: Array<{ id: string; name: string; amount: number }>
+  lenderPayoutTotal: number
 }
 
 /** Source kind for a derived ledger entry. Drives pill color + delete control.
@@ -653,16 +659,35 @@ export function AccountsList({
         }
         if (p.vault > 0) {
           const vaultOverride = p.flow_overrides.vault
-          items.push({
-            key: `pay-vault-${p.payNum}`,
-            date: vaultOverride ?? p.payDate,
-            source: 'vault_transfer',
-            description: 'Vault transfer to HYSA',
-            amount: -p.vault,
-            paycheckId: p.id,
-            overrideKind: 'vault',
-            hasOverride: Boolean(vaultOverride),
-          })
+          // Split off any lender routing first. Those dollars leave Chase
+          // straight to the friend via Zelle and never touch Marcus, so
+          // they render as separate outflows and reduce the HYSA row.
+          for (const lp of p.lenderPayouts) {
+            if (lp.amount <= 0) continue
+            items.push({
+              key: `pay-vault-lender-${p.payNum}-${lp.id}`,
+              date: vaultOverride ?? p.payDate,
+              source: 'vault_transfer',
+              description: `Zelle to ${lp.name} (loan payback)`,
+              amount: -lp.amount,
+              paycheckId: p.id,
+              overrideKind: 'vault',
+              hasOverride: Boolean(vaultOverride),
+            })
+          }
+          const marcusPortion = p.vault - p.lenderPayoutTotal
+          if (marcusPortion > 0) {
+            items.push({
+              key: `pay-vault-${p.payNum}`,
+              date: vaultOverride ?? p.payDate,
+              source: 'vault_transfer',
+              description: 'Vault transfer to HYSA',
+              amount: -marcusPortion,
+              paycheckId: p.id,
+              overrideKind: 'vault',
+              hasOverride: Boolean(vaultOverride),
+            })
+          }
         }
         if (p.rentPaid > 0) {
           const rentOverride = p.flow_overrides.rent
@@ -745,7 +770,10 @@ export function AccountsList({
     } else if (isVault) {
       for (const p of paycheckRows) {
         if (!p.received) continue
-        const inflow = p.vault + p.extraDeposit
+        // Routed money Zelles Chase→friend directly, so exclude it from the
+        // Marcus inflow. Only the residual (plus any extra external deposit)
+        // physically lands in the HYSA.
+        const inflow = p.vault + p.extraDeposit - p.lenderPayoutTotal
         if (inflow > 0) {
           // Vault inflows on the HYSA mirror the Chase-side outflow date so
           // the override applied on the Chase side propagates here too.
